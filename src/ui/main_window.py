@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea)
 from PyQt5.QtCore import Qt, QSize, QTimer
-from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent
+from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage
 
 # 导入自定义模块
 import sys
@@ -369,9 +369,20 @@ class MainWindow(QMainWindow):
                     preview_size=(800, 600)  # 预览尺寸
                 )
                 
-                # 转换为QPixmap
-                from PIL.ImageQt import ImageQt
-                qimage = ImageQt(preview_image)
+                # 转换为QPixmap - 使用更可靠的方法
+                # 先将PIL Image转换为RGB模式，然后转换为bytes，再创建QImage
+                if preview_image.mode != 'RGB':
+                    preview_image = preview_image.convert('RGB')
+                
+                # 将PIL Image转换为bytes
+                import io
+                img_byte_arr = io.BytesIO()
+                preview_image.save(img_byte_arr, format='PNG')
+                img_byte_arr = img_byte_arr.getvalue()
+                
+                # 从bytes创建QImage，然后转换为QPixmap
+                qimage = QImage()
+                qimage.loadFromData(img_byte_arr)
                 pixmap = QPixmap.fromImage(qimage)
             else:
                 # 没有水印文本，直接使用原始图片
