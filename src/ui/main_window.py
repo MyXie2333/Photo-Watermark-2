@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea)
 from PyQt5.QtCore import Qt, QSize, QTimer
-from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage
+from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage, QColor
 
 # 导入自定义模块
 import sys
@@ -20,6 +20,7 @@ try:
     from image_manager import ImageManager
     from ui.image_list_widget import ImageListWidget
     from watermark_renderer import WatermarkRenderer
+    from config_manager import ConfigManager
 except ImportError as e:
     print(f"导入错误: {e}")
     print("当前Python路径:", sys.path)
@@ -34,6 +35,9 @@ class MainWindow(QMainWindow):
         
         # 初始化图片管理器
         self.image_manager = ImageManager()
+        
+        # 初始化配置管理器
+        self.config_manager = ConfigManager()
         
         # 初始化水印渲染器
         self.watermark_renderer = WatermarkRenderer()
@@ -315,6 +319,7 @@ class MainWindow(QMainWindow):
         
         # 水印设置信号连接
         self.text_watermark_widget.watermark_changed.connect(self.on_watermark_changed)
+        self.text_watermark_widget.set_default_watermark.connect(self.on_set_default_watermark)
         
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
@@ -338,8 +343,43 @@ class MainWindow(QMainWindow):
             # 将水印设置保存到当前图片
             self.image_manager.set_watermark_settings(current_image_path, watermark_settings)
             
+            # 更新全局水印设置为当前水印设置
+            # 需要将QColor对象转换为字符串格式，以便JSON序列化
+            config_watermark_settings = watermark_settings.copy()
+            if isinstance(config_watermark_settings.get('color'), QColor):
+                config_watermark_settings['color'] = config_watermark_settings['color'].name()
+            
+            self.config_manager.set_watermark_defaults(config_watermark_settings)
+            
             # 更新预览
             self.update_preview_with_watermark()
+            
+    def on_set_default_watermark(self):
+        """为当前图片设置默认水印"""
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
+            # 获取当前图片的水印设置
+            current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
+            
+            # 如果当前图片没有水印设置，则为其设置默认水印
+            if not current_watermark_settings:
+                # 获取全局默认水印设置
+                global_default_settings = self.config_manager.get_watermark_defaults()
+                
+                # 将颜色字符串转换为QColor对象
+                if "color" in global_default_settings and isinstance(global_default_settings["color"], str):
+                    global_default_settings["color"] = QColor(global_default_settings["color"])
+                
+                # 为当前图片设置默认水印
+                self.image_manager.set_watermark_settings(current_image_path, global_default_settings)
+                
+                # 更新文本水印组件显示当前图片的水印设置（正常样式）
+                self.text_watermark_widget.set_watermark_settings(global_default_settings)
+                
+                # 更新预览
+                self.update_preview_with_watermark()
+                
+                print(f"为图片设置默认水印: {current_image_path}")
             
     def update_preview_with_watermark(self):
         """统一的图片预览方法 - 使用当前图片的水印设置进行预览"""
@@ -565,11 +605,17 @@ class MainWindow(QMainWindow):
             
             # 更新文本水印组件显示当前图片的水印设置
             if current_watermark_settings:
+                # 如果当前图片有水印设置，显示该图片特定的水印
                 self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
             else:
-                # 如果当前图片没有水印设置，使用默认设置
-                default_settings = self.text_watermark_widget.get_watermark_settings()
-                self.text_watermark_widget.set_watermark_settings(default_settings)
+                # 如果当前图片没有水印设置，显示灰色的全局默认水印
+                global_default_settings = self.config_manager.get_watermark_defaults()
+                # 将颜色字符串转换为QColor对象
+                if "color" in global_default_settings and isinstance(global_default_settings["color"], str):
+                    global_default_settings["color"] = QColor(global_default_settings["color"])
+                
+                # 设置全局默认水印，但显示为灰色占位样式
+                self.text_watermark_widget.set_watermark_settings_with_placeholder_style(global_default_settings)
             
             # 获取当前图片的缩放比例设置
             saved_scale = self.image_manager.get_scale_settings(current_image_path)

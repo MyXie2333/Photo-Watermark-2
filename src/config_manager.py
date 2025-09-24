@@ -38,7 +38,7 @@ class ConfigManager:
             "window_geometry": None,    # 窗口几何信息
             "recent_files": [],          # 最近打开的文件
             "watermark_defaults": {      # 水印默认设置
-                "text": "Watermark",
+                "text": "",  # 空字符串，不显示默认水印文本
                 "font_family": "Arial",
                 "font_size": 24,
                 "color": "#FFFFFF",

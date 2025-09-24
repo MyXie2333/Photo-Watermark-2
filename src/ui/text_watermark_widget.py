@@ -16,12 +16,13 @@ class TextWatermarkWidget(QWidget):
     
     # 信号：水印设置发生变化
     watermark_changed = pyqtSignal()
+    set_default_watermark = pyqtSignal()
     
     def __init__(self):
         super().__init__()
         
         # 默认水印设置
-        self.watermark_text = "Watermark"
+        self.watermark_text = ""  # 空字符串，不显示默认水印文本
         self.font_family = "Arial"
         self.font_size = 24
         self.font_color = QColor(255, 255, 255)  # 白色
@@ -44,9 +45,48 @@ class TextWatermarkWidget(QWidget):
         
         # 水印文本
         text_layout.addWidget(QLabel("水印文本:"), 0, 0)
+        
+        # 创建水印文本输入框和清除按钮的布局
+        text_input_layout = QHBoxLayout()
         self.text_input = QLineEdit(self.watermark_text)
         self.text_input.setPlaceholderText("请输入水印文本")
-        text_layout.addWidget(self.text_input, 0, 1)
+        # 设置初始样式：灰色文本
+        self.text_input.setStyleSheet("""
+            QLineEdit {
+                color: #999;
+                font-style: italic;
+            }
+            QLineEdit:focus {
+                color: #000;
+                font-style: normal;
+            }
+        """)
+        text_input_layout.addWidget(self.text_input)
+        
+        # 添加清除按钮（小叉）
+        self.clear_button = QPushButton("×")
+        self.clear_button.setFixedSize(30, 30)
+        self.clear_button.setToolTip("清空水印文本")
+        self.clear_button.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                font-weight: bold;
+                color: #666;
+                background-color: #f0f0f0;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+                color: #333;
+            }
+            QPushButton:pressed {
+                background-color: #d0d0d0;
+            }
+        """)
+        text_input_layout.addWidget(self.clear_button)
+        
+        text_layout.addLayout(text_input_layout, 0, 1)
         
         # 字体设置
         text_layout.addWidget(QLabel("字体:"), 1, 0)
@@ -180,6 +220,9 @@ class TextWatermarkWidget(QWidget):
         self.text_input.textChanged.connect(self.on_text_changed)
         self.font_combo.currentTextChanged.connect(self.on_font_changed)
         self.font_size_spin.valueChanged.connect(self.on_font_size_changed)
+        self.clear_button.clicked.connect(self.on_clear_clicked)
+        self.text_input.textChanged.connect(self.on_text_changed)
+        self.text_input.installEventFilter(self)
         
         # 样式设置
         self.color_button.clicked.connect(self.on_color_clicked)
@@ -200,9 +243,69 @@ class TextWatermarkWidget(QWidget):
         self.preview_button.clicked.connect(self.on_preview_clicked)
         self.apply_button.clicked.connect(self.on_apply_clicked)
         
+    def eventFilter(self, obj, event):
+        """事件过滤器处理焦点事件"""
+        if obj == self.text_input:
+            if event.type() == event.FocusIn:
+                # 获得焦点时检查当前是否显示的是全局默认水印（灰色样式）
+                if self.text_input.styleSheet() and "color: #999" in self.text_input.styleSheet():
+                    # 通知主窗口需要为当前图片设置默认水印
+                    self.set_default_watermark.emit()
+                # 设置正常样式
+                self.text_input.setStyleSheet("""
+                    QLineEdit {
+                        color: #000;
+                        font-style: normal;
+                    }
+                """)
+            elif event.type() == event.FocusOut:
+                # 失去焦点时，如果文本为空则恢复灰色样式
+                if self.text_input.text() == "":
+                    self.text_input.setStyleSheet("""
+                        QLineEdit {
+                            color: #999;
+                            font-style: italic;
+                        }
+                    """)
+        return super().eventFilter(obj, event)
+        
+    def on_clear_clicked(self):
+        """清除按钮点击 - 清空水印文本"""
+        self.text_input.clear()
+        self.watermark_text = ""
+        
+        # 清空文本后显示灰色占位样式
+        self.text_input.setStyleSheet("""
+            QLineEdit {
+                color: #999;
+                font-style: italic;
+            }
+        """)
+        
+        self.watermark_changed.emit()
+        
     def on_text_changed(self, text):
         """文本内容变化"""
         self.watermark_text = text
+        
+        # 根据文本内容更新样式
+        if self.watermark_text == "":
+            # 文本为空时显示灰色占位样式
+            self.text_input.setStyleSheet("""
+                QLineEdit {
+                    color: #999;
+                    font-style: italic;
+                }
+            """)
+        else:
+            # 文本不为空时显示正常样式
+            self.text_input.setStyleSheet("""
+                QLineEdit {
+                    color: #000;
+                    font-style: normal;
+                }
+            """)
+        
         self.watermark_changed.emit()
         
     def on_font_changed(self, font):
@@ -289,7 +392,7 @@ class TextWatermarkWidget(QWidget):
         }
     
     def set_watermark_settings(self, settings):
-        """设置水印设置并更新UI"""
+        """设置水印设置并更新UI（用于图片特定水印）"""
         if not settings:
             return
             
@@ -301,6 +404,97 @@ class TextWatermarkWidget(QWidget):
             if "text" in settings:
                 self.watermark_text = settings["text"]
                 self.text_input.setText(self.watermark_text)
+                
+                # 根据文本内容更新样式
+                if self.watermark_text == "":
+                    # 文本为空时显示灰色占位样式
+                    self.text_input.setStyleSheet("""
+                        QLineEdit {
+                            color: #999;
+                            font-style: italic;
+                        }
+                    """)
+                else:
+                    # 文本不为空时显示正常样式
+                    self.text_input.setStyleSheet("""
+                        QLineEdit {
+                            color: #000;
+                            font-style: normal;
+                        }
+                    """)
+            
+            # 更新字体设置
+            if "font_family" in settings:
+                self.font_family = settings["font_family"]
+                index = self.font_combo.findText(self.font_family)
+                if index >= 0:
+                    self.font_combo.setCurrentIndex(index)
+                else:
+                    self.font_combo.setCurrentText(self.font_family)
+            
+            if "font_size" in settings:
+                self.font_size = settings["font_size"]
+                self.font_size_spin.setValue(self.font_size)
+            
+            # 更新颜色和透明度
+            if "color" in settings:
+                self.font_color = settings["color"]
+                self.update_color_button()
+            
+            if "opacity" in settings:
+                self.opacity = settings["opacity"]
+                self.opacity_slider.setValue(self.opacity)
+                self.opacity_label.setText(f"{self.opacity}%")
+            
+            # 更新旋转角度
+            if "rotation" in settings:
+                self.rotation = settings["rotation"]
+                self.rotation_spin.setValue(self.rotation)
+            
+            # 更新位置
+            if "position" in settings:
+                self.position = settings["position"]
+                # 更新位置按钮状态
+                for attr_name in dir(self):
+                    if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
+                        btn = getattr(self, attr_name)
+                        btn_pos = btn.property("position")
+                        btn.setChecked(btn_pos == self.position)
+            
+            # 更新效果设置
+            if "enable_shadow" in settings:
+                self.enable_shadow = settings["enable_shadow"]
+                self.shadow_checkbox.setChecked(self.enable_shadow)
+            
+            if "enable_outline" in settings:
+                self.enable_outline = settings["enable_outline"]
+                self.outline_checkbox.setChecked(self.enable_outline)
+                
+        finally:
+            # 恢复信号发射
+            self.blockSignals(False)
+    
+    def set_watermark_settings_with_placeholder_style(self, settings):
+        """设置水印设置并更新UI（用于全局默认水印，显示为灰色占位样式）"""
+        if not settings:
+            return
+            
+        # 阻止信号发射，避免触发水印变化信号
+        self.blockSignals(True)
+        
+        try:
+            # 更新文本设置
+            if "text" in settings:
+                self.watermark_text = settings["text"]
+                self.text_input.setText(self.watermark_text)
+                
+                # 对于全局默认水印，始终显示灰色占位样式
+                self.text_input.setStyleSheet("""
+                    QLineEdit {
+                        color: #999;
+                        font-style: italic;
+                    }
+                """)
             
             # 更新字体设置
             if "font_family" in settings:
