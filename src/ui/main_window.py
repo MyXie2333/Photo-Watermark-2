@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea)
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent
 
 # 导入自定义模块
 import sys
@@ -124,8 +124,17 @@ class MainWindow(QMainWindow):
                 background-color: #f8f9fa;
                 min-height: 400px;
             }
+            QLabel[dragEnabled="true"] {
+                border: 2px dashed #007acc;
+                background-color: #e6f3ff;
+            }
         """)
-        self.preview_widget.setText("请导入图片进行预览")
+        self.preview_widget.setText("请导入图片进行预览\n\n支持拖拽图片文件到此区域")
+        
+        # 启用拖拽功能
+        self.preview_widget.setAcceptDrops(True)
+        self.preview_widget.dragEnterEvent = self.dragEnterEvent
+        self.preview_widget.dropEvent = self.dropEvent
         
         # 预览滚动区域
         self.preview_scroll_area = QScrollArea()
@@ -468,6 +477,63 @@ class MainWindow(QMainWindow):
         self.current_scale = 1.0
         self.apply_scale()
         print("重置缩放比例到 1.0x")
+        
+    def dragEnterEvent(self, event):
+        """拖拽进入事件处理"""
+        # 检查拖拽内容是否为文件
+        if event.mimeData().hasUrls():
+            # 检查文件是否为支持的图片格式
+            urls = event.mimeData().urls()
+            for url in urls:
+                file_path = url.toLocalFile()
+                if self.is_supported_image(file_path):
+                    event.acceptProposedAction()
+                    # 设置拖拽样式
+                    self.preview_widget.setProperty("dragEnabled", "true")
+                    self.preview_widget.style().unpolish(self.preview_widget)
+                    self.preview_widget.style().polish(self.preview_widget)
+                    return
+        
+        event.ignore()
+        
+    def dropEvent(self, event):
+        """拖拽释放事件处理"""
+        # 重置拖拽样式
+        self.preview_widget.setProperty("dragEnabled", "false")
+        self.preview_widget.style().unpolish(self.preview_widget)
+        self.preview_widget.style().polish(self.preview_widget)
+        
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            file_paths = []
+            
+            # 收集所有支持的图片文件
+            for url in urls:
+                file_path = url.toLocalFile()
+                if self.is_supported_image(file_path):
+                    file_paths.append(file_path)
+            
+            if file_paths:
+                print(f"拖拽导入图片: {file_paths}")
+                if self.image_manager.load_multiple_images(file_paths):
+                    self.status_label.setText(f"已导入 {len(file_paths)} 张图片")
+                else:
+                    QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
+            else:
+                QMessageBox.warning(self, "导入失败", "拖拽的文件不是支持的图片格式")
+        
+        event.acceptProposedAction()
+        
+    def is_supported_image(self, file_path):
+        """检查文件是否为支持的图片格式"""
+        if not os.path.isfile(file_path):
+            return False
+            
+        # 支持的图片格式扩展名
+        supported_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
+        file_ext = os.path.splitext(file_path)[1].lower()
+        
+        return file_ext in supported_extensions
             
     def update_preview_controls(self):
         """更新预览控制按钮状态"""
