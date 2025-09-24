@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
         # 初始化水印渲染器
         self.watermark_renderer = WatermarkRenderer()
         
-        # 当前水印设置
+        # 当前水印设置（用于UI显示和临时预览）
         self.current_watermark_settings = {}
         
         self.setup_ui()
@@ -331,14 +331,19 @@ class MainWindow(QMainWindow):
     def on_watermark_changed(self):
         """水印设置发生变化"""
         # 获取当前水印设置
-        self.current_watermark_settings = self.text_watermark_widget.get_watermark_settings()
+        watermark_settings = self.text_watermark_widget.get_watermark_settings()
         
-        # 如果有当前图片，更新预览
-        if self.image_manager.get_current_image_path():
+        # 如果有当前图片，将水印设置应用到当前图片
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
+            # 将水印设置保存到当前图片
+            self.image_manager.set_watermark_settings(current_image_path, watermark_settings)
+            
+            # 更新预览
             self.update_preview_with_watermark()
             
     def update_preview_with_watermark(self):
-        """统一的图片预览方法 - 所有预览都视为带水印的预览"""
+        """统一的图片预览方法 - 使用当前图片的水印设置进行预览"""
         try:
             # 获取当前图片路径
             current_image_path = self.image_manager.get_current_image_path()
@@ -360,12 +365,15 @@ class MainWindow(QMainWindow):
                     self.current_scale = fit_scale
                     print(f"首次预览，适应窗口显示，缩放比例: {fit_scale:.2f}")
             
+            # 获取当前图片的水印设置
+            current_watermark_settings = self.image_manager.get_current_watermark_settings()
+            
             # 检查是否有水印文本
-            if self.current_watermark_settings.get("text"):
+            if current_watermark_settings.get("text"):
                 # 有水印文本，生成带水印的预览
                 preview_image = self.watermark_renderer.preview_watermark(
                     current_image_path, 
-                    self.current_watermark_settings,
+                    current_watermark_settings,
                     preview_size=(800, 600)  # 预览尺寸
                 )
                 
@@ -532,6 +540,20 @@ class MainWindow(QMainWindow):
         
         # 更新图片列表选中状态
         self.image_list_widget.set_selected_image(index)
+        
+        # 获取当前图片的水印设置并更新文本水印组件
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
+            # 获取当前图片的水印设置
+            current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
+            
+            # 更新文本水印组件显示当前图片的水印设置
+            if current_watermark_settings:
+                self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
+            else:
+                # 如果当前图片没有水印设置，使用默认设置
+                default_settings = self.text_watermark_widget.get_watermark_settings()
+                self.text_watermark_widget.set_watermark_settings(default_settings)
         
         # 直接使用基于水印设置的预览方法，避免循环调用
         self._update_preview_based_on_watermark()

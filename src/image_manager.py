@@ -22,6 +22,7 @@ class ImageManager(QObject):
         self.images = []  # 存储图片路径列表
         self.current_index = -1  # 当前显示的图片索引
         self.thumbnail_size = (100, 100)  # 缩略图尺寸
+        self.watermark_settings = {}  # 存储每张图片的水印设置，key为图片路径
         
     def load_single_image(self, file_path):
         """加载单张图片"""
@@ -181,7 +182,28 @@ class ImageManager(QObject):
         """清空所有图片"""
         self.images = []
         self.current_index = -1
+        self.watermark_settings = {}
         self.images_loaded.emit([])
+        
+    def set_watermark_settings(self, image_path, settings):
+        """设置指定图片的水印设置"""
+        if image_path in self.images:
+            self.watermark_settings[image_path] = settings
+            return True
+        return False
+        
+    def get_watermark_settings(self, image_path):
+        """获取指定图片的水印设置"""
+        if image_path in self.images:
+            return self.watermark_settings.get(image_path, {})
+        return {}
+        
+    def get_current_watermark_settings(self):
+        """获取当前图片的水印设置"""
+        current_path = self.get_current_image_path()
+        if current_path:
+            return self.watermark_settings.get(current_path, {})
+        return {}
 
 
 if __name__ == "__main__":

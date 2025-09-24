@@ -287,3 +287,68 @@ class TextWatermarkWidget(QWidget):
             "enable_shadow": self.enable_shadow,
             "enable_outline": self.enable_outline
         }
+    
+    def set_watermark_settings(self, settings):
+        """设置水印设置并更新UI"""
+        if not settings:
+            return
+            
+        # 阻止信号发射，避免触发水印变化信号
+        self.blockSignals(True)
+        
+        try:
+            # 更新文本设置
+            if "text" in settings:
+                self.watermark_text = settings["text"]
+                self.text_input.setText(self.watermark_text)
+            
+            # 更新字体设置
+            if "font_family" in settings:
+                self.font_family = settings["font_family"]
+                index = self.font_combo.findText(self.font_family)
+                if index >= 0:
+                    self.font_combo.setCurrentIndex(index)
+                else:
+                    self.font_combo.setCurrentText(self.font_family)
+            
+            if "font_size" in settings:
+                self.font_size = settings["font_size"]
+                self.font_size_spin.setValue(self.font_size)
+            
+            # 更新颜色和透明度
+            if "color" in settings:
+                self.font_color = settings["color"]
+                self.update_color_button()
+            
+            if "opacity" in settings:
+                self.opacity = settings["opacity"]
+                self.opacity_slider.setValue(self.opacity)
+                self.opacity_label.setText(f"{self.opacity}%")
+            
+            # 更新旋转角度
+            if "rotation" in settings:
+                self.rotation = settings["rotation"]
+                self.rotation_spin.setValue(self.rotation)
+            
+            # 更新位置
+            if "position" in settings:
+                self.position = settings["position"]
+                # 更新位置按钮状态
+                for attr_name in dir(self):
+                    if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
+                        btn = getattr(self, attr_name)
+                        btn_pos = btn.property("position")
+                        btn.setChecked(btn_pos == self.position)
+            
+            # 更新效果设置
+            if "enable_shadow" in settings:
+                self.enable_shadow = settings["enable_shadow"]
+                self.shadow_checkbox.setChecked(self.enable_shadow)
+            
+            if "enable_outline" in settings:
+                self.enable_outline = settings["enable_outline"]
+                self.outline_checkbox.setChecked(self.enable_outline)
+                
+        finally:
+            # 恢复信号发射
+            self.blockSignals(False)
