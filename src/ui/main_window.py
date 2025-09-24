@@ -398,14 +398,24 @@ class MainWindow(QMainWindow):
                 qimage = QImage()
                 qimage.loadFromData(img_byte_arr)
                 pixmap = QPixmap.fromImage(qimage)
+                
+                # 对水印预览图片应用缩放比例 - 基于原始图片尺寸计算
+                if self.current_scale != 1.0:
+                    # 使用原始图片尺寸计算缩放后的尺寸
+                    original_width = self.original_pixmap.width()
+                    original_height = self.original_pixmap.height()
+                    scaled_width = int(original_width * self.current_scale)
+                    scaled_height = int(original_height * self.current_scale)
+                    
+                    # 缩放水印预览图片到目标尺寸
+                    pixmap = pixmap.scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             else:
-                # 没有水印文本，直接使用原始图片
-                pixmap = self.original_pixmap
-            
-            # 应用当前缩放比例
-            if self.current_scale != 1.0:
-                scaled_size = pixmap.size() * self.current_scale
-                pixmap = pixmap.scaled(scaled_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                # 没有水印文本，直接使用原始图片并应用缩放
+                if self.current_scale != 1.0:
+                    scaled_size = self.original_pixmap.size() * self.current_scale
+                    pixmap = self.original_pixmap.scaled(scaled_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                else:
+                    pixmap = self.original_pixmap
             
             self.preview_widget.setPixmap(pixmap)
             
