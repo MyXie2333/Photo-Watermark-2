@@ -23,7 +23,7 @@ class TextWatermarkWidget(QWidget):
         
         # 默认水印设置
         self.watermark_text = ""  # 空字符串，不显示默认水印文本
-        self.font_family = "Arial"
+        self.font_family = "Microsoft YaHei"  # 使用支持中文的字体
         self.font_size = 24
         self.font_color = QColor(255, 255, 255)  # 白色
         self.opacity = 80  # 透明度百分比

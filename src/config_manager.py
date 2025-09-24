@@ -39,7 +39,7 @@ class ConfigManager:
             "recent_files": [],          # 最近打开的文件
             "watermark_defaults": {      # 水印默认设置
                 "text": "",  # 空字符串，不显示默认水印文本
-                "font_family": "Arial",
+                "font_family": "Microsoft YaHei",  # 使用支持中文的字体
                 "font_size": 24,
                 "color": "#FFFFFF",
                 "opacity": 80

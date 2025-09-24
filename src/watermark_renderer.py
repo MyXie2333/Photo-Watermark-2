@@ -80,7 +80,7 @@ class WatermarkRenderer:
         # 尝试加载字体
         try:
             # 首先尝试系统字体
-            font = ImageFont.truetype(font_family, font_size)
+            font = ImageFont.truetype(font_family, font_size, encoding="utf-8")
         except OSError:
             try:
                 # 尝试常见字体路径
@@ -98,20 +98,45 @@ class WatermarkRenderer:
                     f"{font_family.replace(' ', '')}.ttf"
                 ]
                 
+                # 添加中文字体文件
+                chinese_font_files = [
+                    "simhei.ttf",  # 黑体
+                    "simsun.ttc",  # 宋体
+                    "msyh.ttc",   # 微软雅黑
+                    "simkai.ttf",  # 楷体
+                    "simfang.ttf"  # 仿宋
+                ]
+                
                 font_found = False
                 for font_path in font_paths:
+                    # 首先尝试用户指定的字体
                     for font_file in font_files:
                         full_path = os.path.join(font_path, font_file)
                         if os.path.exists(full_path):
-                            font = ImageFont.truetype(full_path, font_size)
+                            font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
                             font_found = True
                             break
+                    
+                    # 如果用户指定字体没找到，尝试中文字体
+                    if not font_found:
+                        for chinese_font in chinese_font_files:
+                            full_path = os.path.join(font_path, chinese_font)
+                            if os.path.exists(full_path):
+                                font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                                font_found = True
+                                break
+                    
                     if font_found:
                         break
                 
                 if not font_found:
-                    # 使用默认字体
-                    font = ImageFont.load_default()
+                    # 使用支持中文的默认字体
+                    try:
+                        # 尝试加载支持中文的字体
+                        font = ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
+                    except:
+                        # 最终回退到默认字体
+                        font = ImageFont.load_default()
                     
             except Exception:
                 # 最终回退到默认字体
