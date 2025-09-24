@@ -12,9 +12,14 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 
 # 添加src目录到Python路径
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from ui.main_window import MainWindow
+try:
+    from ui.main_window import MainWindow
+except ImportError as e:
+    print(f"导入错误: {e}")
+    print("当前Python路径:", sys.path)
+    raise
 
 class PhotoWatermarkApp:
     """应用程序主类"""
