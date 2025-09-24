@@ -8,7 +8,7 @@ import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea)
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent
 
 # 导入自定义模块
@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from image_manager import ImageManager
     from ui.image_list_widget import ImageListWidget
+    from watermark_renderer import WatermarkRenderer
 except ImportError as e:
     print(f"导入错误: {e}")
     print("当前Python路径:", sys.path)
@@ -33,6 +34,12 @@ class MainWindow(QMainWindow):
         
         # 初始化图片管理器
         self.image_manager = ImageManager()
+        
+        # 初始化水印渲染器
+        self.watermark_renderer = WatermarkRenderer()
+        
+        # 当前水印设置
+        self.current_watermark_settings = {}
         
         self.setup_ui()
         self.setup_connections()
@@ -190,18 +197,10 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(watermark_type_layout)
         
-        # 设置区域占位
-        settings_placeholder = QLabel("水印设置区域")
-        settings_placeholder.setAlignment(Qt.AlignCenter)
-        settings_placeholder.setStyleSheet("""
-            QLabel {
-                border: 1px solid #ddd;
-                background-color: #f0f0f0;
-                min-height: 300px;
-                color: #666;
-            }
-        """)
-        layout.addWidget(settings_placeholder)
+        # 文本水印设置组件
+        from ui.text_watermark_widget import TextWatermarkWidget
+        self.text_watermark_widget = TextWatermarkWidget()
+        layout.addWidget(self.text_watermark_widget)
         
         # 操作按钮
         action_layout = QHBoxLayout()
@@ -314,6 +313,9 @@ class MainWindow(QMainWindow):
         # 跟踪当前图片列表，用于检测新图片添加
         self.current_image_paths = []
         
+        # 水印设置信号连接
+        self.text_watermark_widget.watermark_changed.connect(self.on_watermark_changed)
+        
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
         self.open_folder_action.triggered.connect(self.import_folder)
@@ -324,6 +326,88 @@ class MainWindow(QMainWindow):
         self.zoom_in_action.triggered.connect(self.zoom_in)
         self.zoom_out_action.triggered.connect(self.zoom_out)
         self.fit_action.triggered.connect(self.fit_to_window)
+        
+    def on_watermark_changed(self):
+        """水印设置发生变化"""
+        # 获取当前水印设置
+        self.current_watermark_settings = self.text_watermark_widget.get_watermark_settings()
+        
+        # 如果有当前图片，更新预览
+        if self.image_manager.get_current_image_path():
+            self.update_preview_with_watermark()
+            
+    def update_preview_with_watermark(self):
+        """更新带水印的预览"""
+        if not self.current_watermark_settings.get("text"):
+            # 如果没有水印文本，显示原始图片
+            self.update_preview()
+            return
+            
+        try:
+            # 获取当前图片路径
+            current_image_path = self.image_manager.get_current_image_path()
+            
+            if not current_image_path:
+                self.preview_widget.setText("请先导入图片")
+                return
+            
+            # 先加载原始图片并保存
+            self.original_pixmap = QPixmap(current_image_path)
+            if self.original_pixmap.isNull():
+                self.preview_widget.setText("无法加载图片")
+                return
+            
+            # 预览水印效果
+            preview_image = self.watermark_renderer.preview_watermark(
+                current_image_path, 
+                self.current_watermark_settings,
+                preview_size=(800, 600)  # 预览尺寸
+            )
+            
+            # 转换为QPixmap并显示
+            from PIL.ImageQt import ImageQt
+            qimage = ImageQt(preview_image)
+            pixmap = QPixmap.fromImage(qimage)
+            
+            # 调整缩放
+            if self.current_scale != 1.0:
+                scaled_size = pixmap.size() * self.current_scale
+                pixmap = pixmap.scaled(scaled_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            
+            self.preview_widget.setPixmap(pixmap)
+            
+        except Exception as e:
+            print(f"更新水印预览失败: {e}")
+            # 显示错误信息
+            self.preview_widget.setText(f"水印预览失败: {str(e)}")
+            
+    def _update_preview_based_on_watermark(self):
+        """根据水印设置更新预览"""
+        if self.current_watermark_settings.get("text"):
+            self.update_preview_with_watermark()
+        else:
+            self.update_preview()
+            
+    def update_preview(self):
+        """更新预览图片（无水印）"""
+        current_image_path = self.image_manager.get_current_image_path()
+        if not current_image_path:
+            self.preview_widget.setText("请导入图片进行预览")
+            return
+            
+        try:
+            # 加载图片并保存原始图片
+            self.original_pixmap = QPixmap(current_image_path)
+            
+            if self.original_pixmap.isNull():
+                self.preview_widget.setText("无法加载图片")
+                return
+                
+            # 应用当前缩放比例
+            self.apply_scale()
+            
+        except Exception as e:
+            self.preview_widget.setText(f"加载图片失败: {str(e)}")
         
     def import_images(self):
         """导入单张或多张图片"""
@@ -420,18 +504,27 @@ class MainWindow(QMainWindow):
         # 更新预览控制按钮状态
         self.update_preview_controls()
         
-        # 如果有图片，默认预览第一张图片并适应窗口显示
+        # 如果有图片，默认预览第一张图片
         if image_paths:
             print("图片加载完成，默认预览第一张图片")
             # 设置当前图片为第一张
             self.image_manager.set_current_image(0)
-            # 直接设置适应窗口的缩放比例并更新预览
-            self.current_scale = self.calculate_fit_scale()
-            self.update_preview_image()
+            # 先使用默认缩放比例显示图片，适应窗口操作后置
+            self.current_scale = 1.0
+            # 使用基于水印设置的预览方法，避免循环调用
+            self._update_preview_based_on_watermark()
+            # 适应窗口操作后置，在图片显示后再执行
+            QTimer.singleShot(100, self.fit_to_window)
         
     def on_image_selected(self, index):
         """图片列表项被选中"""
         self.image_manager.set_current_image(index)
+        
+        # 根据是否有水印设置决定显示方式
+        if self.current_watermark_settings.get("text"):
+            self.update_preview_with_watermark()
+        else:
+            self.update_preview()
         
     def on_image_changed(self, index):
         """当前图片改变"""
@@ -447,12 +540,8 @@ class MainWindow(QMainWindow):
         # 更新图片列表选中状态
         self.image_list_widget.set_selected_image(index)
         
-        # 更新预览图片，默认使用适应窗口显示
-        self.update_preview_image()
-        
-        # 每次切换图片时都适应窗口显示
-        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
-            self.fit_to_window()
+        # 直接使用基于水印设置的预览方法，避免循环调用
+        self._update_preview_based_on_watermark()
         
         # 更新状态栏
         count = self.image_manager.get_image_count()
@@ -509,6 +598,9 @@ class MainWindow(QMainWindow):
             
             self.preview_widget.setPixmap(scaled_pixmap)
             print(f"应用缩放: {self.current_scale:.1f}x, 显示尺寸: {scaled_width}x{scaled_height}")
+        else:
+            # 如果没有original_pixmap，尝试重新加载当前图片
+            self._update_preview_based_on_watermark()
             
     def calculate_fit_scale(self):
         """计算适应窗口的缩放比例"""
@@ -543,7 +635,7 @@ class MainWindow(QMainWindow):
             fit_scale = min(width_ratio, height_ratio, 1.0)  # 最大不超过原始尺寸
             
             self.current_scale = fit_scale
-            self.apply_scale()
+            self._update_preview_based_on_watermark()
             print(f"适应窗口显示，缩放比例: {fit_scale:.2f}")
             
     def zoom_in(self):
@@ -552,7 +644,7 @@ class MainWindow(QMainWindow):
             new_scale = min(self.current_scale + self.scale_step, self.max_scale)
             if new_scale != self.current_scale:
                 self.current_scale = new_scale
-                self.apply_scale()
+                self._update_preview_based_on_watermark()
                 print(f"放大到: {self.current_scale:.1f}x")
             else:
                 print("已达到最大放大倍数")
@@ -563,7 +655,7 @@ class MainWindow(QMainWindow):
             new_scale = max(self.current_scale - self.scale_step, self.min_scale)
             if new_scale != self.current_scale:
                 self.current_scale = new_scale
-                self.apply_scale()
+                self._update_preview_based_on_watermark()
                 print(f"缩小到: {self.current_scale:.1f}x")
             else:
                 print("已达到最小缩小倍数")
