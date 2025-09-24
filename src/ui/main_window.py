@@ -307,9 +307,12 @@ class MainWindow(QMainWindow):
         # 图片列表信号
         self.image_list_widget.image_selected.connect(self.on_image_selected)
         
-        # 图片管理器信号
+        # 连接信号
         self.image_manager.images_loaded.connect(self.on_images_loaded)
         self.image_manager.image_changed.connect(self.on_image_changed)
+        
+        # 跟踪当前图片列表，用于检测新图片添加
+        self.current_image_paths = []
         
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
@@ -411,6 +414,9 @@ class MainWindow(QMainWindow):
         # 使用累加模式添加图片，不清空现有图片
         self.image_list_widget.add_images(image_paths, clear_existing=False)
         
+        # 更新当前图片路径跟踪
+        self.current_image_paths = self.image_manager.images.copy()
+        
         # 更新预览控制按钮状态
         self.update_preview_controls()
         
@@ -429,6 +435,15 @@ class MainWindow(QMainWindow):
         
     def on_image_changed(self, index):
         """当前图片改变"""
+        # 检查是否有新图片需要添加到缩略图列表
+        current_paths = self.image_manager.images
+        if len(current_paths) > len(self.current_image_paths):
+            # 有新图片添加，更新缩略图列表
+            new_paths = [path for path in current_paths if path not in self.current_image_paths]
+            if new_paths:
+                self.image_list_widget.add_images(new_paths, clear_existing=False)
+            self.current_image_paths = current_paths.copy()
+        
         # 更新图片列表选中状态
         self.image_list_widget.set_selected_image(index)
         
