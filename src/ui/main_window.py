@@ -7,7 +7,7 @@
 import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
-                             QStatusBar, QAction, QFileDialog, QMessageBox)
+                             QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QIcon, QPixmap
 
@@ -126,7 +126,18 @@ class MainWindow(QMainWindow):
             }
         """)
         self.preview_widget.setText("请导入图片进行预览")
-        layout.addWidget(self.preview_widget)
+        
+        # 预览滚动区域
+        self.preview_scroll_area = QScrollArea()
+        self.preview_scroll_area.setWidgetResizable(True)
+        self.preview_scroll_area.setWidget(self.preview_widget)
+        layout.addWidget(self.preview_scroll_area)
+        
+        # 初始化缩放相关变量
+        self.current_scale = 1.0
+        self.min_scale = 0.1
+        self.max_scale = 5.0
+        self.scale_step = 0.1
         
         # 预览控制按钮
         control_layout = QHBoxLayout()
@@ -336,6 +347,14 @@ class MainWindow(QMainWindow):
         # 更新预览控制按钮状态
         self.update_preview_controls()
         
+        # 如果有图片，默认预览第一张图片并适应窗口显示
+        if image_paths:
+            print("图片加载完成，默认预览第一张图片")
+            # 设置当前图片为第一张
+            self.image_manager.set_current_image(0)
+            # 应用适应窗口显示
+            self.fit_to_window()
+        
     def on_image_selected(self, index):
         """图片列表项被选中"""
         self.image_manager.set_current_image(index)
@@ -354,7 +373,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"当前显示第 {index + 1} 张 / 共 {count} 张")
             
     def update_preview_image(self):
-        """更新预览图片 - 简化版本"""
+        """更新预览图片 - 支持缩放和适应窗口"""
         print("开始更新预览图片...")
         
         # 获取当前图片路径
@@ -363,11 +382,14 @@ class MainWindow(QMainWindow):
         
         if current_path:
             try:
-                # 直接加载图片，不进行缩放
-                pixmap = QPixmap(current_path)
-                if not pixmap.isNull():
-                    print(f"图片加载成功，尺寸: {pixmap.width()}x{pixmap.height()}")
-                    self.preview_widget.setPixmap(pixmap)
+                # 加载原始图片
+                self.original_pixmap = QPixmap(current_path)
+                if not self.original_pixmap.isNull():
+                    print(f"图片加载成功，原始尺寸: {self.original_pixmap.width()}x{self.original_pixmap.height()}")
+                    
+                    # 应用当前缩放比例
+                    self.apply_scale()
+                    
                     self.preview_widget.setText("")
                     print("预览图片设置成功")
                 else:
@@ -382,6 +404,70 @@ class MainWindow(QMainWindow):
             print("当前图片路径为空")
             self.preview_widget.setText("请导入图片进行预览")
             self.preview_widget.setPixmap(QPixmap())
+            
+    def apply_scale(self):
+        """应用当前缩放比例"""
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            # 计算缩放后的尺寸
+            scaled_width = int(self.original_pixmap.width() * self.current_scale)
+            scaled_height = int(self.original_pixmap.height() * self.current_scale)
+            
+            # 缩放图片
+            scaled_pixmap = self.original_pixmap.scaled(
+                scaled_width, 
+                scaled_height, 
+                Qt.KeepAspectRatio, 
+                Qt.SmoothTransformation
+            )
+            
+            self.preview_widget.setPixmap(scaled_pixmap)
+            print(f"应用缩放: {self.current_scale:.1f}x, 显示尺寸: {scaled_width}x{scaled_height}")
+            
+    def fit_to_window(self):
+        """适应窗口显示"""
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            # 获取预览区域可用尺寸
+            available_width = self.preview_scroll_area.width() - 20
+            available_height = self.preview_scroll_area.height() - 20
+            
+            # 计算适应窗口的缩放比例
+            width_ratio = available_width / self.original_pixmap.width()
+            height_ratio = available_height / self.original_pixmap.height()
+            
+            # 取较小的比例以确保图片完全显示
+            fit_scale = min(width_ratio, height_ratio, 1.0)  # 最大不超过原始尺寸
+            
+            self.current_scale = fit_scale
+            self.apply_scale()
+            print(f"适应窗口显示，缩放比例: {fit_scale:.2f}")
+            
+    def zoom_in(self):
+        """放大预览"""
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            new_scale = min(self.current_scale + self.scale_step, self.max_scale)
+            if new_scale != self.current_scale:
+                self.current_scale = new_scale
+                self.apply_scale()
+                print(f"放大到: {self.current_scale:.1f}x")
+            else:
+                print("已达到最大放大倍数")
+                
+    def zoom_out(self):
+        """缩小预览"""
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            new_scale = max(self.current_scale - self.scale_step, self.min_scale)
+            if new_scale != self.current_scale:
+                self.current_scale = new_scale
+                self.apply_scale()
+                print(f"缩小到: {self.current_scale:.1f}x")
+            else:
+                print("已达到最小缩小倍数")
+                
+    def reset_zoom(self):
+        """重置缩放比例"""
+        self.current_scale = 1.0
+        self.apply_scale()
+        print("重置缩放比例到 1.0x")
             
     def update_preview_controls(self):
         """更新预览控制按钮状态"""
@@ -402,19 +488,7 @@ class MainWindow(QMainWindow):
         """切换到下一张图片"""
         self.image_manager.next_image()
         
-    def zoom_in(self):
-        """放大预览"""
-        # TODO: 实现放大功能
-        QMessageBox.information(self, "功能提示", "放大功能将在后续版本中实现")
-        
-    def zoom_out(self):
-        """缩小预览"""
-        # TODO: 实现缩小功能
-        QMessageBox.information(self, "功能提示", "缩小功能将在后续版本中实现")
-        
-    def fit_to_window(self):
-        """适应窗口显示"""
-        self.update_preview_image()
+    # 缩放功能已经在前面定义，这里移除重复定义
         
     def resizeEvent(self, event):
         """窗口大小改变事件"""
