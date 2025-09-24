@@ -25,6 +25,8 @@ class TextWatermarkWidget(QWidget):
         self.watermark_text = ""  # 空字符串，不显示默认水印文本
         self.font_family = "Microsoft YaHei"  # 使用支持中文的字体
         self.font_size = 24
+        self.font_bold = False  # 粗体
+        self.font_italic = False  # 斜体
         self.font_color = QColor(255, 255, 255)  # 白色
         self.opacity = 80  # 透明度百分比
         self.position = "center"  # 位置
@@ -105,6 +107,21 @@ class TextWatermarkWidget(QWidget):
         font_size_layout.addWidget(QLabel("px"))
         font_size_layout.addStretch()
         text_layout.addLayout(font_size_layout, 2, 1)
+        
+        # 字体样式（粗体、斜体）
+        text_layout.addWidget(QLabel("字体样式:"), 3, 0)
+        font_style_layout = QHBoxLayout()
+        
+        self.bold_checkbox = QCheckBox("粗体")
+        self.bold_checkbox.setChecked(False)
+        font_style_layout.addWidget(self.bold_checkbox)
+        
+        self.italic_checkbox = QCheckBox("斜体")
+        self.italic_checkbox.setChecked(False)
+        font_style_layout.addWidget(self.italic_checkbox)
+        
+        font_style_layout.addStretch()
+        text_layout.addLayout(font_style_layout, 3, 1)
         
         layout.addWidget(text_group)
         
@@ -220,6 +237,8 @@ class TextWatermarkWidget(QWidget):
         self.text_input.textChanged.connect(self.on_text_changed)
         self.font_combo.currentTextChanged.connect(self.on_font_changed)
         self.font_size_spin.valueChanged.connect(self.on_font_size_changed)
+        self.bold_checkbox.stateChanged.connect(self.on_bold_changed)
+        self.italic_checkbox.stateChanged.connect(self.on_italic_changed)
         self.clear_button.clicked.connect(self.on_clear_clicked)
         self.text_input.textChanged.connect(self.on_text_changed)
         self.text_input.installEventFilter(self)
@@ -318,6 +337,16 @@ class TextWatermarkWidget(QWidget):
         self.font_size = size
         self.watermark_changed.emit()
         
+    def on_bold_changed(self, state):
+        """粗体变化"""
+        self.font_bold = (state == Qt.Checked)
+        self.watermark_changed.emit()
+        
+    def on_italic_changed(self, state):
+        """斜体变化"""
+        self.font_italic = (state == Qt.Checked)
+        self.watermark_changed.emit()
+        
     def on_color_clicked(self):
         """颜色按钮点击"""
         # 打开颜色选择对话框
@@ -383,6 +412,8 @@ class TextWatermarkWidget(QWidget):
             "text": self.watermark_text,
             "font_family": self.font_family,
             "font_size": self.font_size,
+            "font_bold": self.font_bold,
+            "font_italic": self.font_italic,
             "color": self.font_color,
             "opacity": self.opacity,
             "position": self.position,

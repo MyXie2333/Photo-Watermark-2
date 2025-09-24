@@ -36,6 +36,8 @@ class WatermarkRenderer:
         text = watermark_settings["text"]
         font_family = watermark_settings.get("font_family", "Arial")
         font_size = watermark_settings.get("font_size", 24)
+        font_bold = watermark_settings.get("font_bold", False)
+        font_italic = watermark_settings.get("font_italic", False)
         color = watermark_settings.get("color", QColor(255, 255, 255))
         opacity = watermark_settings.get("opacity", 80) / 100.0
         position = watermark_settings.get("position", "center")
@@ -45,7 +47,7 @@ class WatermarkRenderer:
         draw = ImageDraw.Draw(watermarked_image, 'RGBA')
         
         # 获取字体（传递文本内容用于智能字体选择）
-        font = self._get_font(font_family, font_size, text)
+        font = self._get_font(font_family, font_size, text, font_bold, font_italic)
         
         # 计算文本尺寸
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -70,15 +72,17 @@ class WatermarkRenderer:
             
         return watermarked_image
     
-    def _get_font(self, font_family, font_size, text=""):
+    def _get_font(self, font_family, font_size, text="", bold=False, italic=False):
         """获取字体对象
         
         Args:
             font_family: 字体名称
             font_size: 字体大小
             text: 要渲染的文本内容（用于检测是否需要中文字体支持）
+            bold: 是否粗体
+            italic: 是否斜体
         """
-        font_key = f"{font_family}_{font_size}"
+        font_key = f"{font_family}_{font_size}_{bold}_{italic}"
         
         if font_key in self.font_cache:
             return self.font_cache[font_key]
@@ -95,15 +99,15 @@ class WatermarkRenderer:
             if needs_chinese_font:
                 # 检查字体是否支持中文
                 if not self._font_supports_chinese(font):
-                    font = self._get_chinese_font(font_size)
+                    font = self._get_chinese_font(font_size, bold, italic)
                     
         except OSError:
             # 如果用户指定的字体不存在，根据是否需要中文选择合适的字体
             if needs_chinese_font:
-                font = self._get_chinese_font(font_size)
+                font = self._get_chinese_font(font_size, bold, italic)
             else:
                 # 尝试加载英文字体
-                font = self._get_english_font(font_family, font_size)
+                font = self._get_english_font(font_family, font_size, bold, italic)
         
         self.font_cache[font_key] = font
         return font
@@ -130,8 +134,14 @@ class WatermarkRenderer:
         except:
             return False
     
-    def _get_chinese_font(self, font_size):
-        """获取支持中文的字体"""
+    def _get_chinese_font(self, font_size, bold=False, italic=False):
+        """获取支持中文的字体
+        
+        Args:
+            font_size: 字体大小
+            bold: 是否粗体
+            italic: 是否斜体
+        """
         # 中文字体优先级列表
         chinese_fonts = [
             "Microsoft YaHei",  # 微软雅黑
@@ -149,11 +159,11 @@ class WatermarkRenderer:
             "/Library/Fonts/"
         ]
         
-        # 中文字体文件映射
+        # 中文字体文件映射（支持粗体和斜体变体）
         chinese_font_files = {
-            "Microsoft YaHei": ["msyh.ttc", "msyh.ttf"],
+            "Microsoft YaHei": ["msyh.ttc", "msyh.ttf", "msyhbd.ttc", "msyhbd.ttf"],
             "SimHei": ["simhei.ttf"],
-            "SimSun": ["simsun.ttc"],
+            "SimSun": ["simsun.ttc", "simsunb.ttf"],
             "KaiTi": ["simkai.ttf"],
             "FangSong": ["simfang.ttf"],
             "Arial Unicode MS": ["arialuni.ttf"]
@@ -162,7 +172,29 @@ class WatermarkRenderer:
         # 按优先级尝试加载中文字体
         for font_name in chinese_fonts:
             try:
-                # 首先尝试直接加载系统字体
+                # 首先尝试直接加载带样式的系统字体
+                if bold and italic:
+                    try:
+                        font = ImageFont.truetype(f"{font_name} Bold Italic", font_size, encoding="utf-8")
+                        if self._font_supports_chinese(font):
+                            return font
+                    except:
+                        pass
+                if bold:
+                    try:
+                        font = ImageFont.truetype(f"{font_name} Bold", font_size, encoding="utf-8")
+                        if self._font_supports_chinese(font):
+                            return font
+                    except:
+                        pass
+                if italic:
+                    try:
+                        font = ImageFont.truetype(f"{font_name} Italic", font_size, encoding="utf-8")
+                        if self._font_supports_chinese(font):
+                            return font
+                    except:
+                        pass
+                # 最后尝试常规字体
                 font = ImageFont.truetype(font_name, font_size, encoding="utf-8")
                 if self._font_supports_chinese(font):
                     return font
@@ -187,8 +219,15 @@ class WatermarkRenderer:
             # 最终回退到默认字体
             return ImageFont.load_default()
     
-    def _get_english_font(self, font_family, font_size):
-        """获取英文字体"""
+    def _get_english_font(self, font_family, font_size, bold=False, italic=False):
+        """获取英文字体
+        
+        Args:
+            font_family: 字体名称
+            font_size: 字体大小
+            bold: 是否粗体
+            italic: 是否斜体
+        """
         # 常见字体文件路径
         font_paths = [
             "C:/Windows/Fonts/",
@@ -196,13 +235,39 @@ class WatermarkRenderer:
             "/Library/Fonts/"
         ]
         
-        # 构建可能的字体文件名
-        font_files = [
+        # 构建可能的字体文件名（支持粗体和斜体变体）
+        font_files = []
+        
+        # 根据粗体和斜体组合构建字体文件名
+        if bold and italic:
+            font_files.extend([
+                f"{font_family} Bold Italic.ttf",
+                f"{font_family}-BoldItalic.ttf",
+                f"{font_family}_Bold_Italic.ttf",
+                f"{font_family}BI.ttf"
+            ])
+        elif bold:
+            font_files.extend([
+                f"{font_family} Bold.ttf",
+                f"{font_family}-Bold.ttf",
+                f"{font_family}_Bold.ttf",
+                f"{font_family}B.ttf"
+            ])
+        elif italic:
+            font_files.extend([
+                f"{font_family} Italic.ttf",
+                f"{font_family}-Italic.ttf",
+                f"{font_family}_Italic.ttf",
+                f"{font_family}I.ttf"
+            ])
+        
+        # 添加常规字体
+        font_files.extend([
             f"{font_family}.ttf",
             f"{font_family}.ttc",
             f"{font_family.lower()}.ttf",
             f"{font_family.replace(' ', '')}.ttf"
-        ]
+        ])
         
         # 尝试通过字体文件路径加载
         for font_path in font_paths:
@@ -214,10 +279,29 @@ class WatermarkRenderer:
                     except:
                         continue
         
-        # 如果用户指定字体没找到，尝试常见英文字体
+        # 如果用户指定字体没找到，尝试常见英文字体（支持样式变体）
         english_fonts = ["Arial", "Times New Roman", "Courier New", "Verdana"]
+        
+        # 尝试加载带样式的系统字体
         for font_name in english_fonts:
             try:
+                # 首先尝试加载带样式的字体
+                if bold and italic:
+                    try:
+                        return ImageFont.truetype(f"{font_name} Bold Italic", font_size, encoding="utf-8")
+                    except:
+                        pass
+                if bold:
+                    try:
+                        return ImageFont.truetype(f"{font_name} Bold", font_size, encoding="utf-8")
+                    except:
+                        pass
+                if italic:
+                    try:
+                        return ImageFont.truetype(f"{font_name} Italic", font_size, encoding="utf-8")
+                    except:
+                        pass
+                # 最后尝试常规字体
                 return ImageFont.truetype(font_name, font_size, encoding="utf-8")
             except OSError:
                 continue
