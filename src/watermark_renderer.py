@@ -44,8 +44,8 @@ class WatermarkRenderer:
         # 创建绘图对象
         draw = ImageDraw.Draw(watermarked_image, 'RGBA')
         
-        # 获取字体
-        font = self._get_font(font_family, font_size)
+        # 获取字体（传递文本内容用于智能字体选择）
+        font = self._get_font(font_family, font_size, text)
         
         # 计算文本尺寸
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -70,80 +70,160 @@ class WatermarkRenderer:
             
         return watermarked_image
     
-    def _get_font(self, font_family, font_size):
-        """获取字体对象"""
+    def _get_font(self, font_family, font_size, text=""):
+        """获取字体对象
+        
+        Args:
+            font_family: 字体名称
+            font_size: 字体大小
+            text: 要渲染的文本内容（用于检测是否需要中文字体支持）
+        """
         font_key = f"{font_family}_{font_size}"
         
         if font_key in self.font_cache:
             return self.font_cache[font_key]
             
+        # 检测是否需要中文字体支持
+        needs_chinese_font = self._contains_chinese(text)
+        
         # 尝试加载字体
         try:
             # 首先尝试系统字体
             font = ImageFont.truetype(font_family, font_size, encoding="utf-8")
+            
+            # 如果包含中文但选择的字体不支持中文，自动切换到中文字体
+            if needs_chinese_font:
+                # 检查字体是否支持中文
+                if not self._font_supports_chinese(font):
+                    font = self._get_chinese_font(font_size)
+                    
         except OSError:
-            try:
-                # 尝试常见字体路径
-                font_paths = [
-                    "C:/Windows/Fonts/",
-                    "/usr/share/fonts/",
-                    "/Library/Fonts/"
-                ]
-                
-                # 构建可能的字体文件名
-                font_files = [
-                    f"{font_family}.ttf",
-                    f"{font_family}.ttc",
-                    f"{font_family.lower()}.ttf",
-                    f"{font_family.replace(' ', '')}.ttf"
-                ]
-                
-                # 添加中文字体文件
-                chinese_font_files = [
-                    "simhei.ttf",  # 黑体
-                    "simsun.ttc",  # 宋体
-                    "msyh.ttc",   # 微软雅黑
-                    "simkai.ttf",  # 楷体
-                    "simfang.ttf"  # 仿宋
-                ]
-                
-                font_found = False
-                for font_path in font_paths:
-                    # 首先尝试用户指定的字体
-                    for font_file in font_files:
-                        full_path = os.path.join(font_path, font_file)
-                        if os.path.exists(full_path):
-                            font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
-                            font_found = True
-                            break
-                    
-                    # 如果用户指定字体没找到，尝试中文字体
-                    if not font_found:
-                        for chinese_font in chinese_font_files:
-                            full_path = os.path.join(font_path, chinese_font)
-                            if os.path.exists(full_path):
-                                font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
-                                font_found = True
-                                break
-                    
-                    if font_found:
-                        break
-                
-                if not font_found:
-                    # 使用支持中文的默认字体
-                    try:
-                        # 尝试加载支持中文的字体
-                        font = ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
-                    except:
-                        # 最终回退到默认字体
-                        font = ImageFont.load_default()
-                    
-            except Exception:
-                # 最终回退到默认字体
-                font = ImageFont.load_default()
+            # 如果用户指定的字体不存在，根据是否需要中文选择合适的字体
+            if needs_chinese_font:
+                font = self._get_chinese_font(font_size)
+            else:
+                # 尝试加载英文字体
+                font = self._get_english_font(font_family, font_size)
         
         self.font_cache[font_key] = font
         return font
+    
+    def _contains_chinese(self, text):
+        """检测文本是否包含中文字符"""
+        if not text:
+            return False
+        
+        # 中文字符的Unicode范围
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':
+                return True
+        return False
+    
+    def _font_supports_chinese(self, font):
+        """检查字体是否支持中文"""
+        try:
+            # 尝试渲染一个中文字符来测试字体支持
+            test_text = "中文测试"
+            # 使用getbbox方法检查字体是否能处理中文
+            bbox = font.getbbox(test_text)
+            return bbox[2] > 0 and bbox[3] > 0  # 如果宽度和高度都大于0，说明字体支持中文
+        except:
+            return False
+    
+    def _get_chinese_font(self, font_size):
+        """获取支持中文的字体"""
+        # 中文字体优先级列表
+        chinese_fonts = [
+            "Microsoft YaHei",  # 微软雅黑
+            "SimHei",           # 黑体
+            "SimSun",           # 宋体
+            "KaiTi",            # 楷体
+            "FangSong",         # 仿宋
+            "Arial Unicode MS", # Arial Unicode
+        ]
+        
+        # 常见字体文件路径
+        font_paths = [
+            "C:/Windows/Fonts/",
+            "/usr/share/fonts/",
+            "/Library/Fonts/"
+        ]
+        
+        # 中文字体文件映射
+        chinese_font_files = {
+            "Microsoft YaHei": ["msyh.ttc", "msyh.ttf"],
+            "SimHei": ["simhei.ttf"],
+            "SimSun": ["simsun.ttc"],
+            "KaiTi": ["simkai.ttf"],
+            "FangSong": ["simfang.ttf"],
+            "Arial Unicode MS": ["arialuni.ttf"]
+        }
+        
+        # 按优先级尝试加载中文字体
+        for font_name in chinese_fonts:
+            try:
+                # 首先尝试直接加载系统字体
+                font = ImageFont.truetype(font_name, font_size, encoding="utf-8")
+                if self._font_supports_chinese(font):
+                    return font
+            except OSError:
+                # 如果直接加载失败，尝试通过字体文件路径加载
+                if font_name in chinese_font_files:
+                    for font_file in chinese_font_files[font_name]:
+                        for font_path in font_paths:
+                            full_path = os.path.join(font_path, font_file)
+                            if os.path.exists(full_path):
+                                try:
+                                    font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                                    if self._font_supports_chinese(font):
+                                        return font
+                                except:
+                                    continue
+        
+        # 如果所有中文字体都加载失败，尝试加载Arial
+        try:
+            return ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
+        except:
+            # 最终回退到默认字体
+            return ImageFont.load_default()
+    
+    def _get_english_font(self, font_family, font_size):
+        """获取英文字体"""
+        # 常见字体文件路径
+        font_paths = [
+            "C:/Windows/Fonts/",
+            "/usr/share/fonts/",
+            "/Library/Fonts/"
+        ]
+        
+        # 构建可能的字体文件名
+        font_files = [
+            f"{font_family}.ttf",
+            f"{font_family}.ttc",
+            f"{font_family.lower()}.ttf",
+            f"{font_family.replace(' ', '')}.ttf"
+        ]
+        
+        # 尝试通过字体文件路径加载
+        for font_path in font_paths:
+            for font_file in font_files:
+                full_path = os.path.join(font_path, font_file)
+                if os.path.exists(full_path):
+                    try:
+                        return ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                    except:
+                        continue
+        
+        # 如果用户指定字体没找到，尝试常见英文字体
+        english_fonts = ["Arial", "Times New Roman", "Courier New", "Verdana"]
+        for font_name in english_fonts:
+            try:
+                return ImageFont.truetype(font_name, font_size, encoding="utf-8")
+            except OSError:
+                continue
+        
+        # 最终回退到默认字体
+        return ImageFont.load_default()
     
     def _calculate_position(self, position, img_width, img_height, text_width, text_height):
         """计算水印位置"""

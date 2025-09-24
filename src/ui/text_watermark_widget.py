@@ -91,7 +91,7 @@ class TextWatermarkWidget(QWidget):
         # 字体设置
         text_layout.addWidget(QLabel("字体:"), 1, 0)
         self.font_combo = QComboBox()
-        self.font_combo.setEditable(True)
+        self.font_combo.setEditable(False)  # 禁用直接输入，只能通过选单选择
         self.load_fonts()
         text_layout.addWidget(self.font_combo, 1, 1)
         
