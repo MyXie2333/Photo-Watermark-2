@@ -168,7 +168,12 @@ class ImageListWidget(QWidget):
     def set_selected_image(self, index):
         """设置选中的图片"""
         if 0 <= index < len(self.image_items):
-            self.on_item_clicked(index)
+            # 直接设置选中状态，不触发信号，避免递归
+            if self.current_selected >= 0:
+                self.image_items[self.current_selected].set_selected(False)
+                
+            self.image_items[index].set_selected(True)
+            self.current_selected = index
             
     def get_selected_index(self):
         """获取当前选中的索引"""

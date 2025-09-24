@@ -6,7 +6,7 @@
 
 import os
 from PIL import Image, ImageOps
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, Qt
 from PyQt5.QtGui import QPixmap
 
 

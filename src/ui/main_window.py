@@ -354,19 +354,32 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"当前显示第 {index + 1} 张 / 共 {count} 张")
             
     def update_preview_image(self):
-        """更新预览图片"""
-        pixmap = self.image_manager.get_current_image_pixmap()
-        if pixmap and not pixmap.isNull():
-            # 适应窗口显示
-            scaled_pixmap = pixmap.scaled(
-                self.preview_widget.width() - 20,
-                self.preview_widget.height() - 20,
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
-            )
-            self.preview_widget.setPixmap(scaled_pixmap)
-            self.preview_widget.setText("")
+        """更新预览图片 - 简化版本"""
+        print("开始更新预览图片...")
+        
+        # 获取当前图片路径
+        current_path = self.image_manager.get_current_image_path()
+        print(f"当前图片路径: {current_path}")
+        
+        if current_path:
+            try:
+                # 直接加载图片，不进行缩放
+                pixmap = QPixmap(current_path)
+                if not pixmap.isNull():
+                    print(f"图片加载成功，尺寸: {pixmap.width()}x{pixmap.height()}")
+                    self.preview_widget.setPixmap(pixmap)
+                    self.preview_widget.setText("")
+                    print("预览图片设置成功")
+                else:
+                    print("图片加载失败，QPixmap为空")
+                    self.preview_widget.setText("图片加载失败")
+                    self.preview_widget.setPixmap(QPixmap())
+            except Exception as e:
+                print(f"图片加载异常: {e}")
+                self.preview_widget.setText("图片加载异常")
+                self.preview_widget.setPixmap(QPixmap())
         else:
+            print("当前图片路径为空")
             self.preview_widget.setText("请导入图片进行预览")
             self.preview_widget.setPixmap(QPixmap())
             
@@ -406,8 +419,9 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         """窗口大小改变事件"""
         super().resizeEvent(event)
-        # 窗口大小改变时更新预览图片
-        self.update_preview_image()
+        # 简化：窗口大小改变时不自动更新预览图片
+        # 避免频繁调用导致的性能问题
+        pass
         
     def show_about(self):
         """显示关于对话框"""
