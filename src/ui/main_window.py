@@ -154,6 +154,7 @@ class MainWindow(QMainWindow):
         self.min_scale = 0.1
         self.max_scale = 5.0
         self.scale_step = 0.1
+        self.user_has_zoomed = False  # 标记用户是否手动调整过缩放
         
         # 预览控制按钮
         control_layout = QHBoxLayout()
@@ -337,12 +338,7 @@ class MainWindow(QMainWindow):
             self.update_preview_with_watermark()
             
     def update_preview_with_watermark(self):
-        """更新带水印的预览"""
-        if not self.current_watermark_settings.get("text"):
-            # 如果没有水印文本，显示原始图片
-            self.update_preview()
-            return
-            
+        """统一的图片预览方法 - 所有预览都视为带水印的预览"""
         try:
             # 获取当前图片路径
             current_image_path = self.image_manager.get_current_image_path()
@@ -351,25 +347,37 @@ class MainWindow(QMainWindow):
                 self.preview_widget.setText("请先导入图片")
                 return
             
-            # 先加载原始图片并保存
+            # 加载原始图片并保存
             self.original_pixmap = QPixmap(current_image_path)
             if self.original_pixmap.isNull():
                 self.preview_widget.setText("无法加载图片")
                 return
             
-            # 预览水印效果
-            preview_image = self.watermark_renderer.preview_watermark(
-                current_image_path, 
-                self.current_watermark_settings,
-                preview_size=(800, 600)  # 预览尺寸
-            )
+            # 如果是第一次加载图片且用户没有手动缩放，则适应窗口
+            if not self.user_has_zoomed:
+                fit_scale = self.calculate_fit_scale()
+                if fit_scale != self.current_scale:
+                    self.current_scale = fit_scale
+                    print(f"首次预览，适应窗口显示，缩放比例: {fit_scale:.2f}")
             
-            # 转换为QPixmap并显示
-            from PIL.ImageQt import ImageQt
-            qimage = ImageQt(preview_image)
-            pixmap = QPixmap.fromImage(qimage)
+            # 检查是否有水印文本
+            if self.current_watermark_settings.get("text"):
+                # 有水印文本，生成带水印的预览
+                preview_image = self.watermark_renderer.preview_watermark(
+                    current_image_path, 
+                    self.current_watermark_settings,
+                    preview_size=(800, 600)  # 预览尺寸
+                )
+                
+                # 转换为QPixmap
+                from PIL.ImageQt import ImageQt
+                qimage = ImageQt(preview_image)
+                pixmap = QPixmap.fromImage(qimage)
+            else:
+                # 没有水印文本，直接使用原始图片
+                pixmap = self.original_pixmap
             
-            # 调整缩放
+            # 应用当前缩放比例
             if self.current_scale != 1.0:
                 scaled_size = pixmap.size() * self.current_scale
                 pixmap = pixmap.scaled(scaled_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -377,37 +385,14 @@ class MainWindow(QMainWindow):
             self.preview_widget.setPixmap(pixmap)
             
         except Exception as e:
-            print(f"更新水印预览失败: {e}")
+            print(f"更新预览失败: {e}")
             # 显示错误信息
-            self.preview_widget.setText(f"水印预览失败: {str(e)}")
+            self.preview_widget.setText(f"预览失败: {str(e)}")
             
     def _update_preview_based_on_watermark(self):
         """根据水印设置更新预览"""
-        if self.current_watermark_settings.get("text"):
-            self.update_preview_with_watermark()
-        else:
-            self.update_preview()
-            
-    def update_preview(self):
-        """更新预览图片（无水印）"""
-        current_image_path = self.image_manager.get_current_image_path()
-        if not current_image_path:
-            self.preview_widget.setText("请导入图片进行预览")
-            return
-            
-        try:
-            # 加载图片并保存原始图片
-            self.original_pixmap = QPixmap(current_image_path)
-            
-            if self.original_pixmap.isNull():
-                self.preview_widget.setText("无法加载图片")
-                return
-                
-            # 应用当前缩放比例
-            self.apply_scale()
-            
-        except Exception as e:
-            self.preview_widget.setText(f"加载图片失败: {str(e)}")
+        # 现在所有预览都使用统一的update_preview_with_watermark方法
+        self.update_preview_with_watermark()
         
     def import_images(self):
         """导入单张或多张图片"""
@@ -520,11 +505,8 @@ class MainWindow(QMainWindow):
         """图片列表项被选中"""
         self.image_manager.set_current_image(index)
         
-        # 根据是否有水印设置决定显示方式
-        if self.current_watermark_settings.get("text"):
-            self.update_preview_with_watermark()
-        else:
-            self.update_preview()
+        # 统一使用带水印的预览方法
+        self.update_preview_with_watermark()
         
     def on_image_changed(self, index):
         """当前图片改变"""
@@ -635,6 +617,7 @@ class MainWindow(QMainWindow):
             fit_scale = min(width_ratio, height_ratio, 1.0)  # 最大不超过原始尺寸
             
             self.current_scale = fit_scale
+            self.user_has_zoomed = False  # 重置缩放标记，允许下次切换图片时适应窗口
             self._update_preview_based_on_watermark()
             print(f"适应窗口显示，缩放比例: {fit_scale:.2f}")
             
@@ -644,6 +627,7 @@ class MainWindow(QMainWindow):
             new_scale = min(self.current_scale + self.scale_step, self.max_scale)
             if new_scale != self.current_scale:
                 self.current_scale = new_scale
+                self.user_has_zoomed = True  # 标记用户已手动缩放
                 self._update_preview_based_on_watermark()
                 print(f"放大到: {self.current_scale:.1f}x")
             else:
@@ -655,6 +639,7 @@ class MainWindow(QMainWindow):
             new_scale = max(self.current_scale - self.scale_step, self.min_scale)
             if new_scale != self.current_scale:
                 self.current_scale = new_scale
+                self.user_has_zoomed = True  # 标记用户已手动缩放
                 self._update_preview_based_on_watermark()
                 print(f"缩小到: {self.current_scale:.1f}x")
             else:
@@ -663,6 +648,7 @@ class MainWindow(QMainWindow):
     def reset_zoom(self):
         """重置缩放比例"""
         self.current_scale = 1.0
+        self.user_has_zoomed = True  # 标记用户已手动缩放
         self.apply_scale()
         print("重置缩放比例到 1.0x")
         
