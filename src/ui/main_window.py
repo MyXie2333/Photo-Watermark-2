@@ -154,7 +154,6 @@ class MainWindow(QMainWindow):
         self.min_scale = 0.1
         self.max_scale = 5.0
         self.scale_step = 0.1
-        self.user_has_zoomed = False  # 标记用户是否手动调整过缩放
         
         # 预览控制按钮
         control_layout = QHBoxLayout()
@@ -358,12 +357,19 @@ class MainWindow(QMainWindow):
                 self.preview_widget.setText("无法加载图片")
                 return
             
-            # 如果是第一次加载图片且用户没有手动缩放，则适应窗口
-            if not self.user_has_zoomed:
+            # 检查当前图片是否有保存的缩放比例
+            saved_scale = self.image_manager.get_scale_settings(current_image_path)
+            if saved_scale is not None:
+                # 使用保存的缩放比例
+                self.current_scale = saved_scale
+            else:
+                # 如果没有保存的比例，计算适应窗口比例并保存
                 fit_scale = self.calculate_fit_scale()
                 if fit_scale != self.current_scale:
                     self.current_scale = fit_scale
                     print(f"首次预览，适应窗口显示，缩放比例: {fit_scale:.2f}")
+                    # 保存适应窗口的比例作为初始值
+                    self.image_manager.set_scale_settings(current_image_path, fit_scale)
             
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_current_watermark_settings()
@@ -562,12 +568,9 @@ class MainWindow(QMainWindow):
                 self.current_scale = saved_scale
                 print(f"恢复图片缩放比例: {saved_scale:.2f}")
             else:
-                # 如果没有保存的缩放比例，计算适应窗口的比例并保存为初始值
-                fit_scale = self.calculate_fit_scale()
-                self.current_scale = fit_scale
-                # 保存适应窗口的比例作为初始值
-                self.image_manager.set_scale_settings(current_image_path, fit_scale)
-                print(f"首次预览，适应窗口显示，保存初始缩放比例: {fit_scale:.2f}")
+                # 如果没有保存的缩放比例，自动运行适应窗口并保存比例
+                QTimer.singleShot(100, self.fit_to_window)
+                print(f"首次预览，自动运行适应窗口")
         
         # 直接使用基于水印设置的预览方法，避免循环调用
         self._update_preview_based_on_watermark()
@@ -650,7 +653,7 @@ class MainWindow(QMainWindow):
         return 1.0  # 默认缩放比例
     
     def fit_to_window(self):
-        """适应窗口显示 - 不保存缩放比例"""
+        """适应窗口显示 - 保存缩放比例"""
         if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
             # 获取预览区域可用尺寸
             available_width = self.preview_scroll_area.width() - 20
@@ -665,10 +668,14 @@ class MainWindow(QMainWindow):
             
             self.current_scale = fit_scale
             
-            # 注意：适应窗口操作不保存缩放比例，只有用户手动缩放才保存
+            # 保存适应窗口的缩放比例
+            current_image_path = self.image_manager.get_current_image_path()
+            if current_image_path:
+                self.image_manager.set_scale_settings(current_image_path, fit_scale)
+                print(f"适应窗口显示，保存缩放比例: {fit_scale:.2f}")
             
-            self._update_preview_based_on_watermark()
-            print(f"适应窗口显示，缩放比例: {fit_scale:.2f}（不保存）")
+            # 直接应用缩放
+            self.apply_scale()
             
     def zoom_in(self):
         """放大预览"""
@@ -676,9 +683,8 @@ class MainWindow(QMainWindow):
             new_scale = min(self.current_scale + self.scale_step, self.max_scale)
             if new_scale != self.current_scale:
                 self.current_scale = new_scale
-                self.user_has_zoomed = True  # 标记用户已手动缩放
                 
-                # 严格仿照水印保存方式：立即保存缩放比例
+                # 立即保存缩放比例
                 current_image_path = self.image_manager.get_current_image_path()
                 if current_image_path:
                     self.image_manager.set_scale_settings(current_image_path, self.current_scale)
@@ -695,9 +701,8 @@ class MainWindow(QMainWindow):
             new_scale = max(self.current_scale - self.scale_step, self.min_scale)
             if new_scale != self.current_scale:
                 self.current_scale = new_scale
-                self.user_has_zoomed = True  # 标记用户已手动缩放
                 
-                # 严格仿照水印保存方式：立即保存缩放比例
+                # 立即保存缩放比例
                 current_image_path = self.image_manager.get_current_image_path()
                 if current_image_path:
                     self.image_manager.set_scale_settings(current_image_path, self.current_scale)
@@ -711,9 +716,8 @@ class MainWindow(QMainWindow):
     def reset_zoom(self):
         """重置缩放比例"""
         self.current_scale = 1.0
-        self.user_has_zoomed = True  # 标记用户已手动缩放
         
-        # 严格仿照水印保存方式：立即保存缩放比例
+        # 立即保存缩放比例
         current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
             self.image_manager.set_scale_settings(current_image_path, self.current_scale)
