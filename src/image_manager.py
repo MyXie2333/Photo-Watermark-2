@@ -6,7 +6,7 @@
 
 import os
 from PIL import Image, ImageOps
-from PyQt5.QtCore import QObject, pyqtSignal, Qt
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QPixmap
 
 
@@ -23,6 +23,7 @@ class ImageManager(QObject):
         self.current_index = -1  # 当前显示的图片索引
         self.thumbnail_size = (100, 100)  # 缩略图尺寸
         self.watermark_settings = {}  # 存储每张图片的水印设置，key为图片路径
+        self.scale_settings = {}  # 存储每张图片的缩放比例设置，key为图片路径
         
     def load_single_image(self, file_path):
         """加载单张图片"""
@@ -179,10 +180,11 @@ class ImageManager(QObject):
         return len(self.images)
         
     def clear_images(self):
-        """清空所有图片"""
+        """清空图片列表"""
         self.images = []
         self.current_index = -1
         self.watermark_settings = {}
+        # 注意：缩放比例设置保存在配置文件中，不清除
         self.images_loaded.emit([])
         
     def set_watermark_settings(self, image_path, settings):
@@ -202,8 +204,26 @@ class ImageManager(QObject):
         """获取当前图片的水印设置"""
         current_path = self.get_current_image_path()
         if current_path:
-            return self.watermark_settings.get(current_path, {})
-        return {}
+            return self.get_watermark_settings(current_path)
+        return None
+    
+    def set_scale_settings(self, image_path, scale):
+        """设置指定图片的缩放比例"""
+        if image_path:
+            self.scale_settings[image_path] = scale
+    
+    def get_scale_settings(self, image_path):
+        """获取指定图片的缩放比例"""
+        if image_path:
+            return self.scale_settings.get(image_path)
+        return None
+    
+    def get_current_scale_settings(self):
+        """获取当前图片的缩放比例"""
+        current_path = self.get_current_image_path()
+        if current_path:
+            return self.scale_settings.get(current_path)
+        return None
 
 
 if __name__ == "__main__":
