@@ -333,8 +333,37 @@ class MainWindow(QMainWindow):
         )
         
         if file_paths:
-            if self.image_manager.load_multiple_images(file_paths):
-                self.status_label.setText(f"已导入 {len(file_paths)} 张图片")
+            result = self.image_manager.load_multiple_images(file_paths)
+            
+            if result is True:
+                # 成功导入新图片
+                count = self.image_manager.get_image_count()
+                self.status_label.setText(f"已导入 {len(file_paths)} 张图片，当前共 {count} 张")
+            elif isinstance(result, dict) and result.get("status") == "has_duplicates":
+                # 有重复文件
+                duplicates = result.get("duplicates", [])
+                valid_count = result.get("valid_count", 0)
+                
+                # 显示重复文件警告
+                duplicate_names = [os.path.basename(path) for path in duplicates]
+                duplicate_list = "\n".join([f"• {name}" for name in duplicate_names])
+                
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("重复文件检测")
+                msg.setText(f"检测到 {len(duplicates)} 个重复文件，已跳过导入。")
+                msg.setInformativeText(f"重复文件列表：\n{duplicate_list}")
+                
+                if valid_count > 0:
+                    msg.setDetailedText(f"已成功导入 {valid_count} 个新文件。")
+                
+                msg.exec_()
+                
+                if valid_count > 0:
+                    count = self.image_manager.get_image_count()
+                    self.status_label.setText(f"已导入 {valid_count} 张新图片，跳过 {len(duplicates)} 张重复图片，当前共 {count} 张")
+                else:
+                    self.status_label.setText(f"所有选中的图片都已存在，未导入新图片")
             else:
                 QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
                 
@@ -343,15 +372,44 @@ class MainWindow(QMainWindow):
         folder_path = QFileDialog.getExistingDirectory(self, "选择图片文件夹")
         
         if folder_path:
-            if self.image_manager.load_folder_images(folder_path):
+            result = self.image_manager.load_folder_images(folder_path)
+            
+            if result is True:
+                # 成功导入新图片
                 count = self.image_manager.get_image_count()
-                self.status_label.setText(f"已导入文件夹中的 {count} 张图片")
+                self.status_label.setText(f"已导入文件夹中的图片，当前共 {count} 张")
+            elif isinstance(result, dict) and result.get("status") == "has_duplicates":
+                # 有重复文件
+                duplicates = result.get("duplicates", [])
+                valid_count = result.get("valid_count", 0)
+                
+                # 显示重复文件警告
+                duplicate_names = [os.path.basename(path) for path in duplicates]
+                duplicate_list = "\n".join([f"• {name}" for name in duplicate_names])
+                
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("重复文件检测")
+                msg.setText(f"检测到 {len(duplicates)} 个重复文件，已跳过导入。")
+                msg.setInformativeText(f"重复文件列表：\n{duplicate_list}")
+                
+                if valid_count > 0:
+                    msg.setDetailedText(f"已成功导入 {valid_count} 个新文件。")
+                
+                msg.exec_()
+                
+                if valid_count > 0:
+                    count = self.image_manager.get_image_count()
+                    self.status_label.setText(f"已导入 {valid_count} 张新图片，跳过 {len(duplicates)} 张重复图片，当前共 {count} 张")
+                else:
+                    self.status_label.setText(f"文件夹中的所有图片都已存在，未导入新图片")
             else:
                 QMessageBox.warning(self, "导入失败", "文件夹中没有找到有效的图片文件")
                 
     def on_images_loaded(self, image_paths):
         """图片加载完成处理"""
-        self.image_list_widget.add_images(image_paths)
+        # 使用累加模式添加图片，不清空现有图片
+        self.image_list_widget.add_images(image_paths, clear_existing=False)
         
         # 更新预览控制按钮状态
         self.update_preview_controls()
@@ -361,8 +419,9 @@ class MainWindow(QMainWindow):
             print("图片加载完成，默认预览第一张图片")
             # 设置当前图片为第一张
             self.image_manager.set_current_image(0)
-            # 应用适应窗口显示
-            self.fit_to_window()
+            # 直接设置适应窗口的缩放比例并更新预览
+            self.current_scale = self.calculate_fit_scale()
+            self.update_preview_image()
         
     def on_image_selected(self, index):
         """图片列表项被选中"""
@@ -373,8 +432,12 @@ class MainWindow(QMainWindow):
         # 更新图片列表选中状态
         self.image_list_widget.set_selected_image(index)
         
-        # 更新预览图片
+        # 更新预览图片，默认使用适应窗口显示
         self.update_preview_image()
+        
+        # 每次切换图片时都适应窗口显示
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            self.fit_to_window()
         
         # 更新状态栏
         count = self.image_manager.get_image_count()
@@ -432,6 +495,24 @@ class MainWindow(QMainWindow):
             self.preview_widget.setPixmap(scaled_pixmap)
             print(f"应用缩放: {self.current_scale:.1f}x, 显示尺寸: {scaled_width}x{scaled_height}")
             
+    def calculate_fit_scale(self):
+        """计算适应窗口的缩放比例"""
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            # 获取预览区域可用尺寸
+            available_width = self.preview_scroll_area.width() - 20
+            available_height = self.preview_scroll_area.height() - 20
+            
+            # 计算适应窗口的缩放比例
+            width_ratio = available_width / self.original_pixmap.width()
+            height_ratio = available_height / self.original_pixmap.height()
+            
+            # 取较小的比例以确保图片完全显示
+            fit_scale = min(width_ratio, height_ratio, 1.0)  # 最大不超过原始尺寸
+            
+            print(f"计算适应窗口缩放比例: {fit_scale:.2f}")
+            return fit_scale
+        return 1.0  # 默认缩放比例
+    
     def fit_to_window(self):
         """适应窗口显示"""
         if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
@@ -515,8 +596,37 @@ class MainWindow(QMainWindow):
             
             if file_paths:
                 print(f"拖拽导入图片: {file_paths}")
-                if self.image_manager.load_multiple_images(file_paths):
-                    self.status_label.setText(f"已导入 {len(file_paths)} 张图片")
+                result = self.image_manager.load_multiple_images(file_paths)
+                
+                if result is True:
+                    # 成功导入新图片
+                    count = self.image_manager.get_image_count()
+                    self.status_label.setText(f"已导入 {len(file_paths)} 张图片，当前共 {count} 张")
+                elif isinstance(result, dict) and result.get("status") == "has_duplicates":
+                    # 有重复文件
+                    duplicates = result.get("duplicates", [])
+                    valid_count = result.get("valid_count", 0)
+                    
+                    # 显示重复文件警告
+                    duplicate_names = [os.path.basename(path) for path in duplicates]
+                    duplicate_list = "\n".join([f"• {name}" for name in duplicate_names])
+                    
+                    msg = QMessageBox(self)
+                    msg.setIcon(QMessageBox.Warning)
+                    msg.setWindowTitle("重复文件检测")
+                    msg.setText(f"检测到 {len(duplicates)} 个重复文件，已跳过导入。")
+                    msg.setInformativeText(f"重复文件列表：\n{duplicate_list}")
+                    
+                    if valid_count > 0:
+                        msg.setDetailedText(f"已成功导入 {valid_count} 个新文件。")
+                    
+                    msg.exec_()
+                    
+                    if valid_count > 0:
+                        count = self.image_manager.get_image_count()
+                        self.status_label.setText(f"已导入 {valid_count} 张新图片，跳过 {len(duplicates)} 张重复图片，当前共 {count} 张")
+                    else:
+                        self.status_label.setText(f"所有拖拽的图片都已存在，未导入新图片")
                 else:
                     QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
             else:

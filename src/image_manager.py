@@ -28,22 +28,51 @@ class ImageManager(QObject):
         if not self._validate_image_format(file_path):
             return False
             
-        self.images = [file_path]
-        self.current_index = 0
-        self.images_loaded.emit(self.images)
+        # 检查文件是否已存在
+        if self._is_duplicate_file(file_path):
+            return "duplicate"
+            
+        # 如果是第一次导入，清空列表；否则累加
+        if not self.images:
+            self.images = [file_path]
+            self.current_index = 0
+            self.images_loaded.emit(self.images)
+        else:
+            self.images.append(file_path)
+            self.current_index = len(self.images) - 1
+            self.image_changed.emit(self.current_index)
         return True
         
     def load_multiple_images(self, file_paths):
         """加载多张图片"""
         valid_paths = []
+        duplicate_paths = []
+        
         for file_path in file_paths:
             if self._validate_image_format(file_path):
-                valid_paths.append(file_path)
+                if self._is_duplicate_file(file_path):
+                    duplicate_paths.append(file_path)
+                else:
+                    valid_paths.append(file_path)
                 
+        if not valid_paths and not duplicate_paths:
+            return False
+            
+        # 如果有重复文件，返回重复文件列表
+        if duplicate_paths:
+            return {"status": "has_duplicates", "duplicates": duplicate_paths, "valid_count": len(valid_paths)}
+        
+        # 添加新图片
         if valid_paths:
-            self.images = valid_paths
-            self.current_index = 0
-            self.images_loaded.emit(self.images)
+            if not self.images:
+                self.images = valid_paths
+                self.current_index = 0
+                self.images_loaded.emit(self.images)
+            else:
+                original_count = len(self.images)
+                self.images.extend(valid_paths)
+                self.current_index = original_count
+                self.image_changed.emit(self.current_index)
             return True
         return False
         
@@ -53,15 +82,34 @@ class ImageManager(QObject):
             return False
             
         valid_paths = []
+        duplicate_paths = []
+        
         for filename in os.listdir(folder_path):
             file_path = os.path.join(folder_path, filename)
             if os.path.isfile(file_path) and self._validate_image_format(file_path):
-                valid_paths.append(file_path)
+                if self._is_duplicate_file(file_path):
+                    duplicate_paths.append(file_path)
+                else:
+                    valid_paths.append(file_path)
                 
+        if not valid_paths and not duplicate_paths:
+            return False
+            
+        # 如果有重复文件，返回重复文件列表
+        if duplicate_paths:
+            return {"status": "has_duplicates", "duplicates": duplicate_paths, "valid_count": len(valid_paths)}
+        
+        # 添加新图片
         if valid_paths:
-            self.images = valid_paths
-            self.current_index = 0
-            self.images_loaded.emit(self.images)
+            if not self.images:
+                self.images = valid_paths
+                self.current_index = 0
+                self.images_loaded.emit(self.images)
+            else:
+                original_count = len(self.images)
+                self.images.extend(valid_paths)
+                self.current_index = original_count
+                self.image_changed.emit(self.current_index)
             return True
         return False
         
@@ -70,6 +118,15 @@ class ImageManager(QObject):
         valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
         _, ext = os.path.splitext(file_path)
         return ext.lower() in valid_extensions and os.path.isfile(file_path)
+        
+    def _is_duplicate_file(self, file_path):
+        """检查文件是否已存在"""
+        # 使用绝对路径进行比较，避免路径格式差异
+        abs_path = os.path.abspath(file_path)
+        for existing_path in self.images:
+            if os.path.abspath(existing_path) == abs_path:
+                return True
+        return False
         
     def get_current_image_path(self):
         """获取当前图片路径"""
