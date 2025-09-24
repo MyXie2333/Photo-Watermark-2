@@ -11,12 +11,29 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QIcon, QPixmap
 
+# 导入自定义模块
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from image_manager import ImageManager
+    from ui.image_list_widget import ImageListWidget
+except ImportError as e:
+    print(f"导入错误: {e}")
+    print("当前Python路径:", sys.path)
+    raise
+
 
 class MainWindow(QMainWindow):
     """主窗口类"""
     
     def __init__(self):
         super().__init__()
+        
+        # 初始化图片管理器
+        self.image_manager = ImageManager()
+        
         self.setup_ui()
         self.setup_connections()
         
@@ -77,18 +94,14 @@ class MainWindow(QMainWindow):
         self.import_button.setMinimumHeight(35)
         layout.addWidget(self.import_button)
         
+        # 批量导入按钮
+        self.import_folder_button = QPushButton("导入文件夹")
+        self.import_folder_button.setMinimumHeight(35)
+        layout.addWidget(self.import_folder_button)
+        
         # 图片列表区域
-        self.image_list_widget = QWidget()
-        self.image_list_layout = QVBoxLayout(self.image_list_widget)
-        
-        # 添加占位文本
-        placeholder = QLabel("暂无图片")
-        placeholder.setAlignment(Qt.AlignCenter)
-        placeholder.setStyleSheet("color: #999; font-style: italic;")
-        self.image_list_layout.addWidget(placeholder)
-        
+        self.image_list_widget = ImageListWidget()
         layout.addWidget(self.image_list_widget)
-        layout.addStretch()
         
         return panel
         
@@ -262,14 +275,35 @@ class MainWindow(QMainWindow):
         """设置信号连接"""
         # 导入按钮
         self.import_button.clicked.connect(self.import_images)
+        self.import_folder_button.clicked.connect(self.import_folder)
+        
+        # 预览控制按钮
+        self.prev_button.clicked.connect(self.prev_image)
+        self.next_button.clicked.connect(self.next_image)
+        self.zoom_in_button.clicked.connect(self.zoom_in)
+        self.zoom_out_button.clicked.connect(self.zoom_out)
+        self.fit_button.clicked.connect(self.fit_to_window)
+        
+        # 图片列表信号
+        self.image_list_widget.image_selected.connect(self.on_image_selected)
+        
+        # 图片管理器信号
+        self.image_manager.images_loaded.connect(self.on_images_loaded)
+        self.image_manager.image_changed.connect(self.on_image_changed)
         
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
+        self.open_folder_action.triggered.connect(self.import_folder)
         self.exit_action.triggered.connect(self.close)
         self.about_action.triggered.connect(self.show_about)
         
+        # 视图菜单
+        self.zoom_in_action.triggered.connect(self.zoom_in)
+        self.zoom_out_action.triggered.connect(self.zoom_out)
+        self.fit_action.triggered.connect(self.fit_to_window)
+        
     def import_images(self):
-        """导入图片"""
+        """导入单张或多张图片"""
         file_dialog = QFileDialog()
         file_paths, _ = file_dialog.getOpenFileNames(
             self, 
@@ -279,8 +313,101 @@ class MainWindow(QMainWindow):
         )
         
         if file_paths:
-            self.status_label.setText(f"已选择 {len(file_paths)} 张图片")
-            QMessageBox.information(self, "导入成功", f"成功导入 {len(file_paths)} 张图片")
+            if self.image_manager.load_multiple_images(file_paths):
+                self.status_label.setText(f"已导入 {len(file_paths)} 张图片")
+            else:
+                QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
+                
+    def import_folder(self):
+        """导入文件夹中的图片"""
+        folder_path = QFileDialog.getExistingDirectory(self, "选择图片文件夹")
+        
+        if folder_path:
+            if self.image_manager.load_folder_images(folder_path):
+                count = self.image_manager.get_image_count()
+                self.status_label.setText(f"已导入文件夹中的 {count} 张图片")
+            else:
+                QMessageBox.warning(self, "导入失败", "文件夹中没有找到有效的图片文件")
+                
+    def on_images_loaded(self, image_paths):
+        """图片加载完成处理"""
+        self.image_list_widget.add_images(image_paths)
+        
+        # 更新预览控制按钮状态
+        self.update_preview_controls()
+        
+    def on_image_selected(self, index):
+        """图片列表项被选中"""
+        self.image_manager.set_current_image(index)
+        
+    def on_image_changed(self, index):
+        """当前图片改变"""
+        # 更新图片列表选中状态
+        self.image_list_widget.set_selected_image(index)
+        
+        # 更新预览图片
+        self.update_preview_image()
+        
+        # 更新状态栏
+        count = self.image_manager.get_image_count()
+        if count > 0:
+            self.status_label.setText(f"当前显示第 {index + 1} 张 / 共 {count} 张")
+            
+    def update_preview_image(self):
+        """更新预览图片"""
+        pixmap = self.image_manager.get_current_image_pixmap()
+        if pixmap and not pixmap.isNull():
+            # 适应窗口显示
+            scaled_pixmap = pixmap.scaled(
+                self.preview_widget.width() - 20,
+                self.preview_widget.height() - 20,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.preview_widget.setPixmap(scaled_pixmap)
+            self.preview_widget.setText("")
+        else:
+            self.preview_widget.setText("请导入图片进行预览")
+            self.preview_widget.setPixmap(QPixmap())
+            
+    def update_preview_controls(self):
+        """更新预览控制按钮状态"""
+        count = self.image_manager.get_image_count()
+        enabled = count > 0
+        
+        self.prev_button.setEnabled(enabled)
+        self.next_button.setEnabled(enabled)
+        self.zoom_in_button.setEnabled(enabled)
+        self.zoom_out_button.setEnabled(enabled)
+        self.fit_button.setEnabled(enabled)
+        
+    def prev_image(self):
+        """切换到上一张图片"""
+        self.image_manager.prev_image()
+        
+    def next_image(self):
+        """切换到下一张图片"""
+        self.image_manager.next_image()
+        
+    def zoom_in(self):
+        """放大预览"""
+        # TODO: 实现放大功能
+        QMessageBox.information(self, "功能提示", "放大功能将在后续版本中实现")
+        
+    def zoom_out(self):
+        """缩小预览"""
+        # TODO: 实现缩小功能
+        QMessageBox.information(self, "功能提示", "缩小功能将在后续版本中实现")
+        
+    def fit_to_window(self):
+        """适应窗口显示"""
+        self.update_preview_image()
+        
+    def resizeEvent(self, event):
+        """窗口大小改变事件"""
+        super().resizeEvent(event)
+        # 窗口大小改变时更新预览图片
+        self.update_preview_image()
         
     def show_about(self):
         """显示关于对话框"""
