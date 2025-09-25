@@ -90,27 +90,24 @@ class WatermarkRenderer:
         # 检测是否需要中文字体支持
         needs_chinese_font = self._contains_chinese(text)
         
-        # 尝试加载字体
-        try:
-            # 首先尝试系统字体
-            font = ImageFont.truetype(font_family, font_size, encoding="utf-8")
-            
-            # 如果包含中文但选择的字体不支持中文，自动切换到中文字体
-            if needs_chinese_font:
-                # 检查字体是否支持中文
-                if not self._font_supports_chinese(font):
-                    font = self._get_chinese_font(font_size, bold, italic)
-                    
-        except OSError:
-            # 如果用户指定的字体不存在，根据是否需要中文选择合适的字体
-            if needs_chinese_font:
-                font = self._get_chinese_font(font_size, bold, italic)
-            else:
-                # 尝试加载英文字体
+        # 智能字体选择逻辑
+        if needs_chinese_font:
+            # 如果文本包含中文（包括同时包含中英文字符的情况），直接使用中文字体
+            # 这样可以确保中文字符正确显示，同时英文字符也能正常显示
+            font = self._get_chinese_font(font_size, bold, italic)
+            self.font_cache[font_key] = font
+            return font
+        else:
+            # 如果文本不包含中文，使用用户选择的字体
+            try:
+                font = ImageFont.truetype(font_family, font_size, encoding="utf-8")
+                self.font_cache[font_key] = font
+                return font
+            except OSError:
+                # 如果用户指定的字体不存在，尝试加载英文字体
                 font = self._get_english_font(font_family, font_size, bold, italic)
-        
-        self.font_cache[font_key] = font
-        return font
+                self.font_cache[font_key] = font
+                return font
     
     def _contains_chinese(self, text):
         """检测文本是否包含中文字符"""
@@ -133,6 +130,70 @@ class WatermarkRenderer:
             return bbox[2] > 0 and bbox[3] > 0  # 如果宽度和高度都大于0，说明字体支持中文
         except:
             return False
+    
+    def _validate_font_size(self, font, font_size, text=""):
+        """验证字体是否支持指定大小
+        
+        Args:
+            font: 字体对象
+            font_size: 字体大小
+            text: 测试文本
+            
+        Returns:
+            bool: 字体是否支持指定大小
+        """
+        try:
+            # 简化验证逻辑：主要检查字体大小是否在合理范围内
+            if font_size < 1 or font_size > 1000:
+                return False
+                
+            # 对于大多数字体，只要大小在合理范围内就认为支持
+            # 避免过于严格的验证导致所有字体都回退到默认字体
+            return True
+            
+        except Exception:
+            return False
+    
+    def _get_fallback_font(self, font_size):
+        """获取回退字体，确保支持指定大小
+        
+        Args:
+            font_size: 字体大小
+            
+        Returns:
+            PIL字体对象
+        """
+        # 尝试加载系统默认字体
+        try:
+            # 首先尝试加载Arial字体
+            font = ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
+            if self._validate_font_size(font, font_size):
+                return font
+        except:
+            pass
+            
+        # 尝试加载Times New Roman
+        try:
+            font = ImageFont.truetype("times.ttf", font_size, encoding="utf-8")
+            if self._validate_font_size(font, font_size):
+                return font
+        except:
+            pass
+            
+        # 最终回退到PIL默认字体，但调整大小
+        try:
+            # 使用默认字体但确保大小支持
+            default_font = ImageFont.load_default()
+            # 对于默认字体，我们只能使用固定大小，但可以缩放
+            if hasattr(default_font, 'size'):
+                # 如果默认字体有大小属性，尝试调整
+                return default_font
+            else:
+                # 创建新的默认字体
+                return ImageFont.load_default()
+        except:
+            # 最终回退
+            return ImageFont.load_default()
     
     def _get_chinese_font(self, font_size, bold=False, italic=False):
         """获取支持中文的字体
@@ -235,76 +296,58 @@ class WatermarkRenderer:
             "/Library/Fonts/"
         ]
         
-        # 构建可能的字体文件名（支持粗体和斜体变体）
-        font_files = []
-        
-        # 根据粗体和斜体组合构建字体文件名
+        # 构建字体变体名称
+        font_variants = []
         if bold and italic:
-            font_files.extend([
-                f"{font_family} Bold Italic.ttf",
-                f"{font_family}-BoldItalic.ttf",
-                f"{font_family}_Bold_Italic.ttf",
-                f"{font_family}BI.ttf"
-            ])
-        elif bold:
-            font_files.extend([
-                f"{font_family} Bold.ttf",
-                f"{font_family}-Bold.ttf",
-                f"{font_family}_Bold.ttf",
-                f"{font_family}B.ttf"
-            ])
-        elif italic:
-            font_files.extend([
-                f"{font_family} Italic.ttf",
-                f"{font_family}-Italic.ttf",
-                f"{font_family}_Italic.ttf",
-                f"{font_family}I.ttf"
-            ])
+            font_variants.append(f"{font_family} Bold Italic")
+            font_variants.append(f"{font_family}-BoldItalic")
+        if bold:
+            font_variants.append(f"{font_family} Bold")
+            font_variants.append(f"{font_family}-Bold")
+        if italic:
+            font_variants.append(f"{font_family} Italic")
+            font_variants.append(f"{font_family}-Italic")
+        font_variants.append(font_family)  # 常规字体
         
-        # 添加常规字体
-        font_files.extend([
-            f"{font_family}.ttf",
-            f"{font_family}.ttc",
-            f"{font_family.lower()}.ttf",
-            f"{font_family.replace(' ', '')}.ttf"
-        ])
+        # 常见英文字体文件映射
+        english_font_files = {
+            "Arial": ["arial.ttf", "arialbd.ttf", "arialbi.ttf", "ariali.ttf"],
+            "Times New Roman": ["times.ttf", "timesbd.ttf", "timesbi.ttf", "timesi.ttf"],
+            "Courier New": ["cour.ttf", "courbd.ttf", "courbi.ttf", "couri.ttf"],
+            "Verdana": ["verdana.ttf", "verdanab.ttf", "verdanaz.ttf", "verdanai.ttf"],
+            "Georgia": ["georgia.ttf", "georgiab.ttf", "georgiaz.ttf", "georgiai.ttf"],
+            "Tahoma": ["tahoma.ttf", "tahomabd.ttf"],
+            "Trebuchet MS": ["trebuc.ttf", "trebucbd.ttf", "trebucit.ttf", "trebucbi.ttf"],
+            "Comic Sans MS": ["comic.ttf", "comicbd.ttf"],
+            "Impact": ["impact.ttf"],
+            "Lucida Console": ["lucon.ttf"],
+            "Palatino Linotype": ["pala.ttf", "palab.ttf", "palabi.ttf", "palai.ttf"]
+        }
         
-        # 尝试通过字体文件路径加载
-        for font_path in font_paths:
-            for font_file in font_files:
-                full_path = os.path.join(font_path, font_file)
-                if os.path.exists(full_path):
-                    try:
-                        return ImageFont.truetype(full_path, font_size, encoding="utf-8")
-                    except:
-                        continue
-        
-        # 如果用户指定字体没找到，尝试常见英文字体（支持样式变体）
-        english_fonts = ["Arial", "Times New Roman", "Courier New", "Verdana"]
-        
-        # 尝试加载带样式的系统字体
-        for font_name in english_fonts:
+        # 首先尝试直接加载系统字体
+        for font_variant in font_variants:
             try:
-                # 首先尝试加载带样式的字体
-                if bold and italic:
-                    try:
-                        return ImageFont.truetype(f"{font_name} Bold Italic", font_size, encoding="utf-8")
-                    except:
-                        pass
-                if bold:
-                    try:
-                        return ImageFont.truetype(f"{font_name} Bold", font_size, encoding="utf-8")
-                    except:
-                        pass
-                if italic:
-                    try:
-                        return ImageFont.truetype(f"{font_name} Italic", font_size, encoding="utf-8")
-                    except:
-                        pass
-                # 最后尝试常规字体
-                return ImageFont.truetype(font_name, font_size, encoding="utf-8")
+                return ImageFont.truetype(font_variant, font_size, encoding="utf-8")
             except OSError:
                 continue
+        
+        # 如果直接加载失败，尝试通过字体文件路径加载
+        if font_family in english_font_files:
+            for font_file in english_font_files[font_family]:
+                for font_path in font_paths:
+                    full_path = os.path.join(font_path, font_file)
+                    if os.path.exists(full_path):
+                        try:
+                            return ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                        except:
+                            continue
+        
+        # 如果指定字体加载失败，尝试加载Arial
+        if font_family != "Arial":
+            try:
+                return ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
+            except:
+                pass
         
         # 最终回退到默认字体
         return ImageFont.load_default()

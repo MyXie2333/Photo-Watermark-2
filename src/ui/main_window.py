@@ -201,6 +201,12 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(watermark_type_layout)
         
+        # 字体切换提示标签
+        self.font_switch_label = QLabel()
+        self.font_switch_label.setStyleSheet("color: red; font-size: 12px; margin: 5px;")
+        self.font_switch_label.setVisible(False)
+        layout.addWidget(self.font_switch_label)
+        
         # 文本水印设置组件
         from ui.text_watermark_widget import TextWatermarkWidget
         self.text_watermark_widget = TextWatermarkWidget()
@@ -320,6 +326,7 @@ class MainWindow(QMainWindow):
         # 水印设置信号连接
         self.text_watermark_widget.watermark_changed.connect(self.on_watermark_changed)
         self.text_watermark_widget.set_default_watermark.connect(self.on_set_default_watermark)
+        self.text_watermark_widget.font_switch_notification.connect(self.on_font_switch_notification)
         
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
@@ -380,6 +387,15 @@ class MainWindow(QMainWindow):
                 self.update_preview_with_watermark()
                 
                 print(f"为图片设置默认水印: {current_image_path}")
+                
+    def on_font_switch_notification(self, message):
+        """处理字体切换提示信号"""
+        # 显示字体切换提示
+        self.font_switch_label.setText(message)
+        self.font_switch_label.show()
+        
+        # 5秒后自动隐藏提示
+        QTimer.singleShot(5000, self.font_switch_label.hide)
             
     def update_preview_with_watermark(self):
         """统一的图片预览方法 - 使用当前图片的水印设置进行预览"""
