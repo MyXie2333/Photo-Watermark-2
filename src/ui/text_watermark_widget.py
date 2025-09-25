@@ -222,16 +222,46 @@ class TextWatermarkWidget(QWidget):
         font_db = QFontDatabase()
         fonts = font_db.families()
         
-        # 添加常用字体
-        common_fonts = ["Arial", "Times New Roman", "Microsoft YaHei", "SimHei", 
-                       "SimSun", "KaiTi", "FangSong", "Courier New", "Verdana"]
+        # 添加常用英文字体
+        english_fonts = ["Arial", "Times New Roman", "Courier New", "Verdana", 
+                        "Georgia", "Tahoma", "Trebuchet MS", "Comic Sans MS"]
         
-        for font in common_fonts:
-            if font in fonts:
+        # 添加中文字体（优先检测和添加）
+        chinese_fonts = []
+        chinese_keywords = ['yahei', 'simhei', 'simsun', 'kaiti', 'fangsong', 
+                           '黑体', '宋体', '楷体', '仿宋', '微软雅黑', '华文', '方正']
+        
+        # 检测所有可用的中文字体
+        for font in fonts:
+            font_lower = font.lower()
+            if any(keyword in font_lower for keyword in chinese_keywords):
+                chinese_fonts.append(font)
+        
+        # 优先添加中文字体到下拉菜单
+        for font in chinese_fonts:
+            self.font_combo.addItem(font)
+        
+        # 添加分隔线（如果已经有中文字体）
+        if chinese_fonts:
+            self.font_combo.insertSeparator(len(chinese_fonts))
+        
+        # 添加英文字体
+        for font in english_fonts:
+            if font in fonts and font not in chinese_fonts:
                 self.font_combo.addItem(font)
         
-        # 设置默认字体
-        self.font_combo.setCurrentText(self.font_family)
+        # 设置默认字体（优先使用中文字体）
+        if chinese_fonts:
+            # 优先使用微软雅黑，如果没有则使用第一个中文字体
+            if "Microsoft YaHei" in chinese_fonts:
+                self.font_combo.setCurrentText("Microsoft YaHei")
+                self.font_family = "Microsoft YaHei"
+            else:
+                self.font_combo.setCurrentText(chinese_fonts[0])
+                self.font_family = chinese_fonts[0]
+        else:
+            # 如果没有中文字体，使用默认英文字体
+            self.font_combo.setCurrentText(self.font_family)
         
     def setup_connections(self):
         """设置信号连接"""
@@ -373,26 +403,44 @@ class TextWatermarkWidget(QWidget):
             # 如果文本包含中文，检查当前字体是否已经是中文字体
             current_font = self.font_combo.currentText()
             
-            # 常见中文字体列表
-            chinese_fonts = ["Microsoft YaHei", "SimHei", "SimSun", "KaiTi", "FangSong"]
+            # 获取下拉菜单中所有可用的中文字体
+            chinese_fonts = []
+            chinese_keywords = ['yahei', 'simhei', 'simsun', 'kaiti', 'fangsong', 
+                               '黑体', '宋体', '楷体', '仿宋', '微软雅黑', '华文', '方正']
+            
+            # 从下拉菜单中检测所有中文字体
+            for i in range(self.font_combo.count()):
+                item_text = self.font_combo.itemText(i)
+                if not item_text.startswith("---"):  # 跳过分隔线
+                    item_lower = item_text.lower()
+                    if any(keyword in item_lower for keyword in chinese_keywords):
+                        chinese_fonts.append(item_text)
             
             # 如果当前字体不是中文字体，自动切换到中文字体
             if current_font not in chinese_fonts:
                 # 优先尝试微软雅黑
-                if "Microsoft YaHei" in [self.font_combo.itemText(i) for i in range(self.font_combo.count())]:
+                if "Microsoft YaHei" in chinese_fonts:
                     self.font_combo.setCurrentText("Microsoft YaHei")
                     self.font_family = "Microsoft YaHei"
                     # 发出字体切换提示信号
                     self.font_switch_notification.emit("当前字体不支持中文显示，已为您切换至中文字体")
                 # 如果微软雅黑不可用，尝试其他中文字体
-                else:
-                    for font in chinese_fonts:
-                        if font in [self.font_combo.itemText(i) for i in range(self.font_combo.count())]:
+                elif chinese_fonts:
+                    # 按优先级选择：微软雅黑 > 黑体 > 宋体 > 楷体 > 仿宋 > 其他
+                    priority_order = ["Microsoft YaHei", "SimHei", "SimSun", "KaiTi", "FangSong"]
+                    for font in priority_order:
+                        if font in chinese_fonts:
                             self.font_combo.setCurrentText(font)
                             self.font_family = font
                             # 发出字体切换提示信号
                             self.font_switch_notification.emit("当前字体不支持中文显示，已为您切换至中文字体")
                             break
+                    else:
+                        # 如果没有优先级字体，使用第一个可用的中文字体
+                        self.font_combo.setCurrentText(chinese_fonts[0])
+                        self.font_family = chinese_fonts[0]
+                        # 发出字体切换提示信号
+                        self.font_switch_notification.emit("当前字体不支持中文显示，已为您切换至中文字体")
         
     def on_color_clicked(self):
         """颜色按钮点击"""

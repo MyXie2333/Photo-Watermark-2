@@ -99,15 +99,20 @@ class WatermarkRenderer:
             return font
         else:
             # 如果文本不包含中文，使用用户选择的字体
+            # 首先尝试加载带样式的字体
+            font = self._get_english_font(font_family, font_size, bold, italic)
+            if font:
+                self.font_cache[font_key] = font
+                return font
+            
+            # 如果加载带样式的字体失败，尝试加载常规字体
             try:
                 font = ImageFont.truetype(font_family, font_size, encoding="utf-8")
                 self.font_cache[font_key] = font
                 return font
             except OSError:
-                # 如果用户指定的字体不存在，尝试加载英文字体
-                font = self._get_english_font(font_family, font_size, bold, italic)
-                self.font_cache[font_key] = font
-                return font
+                # 如果用户指定的字体不存在，回退到默认字体
+                return ImageFont.load_default()
     
     def _contains_chinese(self, text):
         """检测文本是否包含中文字符"""
@@ -296,20 +301,32 @@ class WatermarkRenderer:
             "/Library/Fonts/"
         ]
         
-        # 构建字体变体名称
+        # 构建字体变体名称（按优先级排序）
         font_variants = []
         if bold and italic:
-            font_variants.append(f"{font_family} Bold Italic")
-            font_variants.append(f"{font_family}-BoldItalic")
-        if bold:
-            font_variants.append(f"{font_family} Bold")
-            font_variants.append(f"{font_family}-Bold")
-        if italic:
-            font_variants.append(f"{font_family} Italic")
-            font_variants.append(f"{font_family}-Italic")
+            font_variants.extend([
+                f"{font_family} Bold Italic",
+                f"{font_family}-BoldItalic",
+                f"{font_family} BoldItalic",
+                f"{font_family}BI"
+            ])
+        elif bold:
+            font_variants.extend([
+                f"{font_family} Bold",
+                f"{font_family}-Bold",
+                f"{font_family}Bold",
+                f"{font_family}B"
+            ])
+        elif italic:
+            font_variants.extend([
+                f"{font_family} Italic",
+                f"{font_family}-Italic",
+                f"{font_family}Italic",
+                f"{font_family}I"
+            ])
         font_variants.append(font_family)  # 常规字体
         
-        # 常见英文字体文件映射
+        # 常见英文字体文件映射（支持粗体和斜体变体）
         english_font_files = {
             "Arial": ["arial.ttf", "arialbd.ttf", "arialbi.ttf", "ariali.ttf"],
             "Times New Roman": ["times.ttf", "timesbd.ttf", "timesbi.ttf", "timesi.ttf"],
@@ -327,25 +344,60 @@ class WatermarkRenderer:
         # 首先尝试直接加载系统字体
         for font_variant in font_variants:
             try:
-                return ImageFont.truetype(font_variant, font_size, encoding="utf-8")
+                font = ImageFont.truetype(font_variant, font_size, encoding="utf-8")
+                # 验证字体是否成功加载
+                if font:
+                    return font
             except OSError:
                 continue
         
         # 如果直接加载失败，尝试通过字体文件路径加载
         if font_family in english_font_files:
-            for font_file in english_font_files[font_family]:
+            # 根据粗体和斜体状态选择对应的字体文件
+            font_files = []
+            if bold and italic:
+                # 优先尝试粗斜体文件
+                font_files = [f for f in english_font_files[font_family] if 'bi' in f.lower() or 'bolditalic' in f.lower()]
+                # 如果没有找到粗斜体，尝试组合粗体和斜体
+                if not font_files:
+                    font_files = [f for f in english_font_files[font_family] if 'bd' in f.lower() or 'bold' in f.lower()]
+                    font_files.extend([f for f in english_font_files[font_family] if 'i' in f.lower() or 'italic' in f.lower()])
+            elif bold:
+                font_files = [f for f in english_font_files[font_family] if 'bd' in f.lower() or 'bold' in f.lower()]
+            elif italic:
+                font_files = [f for f in english_font_files[font_family] if 'i' in f.lower() or 'italic' in f.lower()]
+            
+            # 如果没有找到特定样式文件，使用常规字体文件
+            if not font_files:
+                font_files = [f for f in english_font_files[font_family] if not any(keyword in f.lower() for keyword in ['bd', 'bold', 'bi', 'italic', 'i'])]
+            
+            # 如果没有常规字体文件，使用所有可用文件
+            if not font_files:
+                font_files = english_font_files[font_family]
+            
+            for font_file in font_files:
                 for font_path in font_paths:
                     full_path = os.path.join(font_path, font_file)
                     if os.path.exists(full_path):
                         try:
-                            return ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                            font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                            if font:
+                                return font
                         except:
                             continue
         
         # 如果指定字体加载失败，尝试加载Arial
         if font_family != "Arial":
             try:
-                return ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
+                # 根据粗体和斜体状态加载对应的Arial变体
+                if bold and italic:
+                    return ImageFont.truetype("arialbi.ttf", font_size, encoding="utf-8")
+                elif bold:
+                    return ImageFont.truetype("arialbd.ttf", font_size, encoding="utf-8")
+                elif italic:
+                    return ImageFont.truetype("ariali.ttf", font_size, encoding="utf-8")
+                else:
+                    return ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
             except:
                 pass
         
