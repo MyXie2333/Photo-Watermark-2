@@ -122,6 +122,12 @@ class TextWatermarkWidget(QWidget):
         self.italic_checkbox.setChecked(False)
         font_style_layout.addWidget(self.italic_checkbox)
         
+        # 添加小号倾斜提示
+        hint_label = QLabel("部分字体不支持加粗或斜体")
+        hint_label.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        hint_label.setFixedWidth(150)
+        font_style_layout.addWidget(hint_label)
+        
         font_style_layout.addStretch()
         text_layout.addLayout(font_style_layout, 3, 1)
         

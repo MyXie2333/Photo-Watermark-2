@@ -69,7 +69,7 @@ class WatermarkRenderer:
             # 处理粗体和斜体效果
             # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
             is_chinese_text = self._contains_chinese(text)
-            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)):
+            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
                 print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
                 # 如果是中文字体且需要斜体效果
                 if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
@@ -124,9 +124,9 @@ class WatermarkRenderer:
                             else:
                                 rotated_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
             else:
-                # 正常绘制文本
+                # 正常绘制文本 - 添加向上的位移以避免汉字下半部分被截断
                 text_x = (diagonal - text_width) // 2
-                text_y = (diagonal - text_height) // 2
+                text_y = (diagonal - text_height) // 2 - 5  # 向上移动5个像素
                 rotated_draw.text((text_x, text_y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
             
             # 旋转文本图像
@@ -141,7 +141,7 @@ class WatermarkRenderer:
             # 处理粗体和斜体效果
             # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
             is_chinese_text = self._contains_chinese(text)
-            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)):
+            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
                 print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
                 # 如果是中文字体且需要斜体效果
                 if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
@@ -201,7 +201,14 @@ class WatermarkRenderer:
                                 draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
             else:
                 # 正常绘制文本
-                draw.text((x, y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                # 创建一个单独的透明图像来绘制文本，确保透明度正确应用
+                text_img = Image.new('RGBA', (text_width + 20, text_height + 20), (0, 0, 0, 0))
+                text_draw = ImageDraw.Draw(text_img)
+                # 添加向上的位移以避免汉字下半部分被截断
+                text_draw.text((10, 5), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                
+                # 将文本图像粘贴到主图像上
+                watermarked_image.paste(text_img, (x - 10, y - 10), text_img)
             
         return watermarked_image
     
