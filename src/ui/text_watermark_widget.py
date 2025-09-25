@@ -218,26 +218,40 @@ class TextWatermarkWidget(QWidget):
         layout.addStretch()
         
     def load_fonts(self):
-        """加载系统字体"""
-        font_db = QFontDatabase()
-        fonts = font_db.families()
+        """加载系统字体 - 只显示在字体文件映射中存在的字体"""
+        # 定义支持的字体列表（基于watermark_renderer.py中的字体文件映射）
+        supported_chinese_fonts = [
+            "Microsoft YaHei",  # 微软雅黑
+            "SimHei",           # 黑体
+            "SimSun",           # 宋体
+            "KaiTi",            # 楷体
+            "FangSong",         # 仿宋
+            "Arial Unicode MS"  # 回退字体
+        ]
         
-        # 添加常用英文字体
-        english_fonts = ["Arial", "Times New Roman", "Courier New", "Verdana", 
-                        "Georgia", "Tahoma", "Trebuchet MS", "Comic Sans MS"]
+        supported_english_fonts = [
+            "Arial", "Times New Roman", "Courier New", "Verdana", 
+            "Georgia", "Tahoma", "Trebuchet MS", "Comic Sans MS"
+        ]
         
-        # 添加中文字体（优先检测和添加）
-        chinese_fonts = []
-        chinese_keywords = ['yahei', 'simhei', 'simsun', 'kaiti', 'fangsong', 
-                           '黑体', '宋体', '楷体', '仿宋', '微软雅黑', '华文', '方正']
+        # 检查字体是否在系统中实际存在
+        available_fonts = []
         
-        # 检测所有可用的中文字体
-        for font in fonts:
-            font_lower = font.lower()
-            if any(keyword in font_lower for keyword in chinese_keywords):
-                chinese_fonts.append(font)
+        # 检查中文字体
+        for font_name in supported_chinese_fonts:
+            if self._check_font_exists(font_name):
+                available_fonts.append(font_name)
         
-        # 优先添加中文字体到下拉菜单
+        # 检查英文字体
+        for font_name in supported_english_fonts:
+            if self._check_font_exists(font_name):
+                available_fonts.append(font_name)
+        
+        # 清空下拉菜单
+        self.font_combo.clear()
+        
+        # 添加可用的中文字体
+        chinese_fonts = [f for f in available_fonts if f in supported_chinese_fonts]
         for font in chinese_fonts:
             self.font_combo.addItem(font)
         
@@ -245,10 +259,10 @@ class TextWatermarkWidget(QWidget):
         if chinese_fonts:
             self.font_combo.insertSeparator(len(chinese_fonts))
         
-        # 添加英文字体
+        # 添加可用的英文字体
+        english_fonts = [f for f in available_fonts if f in supported_english_fonts]
         for font in english_fonts:
-            if font in fonts and font not in chinese_fonts:
-                self.font_combo.addItem(font)
+            self.font_combo.addItem(font)
         
         # 设置默认字体（优先使用中文字体）
         if chinese_fonts:
@@ -259,9 +273,76 @@ class TextWatermarkWidget(QWidget):
             else:
                 self.font_combo.setCurrentText(chinese_fonts[0])
                 self.font_family = chinese_fonts[0]
+        elif english_fonts:
+            # 如果没有中文字体，使用第一个英文字体
+            self.font_combo.setCurrentText(english_fonts[0])
+            self.font_family = english_fonts[0]
         else:
-            # 如果没有中文字体，使用默认英文字体
-            self.font_combo.setCurrentText(self.font_family)
+            # 如果没有可用字体，使用默认字体
+            self.font_combo.addItem("Arial")
+            self.font_combo.setCurrentText("Arial")
+            self.font_family = "Arial"
+    
+    def _check_font_exists(self, font_name):
+        """检查字体是否在系统中实际存在"""
+        try:
+            # 尝试加载字体来检查是否存在
+            from PIL import ImageFont
+            font = ImageFont.truetype(font_name, 12, encoding="utf-8")
+            return True
+        except:
+            # 如果直接加载失败，尝试通过字体文件映射检查
+            return self._check_font_by_file_mapping(font_name)
+    
+    def _check_font_by_file_mapping(self, font_name):
+        """通过字体文件映射检查字体是否存在"""
+        import os
+        
+        # 字体文件映射（与watermark_renderer.py保持一致）
+        chinese_font_files = {
+            "Microsoft YaHei": ["msyh.ttc", "msyh.ttf", "msyhbd.ttc", "msyhbd.ttf", "msyhl.ttc"],
+            "SimHei": ["simhei.ttf"],
+            "SimSun": ["simsun.ttc", "simsunb.ttf", "SimsunExtG.ttf"],
+            "KaiTi": ["simkai.ttf", "STKAITI.TTF"],
+            "FangSong": ["simfang.ttf"],
+            "Arial Unicode MS": ["arialuni.ttf"]
+        }
+        
+        english_font_files = {
+            "Arial": ["arial.ttf", "arialbd.ttf", "arialbi.ttf", "ariali.ttf"],
+            "Times New Roman": ["times.ttf", "timesbd.ttf", "timesbi.ttf", "timesi.ttf"],
+            "Courier New": ["cour.ttf", "courbd.ttf", "courbi.ttf", "couri.ttf"],
+            "Verdana": ["verdana.ttf", "verdanab.ttf", "verdanaz.ttf", "verdanai.ttf"],
+            "Georgia": ["georgia.ttf", "georgiab.ttf", "georgiaz.ttf", "georgiai.ttf"],
+            "Tahoma": ["tahoma.ttf", "tahomabd.ttf"],
+            "Trebuchet MS": ["trebuc.ttf", "trebucbd.ttf", "trebucit.ttf", "trebucbi.ttf"],
+            "Comic Sans MS": ["comic.ttf", "comicbd.ttf"]
+        }
+        
+        # 常见字体文件路径
+        font_paths = [
+            "C:/Windows/Fonts/",
+            "/usr/share/fonts/",
+            "/Library/Fonts/"
+        ]
+        
+        # 检查中文字体
+        if font_name in chinese_font_files:
+            for font_file in chinese_font_files[font_name]:
+                for font_path in font_paths:
+                    full_path = os.path.join(font_path, font_file)
+                    if os.path.exists(full_path):
+                        return True
+        
+        # 检查英文字体
+        if font_name in english_font_files:
+            for font_file in english_font_files[font_name]:
+                for font_path in font_paths:
+                    full_path = os.path.join(font_path, font_file)
+                    if os.path.exists(full_path):
+                        return True
+        
+        return False
         
     def setup_connections(self):
         """设置信号连接"""
@@ -416,7 +497,11 @@ class TextWatermarkWidget(QWidget):
                     if any(keyword in item_lower for keyword in chinese_keywords):
                         chinese_fonts.append(item_text)
             
-            # 如果当前字体不是中文字体，自动切换到中文字体
+            # 关键修复：如果当前字体已经是中文字体，不要改变字体
+            if current_font in chinese_fonts:
+                return  # 保持当前字体不变
+            
+            # 只有当当前字体不是中文字体时，才自动切换到中文字体
             if current_font not in chinese_fonts:
                 # 优先尝试微软雅黑
                 if "Microsoft YaHei" in chinese_fonts:

@@ -90,10 +90,36 @@ class WatermarkRenderer:
         # 检测是否需要中文字体支持
         needs_chinese_font = self._contains_chinese(text)
         
-        # 智能字体选择逻辑
+        # 关键修复：优先使用用户设置的字体，只有在用户设置的字体不支持中文时才回退到中文字体
         if needs_chinese_font:
-            # 如果文本包含中文（包括同时包含中英文字符的情况），直接使用中文字体
-            # 这样可以确保中文字符正确显示，同时英文字符也能正常显示
+            print(f"[DEBUG] 文本包含中文，字体选择流程开始 - 用户选择字体: {font_family}")
+            
+            # 首先尝试使用用户设置的字体（如果它支持中文）
+            try:
+                print(f"[DEBUG] 尝试直接加载用户设置的字体: {font_family}")
+                font = ImageFont.truetype(font_family, font_size, encoding="utf-8")
+                # 检查字体是否支持中文
+                if self._font_supports_chinese(font):
+                    print(f"[DEBUG] 成功加载用户字体 {font_family} 并确认支持中文")
+                    self.font_cache[font_key] = font
+                    return font
+                else:
+                    print(f"[DEBUG] 字体 {font_family} 不支持中文")
+            except OSError as e:
+                print(f"[DEBUG] 加载用户字体 {font_family} 失败: {e}")
+            
+            # 如果用户设置的字体不支持中文或加载失败，尝试通过字体文件路径加载
+            print(f"[DEBUG] 尝试通过文件路径加载字体: {font_family}")
+            font = self._get_chinese_font_by_name(font_family, font_size, bold, italic)
+            if font:
+                print(f"[DEBUG] 通过文件路径成功加载字体: {font_family}")
+                self.font_cache[font_key] = font
+                return font
+            else:
+                print(f"[DEBUG] 通过文件路径加载字体 {font_family} 失败")
+            
+            # 如果特定字体加载失败，回退到默认中文字体
+            print(f"[DEBUG] 回退到默认中文字体")
             font = self._get_chinese_font(font_size, bold, italic)
             self.font_cache[font_key] = font
             return font
@@ -200,6 +226,63 @@ class WatermarkRenderer:
             # 最终回退
             return ImageFont.load_default()
     
+    def _get_chinese_font_by_name(self, font_name, font_size, bold=False, italic=False):
+        """根据字体名称获取特定的中文字体
+        
+        Args:
+            font_name: 字体名称
+            font_size: 字体大小
+            bold: 是否粗体
+            italic: 是否斜体
+        """
+        print(f"[DEBUG] _get_chinese_font_by_name: 尝试加载字体 {font_name}")
+        
+        # 中文字体文件映射
+        chinese_font_files = {
+            "Microsoft YaHei": ["msyh.ttc", "msyh.ttf", "msyhbd.ttc", "msyhbd.ttf", "msyhl.ttc"],
+            "SimHei": ["simhei.ttf"],
+            "SimSun": ["simsun.ttc", "simsunb.ttf", "SimsunExtG.ttf"],
+            "KaiTi": ["simkai.ttf", "STKAITI.TTF"],
+            "FangSong": ["simfang.ttf"],
+            "Arial Unicode MS": ["arialuni.ttf"]
+        }
+        
+        # 常见字体文件路径
+        font_paths = [
+            "C:/Windows/Fonts/",
+            "/usr/share/fonts/",
+            "/Library/Fonts/"
+        ]
+        
+        # 首先尝试通过字体文件路径加载（这是最可靠的方式）
+        if font_name in chinese_font_files:
+            print(f"[DEBUG] 字体 {font_name} 在字体文件映射中，尝试文件路径加载")
+            for font_file in chinese_font_files[font_name]:
+                for font_path in font_paths:
+                    full_path = os.path.join(font_path, font_file)
+                    print(f"[DEBUG] 检查字体文件路径: {full_path}")
+                    if os.path.exists(full_path):
+                        print(f"[DEBUG] 字体文件存在，尝试加载: {full_path}")
+                        try:
+                            font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                            print(f"[DEBUG] 成功通过文件路径加载字体: {font_name}")
+                            return font
+                        except Exception as e:
+                            print(f"[DEBUG] 加载字体文件失败: {e}")
+                            continue
+        else:
+            print(f"[DEBUG] 字体 {font_name} 不在字体文件映射中")
+        
+        # 如果文件路径加载失败，尝试直接加载系统字体
+        print(f"[DEBUG] 尝试直接通过系统字体名称加载: {font_name}")
+        try:
+            font = ImageFont.truetype(font_name, font_size, encoding="utf-8")
+            print(f"[DEBUG] 成功通过系统字体名称加载: {font_name}")
+            return font
+        except OSError as e:
+            print(f"[DEBUG] 通过系统字体名称加载失败: {e}")
+            return None
+
     def _get_chinese_font(self, font_size, bold=False, italic=False):
         """获取支持中文的字体
         
@@ -218,69 +301,15 @@ class WatermarkRenderer:
             "Arial Unicode MS", # Arial Unicode
         ]
         
-        # 常见字体文件路径
-        font_paths = [
-            "C:/Windows/Fonts/",
-            "/usr/share/fonts/",
-            "/Library/Fonts/"
-        ]
-        
-        # 中文字体文件映射（支持粗体和斜体变体）
-        chinese_font_files = {
-            "Microsoft YaHei": ["msyh.ttc", "msyh.ttf", "msyhbd.ttc", "msyhbd.ttf"],
-            "SimHei": ["simhei.ttf"],
-            "SimSun": ["simsun.ttc", "simsunb.ttf"],
-            "KaiTi": ["simkai.ttf"],
-            "FangSong": ["simfang.ttf"],
-            "Arial Unicode MS": ["arialuni.ttf"]
-        }
-        
         # 按优先级尝试加载中文字体
         for font_name in chinese_fonts:
-            try:
-                # 首先尝试直接加载带样式的系统字体
-                if bold and italic:
-                    try:
-                        font = ImageFont.truetype(f"{font_name} Bold Italic", font_size, encoding="utf-8")
-                        if self._font_supports_chinese(font):
-                            return font
-                    except:
-                        pass
-                if bold:
-                    try:
-                        font = ImageFont.truetype(f"{font_name} Bold", font_size, encoding="utf-8")
-                        if self._font_supports_chinese(font):
-                            return font
-                    except:
-                        pass
-                if italic:
-                    try:
-                        font = ImageFont.truetype(f"{font_name} Italic", font_size, encoding="utf-8")
-                        if self._font_supports_chinese(font):
-                            return font
-                    except:
-                        pass
-                # 最后尝试常规字体
-                font = ImageFont.truetype(font_name, font_size, encoding="utf-8")
-                if self._font_supports_chinese(font):
-                    return font
-            except OSError:
-                # 如果直接加载失败，尝试通过字体文件路径加载
-                if font_name in chinese_font_files:
-                    for font_file in chinese_font_files[font_name]:
-                        for font_path in font_paths:
-                            full_path = os.path.join(font_path, font_file)
-                            if os.path.exists(full_path):
-                                try:
-                                    font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
-                                    if self._font_supports_chinese(font):
-                                        return font
-                                except:
-                                    continue
+            font = self._get_chinese_font_by_name(font_name, font_size, bold, italic)
+            if font:
+                return font
         
-        # 如果所有中文字体都加载失败，尝试加载Arial
+        # 如果所有中文字体都加载失败，尝试加载Arial Unicode MS
         try:
-            return ImageFont.truetype("arial.ttf", font_size, encoding="utf-8")
+            return ImageFont.truetype("arialuni.ttf", font_size, encoding="utf-8")
         except:
             # 最终回退到默认字体
             return ImageFont.load_default()
