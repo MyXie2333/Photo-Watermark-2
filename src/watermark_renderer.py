@@ -420,29 +420,31 @@ class WatermarkRenderer:
             
             if diagonal > 0:
                 # 旋转情况
-                shadow_img = Image.new('RGBA', (diagonal + shadow_offset * 2, diagonal + shadow_offset * 2), (0, 0, 0, 0))
+                # 保持原图像尺寸不变，只偏移阴影位置
+                shadow_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
                 shadow_draw = ImageDraw.Draw(shadow_img)
                 
-                # 绘制阴影
+                # 绘制偏移的阴影
                 text_x = (diagonal - text_width) // 2 + shadow_offset[0]
-                text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]  # 绘制阴影
+                text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]
                 shadow_draw.text((text_x, text_y), text, font=font, 
                                 fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
                 
-                # 将原图像放在阴影上方
-                shadow_img.paste(result_img, (shadow_offset[0], shadow_offset[1]), result_img)
+                # 将原图像放在阴影上方，保持原位置不变
+                shadow_img.paste(result_img, (0, 0), result_img)
                 result_img = shadow_img
             else:
                 # 非旋转情况
-                shadow_img = Image.new('RGBA', (result_img.width + shadow_offset[0], result_img.height + shadow_offset[1]), (0, 0, 0, 0))
+                # 保持原图像尺寸不变，只偏移阴影位置
+                shadow_img = Image.new('RGBA', (result_img.width, result_img.height), (0, 0, 0, 0))
                 shadow_draw = ImageDraw.Draw(shadow_img)
                 
-                # 绘制阴影
+                # 绘制偏移的阴影
                 shadow_draw.text((20 + shadow_offset[0], 15 + shadow_offset[1]), text, font=font, 
                                 fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
                 
-                # 将原图像放在阴影上方
-                shadow_img.paste(result_img, (shadow_offset[0], shadow_offset[1]), result_img)
+                # 将原图像放在阴影上方，保持原位置不变
+                shadow_img.paste(result_img, (0, 0), result_img)
                 result_img = shadow_img
         
             # 如果需要阴影模糊效果且PIL支持ImageFilter
