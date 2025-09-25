@@ -424,11 +424,50 @@ class WatermarkRenderer:
                 shadow_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
                 shadow_draw = ImageDraw.Draw(shadow_img)
                 
-                # 绘制偏移的阴影
-                text_x = (diagonal - text_width) // 2 + shadow_offset[0]
-                text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]
-                shadow_draw.text((text_x, text_y), text, font=font, 
-                                fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                if italic and (not self._is_font_file_italic(font.getname()[0])):
+                    # 对于斜体文本，需要特殊处理阴影，确保阴影也倾斜
+                    # 创建一个临时图像来绘制斜体阴影
+                    shadow_temp_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
+                    shadow_temp_draw = ImageDraw.Draw(shadow_temp_img)
+                    
+                    # 绘制斜体阴影
+                    text_x = (diagonal - text_width) // 2 + shadow_offset[0]
+                    text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]
+                    shadow_temp_draw.text((text_x, text_y), text, font=font, 
+                                        fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                    
+                    # 对阴影应用斜体变换
+                    import numpy as np
+                    shear_factor = 0.15  # 与主文本相同的倾斜系数
+                    matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
+                    # 应用变换
+                    skewed_shadow_img = shadow_temp_img.transform(
+                        (int(shadow_temp_img.width + shadow_temp_img.height * shear_factor), shadow_temp_img.height),
+                        Image.AFFINE,
+                        matrix,
+                        resample=Image.BICUBIC
+                    )
+                    
+                    # 将倾斜后的阴影粘贴到阴影图像
+                    shadow_img.paste(skewed_shadow_img, ((diagonal - skewed_shadow_img.width) // 2, 
+                                                          (diagonal - text_height) // 2 - 5), skewed_shadow_img)
+                else:
+                    # 非斜体文本的阴影
+                    # 绘制偏移的阴影
+                    text_x = (diagonal - text_width) // 2 + shadow_offset[0]
+                    text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]
+                    shadow_draw.text((text_x, text_y), text, font=font, 
+                                    fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                
+                # 如果需要阴影模糊效果且PIL支持ImageFilter
+                if shadow_blur > 0:
+                    try:
+                        from PIL import ImageFilter
+                        # 仅对阴影应用高斯模糊
+                        shadow_img = shadow_img.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+                    except ImportError:
+                        # 如果PIL不支持ImageFilter，则忽略模糊效果
+                        pass
                 
                 # 将原图像放在阴影上方，保持原位置不变
                 shadow_img.paste(result_img, (0, 0), result_img)
@@ -439,23 +478,48 @@ class WatermarkRenderer:
                 shadow_img = Image.new('RGBA', (result_img.width, result_img.height), (0, 0, 0, 0))
                 shadow_draw = ImageDraw.Draw(shadow_img)
                 
-                # 绘制偏移的阴影
-                shadow_draw.text((20 + shadow_offset[0], 15 + shadow_offset[1]), text, font=font, 
-                                fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                if italic and (not self._is_font_file_italic(font.getname()[0])):
+                    # 对于斜体文本，需要特殊处理阴影，确保阴影也倾斜
+                    # 创建一个临时图像来绘制斜体阴影
+                    shadow_temp_img = Image.new('RGBA', (result_img.width, result_img.height), (0, 0, 0, 0))
+                    shadow_temp_draw = ImageDraw.Draw(shadow_temp_img)
+                    
+                    # 绘制斜体阴影
+                    shadow_temp_draw.text((20 + shadow_offset[0], 15 + shadow_offset[1]), text, font=font, 
+                                        fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                    
+                    # 对阴影应用斜体变换
+                    shear_factor = 0.15  # 与主文本相同的倾斜系数
+                    matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
+                    # 应用变换
+                    skewed_shadow_img = shadow_temp_img.transform(
+                        (int(shadow_temp_img.width + shadow_temp_img.height * shear_factor), shadow_temp_img.height),
+                        Image.AFFINE,
+                        matrix,
+                        resample=Image.BICUBIC
+                    )
+                    
+                    # 将倾斜后的阴影粘贴到阴影图像
+                    shadow_img.paste(skewed_shadow_img, (0, 0), skewed_shadow_img)
+                else:
+                    # 非斜体文本的阴影
+                    # 绘制偏移的阴影
+                    shadow_draw.text((20 + shadow_offset[0], 15 + shadow_offset[1]), text, font=font, 
+                                    fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                
+                # 如果需要阴影模糊效果且PIL支持ImageFilter
+                if shadow_blur > 0:
+                    try:
+                        from PIL import ImageFilter
+                        # 仅对阴影应用高斯模糊
+                        shadow_img = shadow_img.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+                    except ImportError:
+                        # 如果PIL不支持ImageFilter，则忽略模糊效果
+                        pass
                 
                 # 将原图像放在阴影上方，保持原位置不变
                 shadow_img.paste(result_img, (0, 0), result_img)
                 result_img = shadow_img
-        
-            # 如果需要阴影模糊效果且PIL支持ImageFilter
-            if shadow_blur > 0:
-                try:
-                    from PIL import ImageFilter
-                    # 应用高斯模糊使阴影更柔和
-                    result_img = result_img.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
-                except ImportError:
-                    # 如果PIL不支持ImageFilter，则忽略模糊效果
-                    pass
         
         return result_img
     
