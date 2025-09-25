@@ -66,84 +66,13 @@ class WatermarkRenderer:
             rotated_draw = ImageDraw.Draw(rotated_text_img)
             
             # 在透明图像上绘制文本
-            if font_bold and not self._is_font_file_bold(font_family):
-                # 通过多次绘制文本实现粗体效果
-                print(f"[DEBUG] 手动实现粗体效果: {font_family}")
-                # 绘制多次文本，每次偏移1像素，实现加粗效果
-                text_x = (diagonal - text_width) // 2
-                text_y = (diagonal - text_height) // 2
-                for dx in range(2):
-                    for dy in range(2):
-                        x_offset = text_x + dx
-                        y_offset = text_y + dy
-                        rotated_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            elif font_italic and not self._is_font_file_italic(font_family):
-                # 通过图像变换实现真正的斜体效果
-                print(f"[DEBUG] 手动实现斜体效果: {font_family}")
-                # 创建一个单独的图像来绘制文本，然后应用斜体变换
-                text_img = Image.new('RGBA', (text_width + 20, text_height + 20), (0, 0, 0, 0))
-                text_draw = ImageDraw.Draw(text_img)
-                
-                # 正常绘制文本
-                text_draw.text((10, 10), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-                
-                # 对于中文字体，应用更强的斜体变换
-                if self._contains_chinese(text):
-                    # 使用仿射变换实现斜体效果
-                    import numpy as np
-                    # 定义斜体变换矩阵（降低倾斜系数）
-                    shear_factor = 0.15  # 降低的倾斜系数
-                    matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
-                    # 应用变换
-                    skewed_img = text_img.transform(
-                        (int(text_img.width + text_img.height * shear_factor), text_img.height),
-                        Image.AFFINE,
-                        matrix,
-                        resample=Image.BICUBIC
-                    )
-                    # 将变换后的图像绘制到旋转图像上
-                    rotated_draw.bitmap((text_x, text_y), skewed_img, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-                else:
-                    # 对于英文字体，使用原来的逐行偏移方法
-                    lines = text.split('\n')
-                    line_height = font_size  # 估算行高
-                    text_x = (diagonal - text_width) // 2
-                    text_y = (diagonal - text_height) // 2
-                    for i, line in enumerate(lines):
-                        # 计算当前行的y坐标
-                        line_y = text_y + i * line_height
-                        # 根据行号计算水平偏移量（模拟斜体倾斜效果）
-                        offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                        rotated_draw.text((text_x + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            else:
-                # 正常绘制文本
-                text_x = (diagonal - text_width) // 2
-                text_y = (diagonal - text_height) // 2
-                rotated_draw.text((text_x, text_y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            
-            # 旋转文本图像
-            rotated_text_img = rotated_text_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
-            
-            # 将旋转后的文本图像粘贴到主图像上
-            paste_x = x - (rotated_text_img.width - text_width) // 2
-            paste_y = y - (rotated_text_img.height - text_height) // 2
-            watermarked_image.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
-        else:
-            # 直接在主图像上绘制文本（无旋转）
-            if font_bold and not self._is_font_file_bold(font_family):
-                # 通过多次绘制文本实现粗体效果
-                print(f"[DEBUG] 手动实现粗体效果: {font_family}")
-                # 绘制多次文本，每次偏移1像素，实现加粗效果
-                for dx in range(2):
-                    for dy in range(2):
-                        x_offset = x + dx
-                        y_offset = y + dy
-                        draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            elif font_italic and not self._is_font_file_italic(font_family):
-                # 通过图像变换实现真正的斜体效果
-                print(f"[DEBUG] 手动实现斜体效果: {font_family}")
-                # 对于中文字体，使用图像变换实现斜体效果
-                if self._contains_chinese(text):
+            # 处理粗体和斜体效果
+            # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
+            is_chinese_text = self._contains_chinese(text)
+            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)):
+                print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
+                # 如果是中文字体且需要斜体效果
+                if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
                     # 创建一个单独的图像来绘制文本，然后应用斜体变换
                     text_img = Image.new('RGBA', (text_width + 20, text_height + 20), (0, 0, 0, 0))
                     text_draw = ImageDraw.Draw(text_img)
@@ -163,18 +92,113 @@ class WatermarkRenderer:
                         matrix,
                         resample=Image.BICUBIC
                     )
-                    # 将变换后的图像绘制到主图像上
-                    watermarked_image.paste(skewed_img, (x, y), skewed_img)
+                    
+                    # 如果还需要粗体效果，则多次绘制斜体图像
+                    if font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text):
+                        for dx in range(2):
+                            for dy in range(2):
+                                x_offset = (diagonal - text_width) // 2 + dx
+                                y_offset = (diagonal - text_height) // 2 + dy
+                                rotated_text_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
+                    else:
+                        # 仅斜体效果
+                        rotated_text_img.paste(skewed_img, ((diagonal - text_width) // 2, (diagonal - text_height) // 2), skewed_img)
+                # 对于英文字体或不需要斜体的字体
                 else:
-                    # 对于英文字体，使用原来的逐行偏移方法
-                    lines = text.split('\n')
-                    line_height = font_size  # 估算行高
-                    for i, line in enumerate(lines):
-                        # 计算当前行的y坐标
-                        line_y = y + i * line_height
-                        # 根据行号计算水平偏移量（模拟斜体倾斜效果）
-                        offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                        draw.text((x + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                    # 通过多次绘制文本实现粗体效果
+                    for dx in range(2):
+                        for dy in range(2):
+                            x_offset = (diagonal - text_width) // 2 + dx
+                            y_offset = (diagonal - text_height) // 2 + dy
+                            # 如果需要斜体效果（英文字体）
+                            if font_italic and not self._is_font_file_italic(font_family):
+                                # 对于英文字体，使用逐行偏移方法
+                                lines = text.split('\n')
+                                line_height = font_size  # 估算行高
+                                for i, line in enumerate(lines):
+                                    # 计算当前行的y坐标
+                                    line_y = y_offset + i * line_height
+                                    # 根据行号计算水平偏移量（模拟斜体倾斜效果）
+                                    offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
+                                    rotated_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                            else:
+                                rotated_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+            else:
+                # 正常绘制文本
+                text_x = (diagonal - text_width) // 2
+                text_y = (diagonal - text_height) // 2
+                rotated_draw.text((text_x, text_y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+            
+            # 旋转文本图像
+            rotated_text_img = rotated_text_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
+            
+            # 将旋转后的文本图像粘贴到主图像上
+            paste_x = x - (rotated_text_img.width - text_width) // 2
+            paste_y = y - (rotated_text_img.height - text_height) // 2
+            watermarked_image.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
+        else:
+            # 直接在主图像上绘制文本（无旋转）
+            # 处理粗体和斜体效果
+            # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
+            is_chinese_text = self._contains_chinese(text)
+            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)):
+                print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
+                # 如果是中文字体且需要斜体效果
+                if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
+                    # 创建一个单独的图像来绘制文本，然后应用斜体变换
+                    # 增加画布边距以避免斜体时汉字下半部分被截断
+                    text_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
+                    text_draw = ImageDraw.Draw(text_img)
+                    
+                    # 正常绘制文本（添加向上的位移以避免斜体时汉字下半部分被截断）
+                    text_draw.text((20, 20), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                    
+                    # 使用仿射变换实现斜体效果
+                    import numpy as np
+                    # 定义斜体变换矩阵（降低倾斜系数）
+                    shear_factor = 0.15  # 降低的倾斜系数
+                    matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
+                    # 应用变换，增加宽度以容纳斜体效果
+                    skewed_img = text_img.transform(
+                        (int(text_img.width + text_img.height * shear_factor), text_img.height),
+                        Image.AFFINE,
+                        matrix,
+                        resample=Image.BICUBIC
+                    )
+                    
+                    # 添加向上的位移来解决汉字下半部分被截断的问题
+                    vertical_offset = -5  # 向上移动5个像素，增加位移量
+                    
+                    # 如果还需要粗体效果，则多次绘制斜体图像
+                    if font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text):
+                        for dx in range(2):
+                            for dy in range(2):
+                                x_offset = x + dx
+                                y_offset = y + dy + vertical_offset  # 添加垂直位移
+                                watermarked_image.paste(skewed_img, (x_offset, y_offset), skewed_img)
+                    else:
+                        # 仅斜体效果
+                        watermarked_image.paste(skewed_img, (x, y + vertical_offset), skewed_img)  # 添加垂直位移
+                # 对于英文字体或不需要斜体的字体
+                else:
+                    # 通过多次绘制文本实现粗体效果
+                    for dx in range(2):
+                        for dy in range(2):
+                            x_offset = x + dx
+                            y_offset = y + dy
+                            # 如果需要斜体效果（英文字体）
+                            if font_italic and not self._is_font_file_italic(font_family):
+                                # 对于英文字体，使用逐行偏移方法
+                                lines = text.split('\n')
+                                line_height = font_size  # 估算行高
+                                for i, line in enumerate(lines):
+                                    # 计算当前行的y坐标
+                                    line_y = y_offset + i * line_height
+                                    # 根据行号计算水平偏移量（模拟斜体倾斜效果）
+                                    offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
+                                    draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                            else:
+                                draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
             else:
                 # 正常绘制文本
                 draw.text((x, y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
@@ -387,14 +411,37 @@ class WatermarkRenderer:
         
         # 检查中文字体
         if font_name in chinese_font_files:
-            return "bold" in chinese_font_files[font_name] and chinese_font_files[font_name]["bold"]
+            # 检查是否有粗体变体
+            if "bold" in chinese_font_files[font_name]:
+                bold_files = chinese_font_files[font_name]["bold"]
+                # 检查粗体文件是否实际存在
+                font_paths = [
+                    "C:/Windows/Fonts/",
+                    "/usr/share/fonts/",
+                    "/Library/Fonts/"
+                ]
+                for font_file in bold_files:
+                    for font_path in font_paths:
+                        full_path = os.path.join(font_path, font_file)
+                        if os.path.exists(full_path):
+                            return True
+            return False
         
         # 检查英文字体
         if font_name in english_font_files:
             # 检查是否有粗体文件
+            font_paths = [
+                "C:/Windows/Fonts/",
+                "/usr/share/fonts/",
+                "/Library/Fonts/"
+            ]
             for font_file in english_font_files[font_name]:
                 if 'bd' in font_file.lower() or 'bold' in font_file.lower():
-                    return True
+                    # 检查文件是否实际存在
+                    for font_path in font_paths:
+                        full_path = os.path.join(font_path, font_file)
+                        if os.path.exists(full_path):
+                            return True
         
         return False
     
@@ -457,10 +504,19 @@ class WatermarkRenderer:
         # 检查英文字体
         if font_name in english_font_files:
             # 检查是否有斜体文件
+            font_paths = [
+                "C:/Windows/Fonts/",
+                "/usr/share/fonts/",
+                "/Library/Fonts/"
+            ]
             for font_file in english_font_files[font_name]:
                 # 检查是否包含斜体标识（i, italic, it）
                 if any(italic_indicator in font_file.lower() for italic_indicator in ['i', 'italic', 'it']):
-                    return True
+                    # 检查文件是否实际存在
+                    for font_path in font_paths:
+                        full_path = os.path.join(font_path, font_file)
+                        if os.path.exists(full_path):
+                            return True
         
         return False
     
