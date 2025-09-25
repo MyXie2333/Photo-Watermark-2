@@ -299,13 +299,33 @@ class TextWatermarkWidget(QWidget):
         import os
         
         # 字体文件映射（与watermark_renderer.py保持一致）
+        # 注意：即使某些字体没有专门的粗体/斜体文件，PIL也会通过特性模拟来实现粗体和斜体效果
         chinese_font_files = {
-            "Microsoft YaHei": ["msyh.ttc", "msyh.ttf", "msyhbd.ttc", "msyhbd.ttf", "msyhl.ttc"],
-            "SimHei": ["simhei.ttf"],
-            "SimSun": ["simsun.ttc", "simsunb.ttf", "SimsunExtG.ttf"],
-            "KaiTi": ["simkai.ttf", "STKAITI.TTF"],
-            "FangSong": ["simfang.ttf"],
-            "Arial Unicode MS": ["arialuni.ttf"]
+            "Microsoft YaHei": {
+                "regular": ["msyh.ttc", "msyh.ttf"],
+                "bold": ["msyhbd.ttc", "msyhbd.ttf"],
+                "light": ["msyhl.ttc"]
+            },
+            "SimHei": {
+                "regular": ["simhei.ttf"]
+                # 黑体没有专门的粗体文件，但PIL会通过特性模拟实现粗体效果
+            },
+            "SimSun": {
+                "regular": ["simsun.ttc"],
+                "bold": ["simsunb.ttf"],
+                "extended": ["SimsunExtG.ttf"]
+            },
+            "KaiTi": {
+                "regular": ["simkai.ttf", "STKAITI.TTF"]
+                # 楷体没有专门的粗体文件，但PIL会通过特性模拟实现粗体效果
+            },
+            "FangSong": {
+                "regular": ["simfang.ttf"]
+                # 仿宋没有专门的粗体文件，但PIL会通过特性模拟实现粗体效果
+            },
+            "Arial Unicode MS": {
+                "regular": ["arialuni.ttf"]
+            }
         }
         
         english_font_files = {
@@ -328,11 +348,13 @@ class TextWatermarkWidget(QWidget):
         
         # 检查中文字体
         if font_name in chinese_font_files:
-            for font_file in chinese_font_files[font_name]:
-                for font_path in font_paths:
-                    full_path = os.path.join(font_path, font_file)
-                    if os.path.exists(full_path):
-                        return True
+            # 遍历所有字体变体
+            for variant_files in chinese_font_files[font_name].values():
+                for font_file in variant_files:
+                    for font_path in font_paths:
+                        full_path = os.path.join(font_path, font_file)
+                        if os.path.exists(full_path):
+                            return True
         
         # 检查英文字体
         if font_name in english_font_files:
