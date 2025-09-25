@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea)
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage, QColor
+from PIL import Image as PILImage
 
 # 导入自定义模块
 import sys
@@ -450,48 +451,50 @@ class MainWindow(QMainWindow):
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_current_watermark_settings()
             
-            # 检查是否有水印文本
-            if current_watermark_settings.get("text"):
-                # 有水印文本，生成带水印的预览
-                preview_image = self.watermark_renderer.preview_watermark(
-                    current_image_path, 
-                    current_watermark_settings,
-                    preview_size=(800, 600)  # 预览尺寸
-                )
-                
-                # 转换为QPixmap - 使用更可靠的方法
-                # 先将PIL Image转换为RGB模式，然后转换为bytes，再创建QImage
-                if preview_image.mode != 'RGB':
-                    preview_image = preview_image.convert('RGB')
-                
-                # 将PIL Image转换为bytes
-                import io
-                img_byte_arr = io.BytesIO()
-                preview_image.save(img_byte_arr, format='PNG')
-                img_byte_arr = img_byte_arr.getvalue()
-                
-                # 从bytes创建QImage，然后转换为QPixmap
-                qimage = QImage()
-                qimage.loadFromData(img_byte_arr)
-                pixmap = QPixmap.fromImage(qimage)
-                
-                # 对水印预览图片应用缩放比例 - 基于原始图片尺寸计算
-                if self.current_scale != 1.0:
-                    # 使用原始图片尺寸计算缩放后的尺寸
-                    original_width = self.original_pixmap.width()
-                    original_height = self.original_pixmap.height()
-                    scaled_width = int(original_width * self.current_scale)
-                    scaled_height = int(original_height * self.current_scale)
-                    
-                    # 缩放水印预览图片到目标尺寸
-                    pixmap = pixmap.scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            # 不管是否有水印文本，都统一使用水印预览流程
+            # 如果没有水印文本，水印设置中的text为空，预览图将初始化为原始图片
+            preview_result = self.watermark_renderer.preview_watermark(
+                current_image_path, 
+                current_watermark_settings,
+                preview_size=(800, 600)  # 预览最大尺寸，会保持原图比例
+            )
+            
+            # 解析返回结果
+            if isinstance(preview_result, tuple):
+                preview_image, ratio_info = preview_result
+                # 保存比例信息，用于拖拽计算
+                self.preview_ratio_info = ratio_info
             else:
-                # 没有水印文本，直接使用原始图片并应用缩放
-                if self.current_scale != 1.0:
-                    scaled_size = self.original_pixmap.size() * self.current_scale
-                    pixmap = self.original_pixmap.scaled(scaled_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                else:
-                    pixmap = self.original_pixmap
+                # 兼容旧版本返回格式
+                preview_image = preview_result
+                self.preview_ratio_info = None
+            
+            # 转换为QPixmap - 使用更可靠的方法
+            # 先将PIL Image转换为RGB模式，然后转换为bytes，再创建QImage
+            if preview_image.mode != 'RGB':
+                preview_image = preview_image.convert('RGB')
+            
+            # 将PIL Image转换为bytes
+            import io
+            img_byte_arr = io.BytesIO()
+            preview_image.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            # 从bytes创建QImage，然后转换为QPixmap
+            qimage = QImage()
+            qimage.loadFromData(img_byte_arr)
+            pixmap = QPixmap.fromImage(qimage)
+            
+            # 对水印预览图片应用缩放比例 - 基于原始图片尺寸计算
+            if self.current_scale != 1.0:
+                # 使用原始图片尺寸计算缩放后的尺寸
+                original_width = self.original_pixmap.width()
+                original_height = self.original_pixmap.height()
+                scaled_width = int(original_width * self.current_scale)
+                scaled_height = int(original_height * self.current_scale)
+                
+                # 缩放水印预览图片到目标尺寸
+                pixmap = pixmap.scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             
             self.preview_widget.setPixmap(pixmap)
             
@@ -707,24 +710,8 @@ class MainWindow(QMainWindow):
             
     def apply_scale(self):
         """应用当前缩放比例"""
-        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
-            # 计算缩放后的尺寸
-            scaled_width = int(self.original_pixmap.width() * self.current_scale)
-            scaled_height = int(self.original_pixmap.height() * self.current_scale)
-            
-            # 缩放图片
-            scaled_pixmap = self.original_pixmap.scaled(
-                scaled_width, 
-                scaled_height, 
-                Qt.KeepAspectRatio, 
-                Qt.SmoothTransformation
-            )
-            
-            self.preview_widget.setPixmap(scaled_pixmap)
-            print(f"应用缩放: {self.current_scale:.1f}x, 显示尺寸: {scaled_width}x{scaled_height}")
-        else:
-            # 如果没有original_pixmap，尝试重新加载当前图片
-            self._update_preview_based_on_watermark()
+        # 重新生成水印预览并应用缩放
+        self.update_preview_with_watermark()
             
     def calculate_fit_scale(self):
         """计算适应窗口的缩放比例"""
@@ -766,8 +753,8 @@ class MainWindow(QMainWindow):
                 self.image_manager.set_scale_settings(current_image_path, fit_scale)
                 print(f"适应窗口显示，保存缩放比例: {fit_scale:.2f}")
             
-            # 直接应用缩放
-            self.apply_scale()
+            # 重新生成水印预览并应用缩放
+            self.update_preview_with_watermark()
             
     def zoom_in(self):
         """放大预览"""
@@ -815,7 +802,8 @@ class MainWindow(QMainWindow):
             self.image_manager.set_scale_settings(current_image_path, self.current_scale)
             print(f"重置缩放比例: {self.current_scale:.2f}")
         
-        self.apply_scale()
+        # 重新生成水印预览并应用缩放
+        self.update_preview_with_watermark()
         print("重置缩放比例到 1.0x")
         
     def dragEnterEvent(self, event):
@@ -958,38 +946,168 @@ class MainWindow(QMainWindow):
                     img_width = self.original_pixmap.width()
                     img_height = self.original_pixmap.height()
                     
-                    # 计算文本尺寸（估算）
-                    font_size = current_watermark_settings.get("font_size", 24)
-                    text = current_watermark_settings.get("text", "")
-                    # 简单估算文本宽度：每个字符约为font_size的0.6倍
-                    text_width = int(len(text) * font_size * 0.6)
-                    text_height = font_size
+                    # 获取当前图片路径
+                    current_image_path = self.image_manager.get_current_image_path()
                     
-                    # 根据当前位置设置计算水印坐标
-                    position = current_watermark_settings.get("position", "center")
-                    if position == "top-left":
-                        x, y = (20, 20)
-                    elif position == "top-center":
-                        x, y = ((img_width - text_width) // 2, 20)
-                    elif position == "top-right":
-                        x, y = (img_width - text_width - 20, 20)
-                    elif position == "middle-left":
-                        x, y = (20, (img_height - text_height) // 2)
-                    elif position == "center":
-                        x, y = ((img_width - text_width) // 2, (img_height - text_height) // 2)
-                    elif position == "middle-right":
-                        x, y = (img_width - text_width - 20, (img_height - text_height) // 2)
-                    elif position == "bottom-left":
-                        x, y = (20, img_height - text_height - 20)
-                    elif position == "bottom-center":
-                        x, y = ((img_width - text_width) // 2, img_height - text_height - 20)
-                    elif position == "bottom-right":
-                        x, y = (img_width - text_width - 20, img_height - text_height - 20)
-                    else:
-                        x, y = (20, 20)
+                    # 获取水印渲染器计算的实际位置
+                    # 这样可以确保我们的估算与实际渲染位置一致
+                    try:
+                        from watermark_renderer import WatermarkRenderer
+                        renderer = WatermarkRenderer()
+                        
+                        # 临时创建一个预览图来获取水印的实际位置
+                        # 使用当前图片路径，而不是QImage对象
+                        temp_preview, temp_ratio_info = renderer.preview_watermark(
+                            current_image_path,
+                            current_watermark_settings,
+                            (800, 600)
+                        )
+                        
+                        # 从ratio_info中获取实际的水印位置
+                        if temp_ratio_info and 'watermark_position' in temp_ratio_info and temp_ratio_info['watermark_position'] is not None:
+                            # 获取实际渲染的水印位置（这是预览图上的位置）
+                            actual_x, actual_y = temp_ratio_info['watermark_position']
+                            
+                            # 将预览图上的位置转换为原始图片上的位置
+                            # 考虑预览图的缩放比例
+                            preview_width = temp_ratio_info.get('preview_width', 800)
+                            preview_height = temp_ratio_info.get('preview_height', 600)
+                            
+                            # 计算原始图片到预览图的比例
+                            original_to_preview_scale_x = preview_width / img_width
+                            original_to_preview_scale_y = preview_height / img_height
+                            
+                            # 将预览图上的位置转换为原始图片上的位置
+                            x = int(actual_x / original_to_preview_scale_x)
+                            y = int(actual_y / original_to_preview_scale_y)
+                            
+                            print(f"[DEBUG] 从WatermarkRenderer获取实际水印位置: 预览图位置({actual_x}, {actual_y}) -> 原始图片位置({x}, {y})")
+                            
+                            # 计算水印在预览图上的尺寸
+                            font_size = current_watermark_settings.get("font_size", 24)
+                            text = current_watermark_settings.get("text", "")
+                            # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                            watermark_width = int(len(text) * font_size * 0.6)
+                            watermark_height = font_size
+                            
+                            # 计算水印在预览图上的中心点
+                            watermark_center_x = actual_x + watermark_width / 2
+                            watermark_center_y = actual_y + watermark_height / 2
+                            
+                            # 获取当前预览图片的实际尺寸（考虑缩放比例）
+                            if hasattr(self, 'preview_widget') and self.preview_widget.pixmap():
+                                preview_pixmap = self.preview_widget.pixmap()
+                                display_width = preview_pixmap.width()
+                                display_height = preview_pixmap.height()
+                                
+                                # 计算显示尺寸与预览图的比例
+                                display_to_preview_scale_x = display_width / preview_width
+                                display_to_preview_scale_y = display_height / preview_height
+                                
+                                # 计算鼠标点击位置在预览图上的位置
+                                mouse_x_on_preview = int(event.pos().x() / display_to_preview_scale_x)
+                                mouse_y_on_preview = int(event.pos().y() / display_to_preview_scale_y)
+                                
+                                # 计算鼠标点击位置与水印中心点的偏移
+                                offset_x = mouse_x_on_preview - watermark_center_x
+                                offset_y = mouse_y_on_preview - watermark_center_y
+                                
+                                # 直接使用原始图片位置，不进行额外的偏移转换
+                                # 因为我们已经从WatermarkRenderer获取了正确的原始图片位置
+                                # 我们只需要根据鼠标点击位置与水印中心点的偏移来调整水印位置
+                                x = x + int(offset_x / original_to_preview_scale_x)
+                                y = y + int(offset_y / original_to_preview_scale_y)
+                                
+                                print(f"[DEBUG] 调整水印位置: 鼠标点击位置({event.pos().x()}, {event.pos().y()}), 预览图上鼠标位置({mouse_x_on_preview}, {mouse_y_on_preview}), 水印中心点({watermark_center_x}, {watermark_center_y}), 偏移({offset_x}, {offset_y}), 调整后位置({x}, {y})")
+                                
+                                # 确保水印位置在图片范围内
+                                if hasattr(self, 'image_manager') and self.image_manager:
+                                    current_image_path = self.image_manager.get_current_image_path()
+                                    if current_image_path and os.path.exists(current_image_path):
+                                        with PILImage.open(current_image_path) as img:
+                                            img_width, img_height = img.size
+                                            # 确保水印位置在图片范围内
+                                            x = max(0, min(x, img_width - watermark_width))
+                                            y = max(0, min(y, img_height - watermark_height))
+                                            print(f"[DEBUG] 确保水印在图片范围内，最终位置({x}, {y})")
+                        else:
+                            # 如果无法获取实际位置，使用估算值
+                            print("[DEBUG] 无法从WatermarkRenderer获取水印位置，使用估算值")
+                            # 计算文本尺寸（估算）
+                            font_size = current_watermark_settings.get("font_size", 24)
+                            text = current_watermark_settings.get("text", "")
+                            # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                            text_width = int(len(text) * font_size * 0.6)
+                            text_height = font_size
+                            
+                            # 使用与watermark_renderer.py中_calculate_position方法相同的逻辑计算水印坐标
+                            position = current_watermark_settings.get("position", "center")
+                            margin = 20  # 边距，与watermark_renderer.py保持一致
+                            
+                            if position == "top-left":
+                                x, y = (margin, margin)
+                            elif position == "top-center":
+                                x, y = ((img_width - text_width) // 2, margin)
+                            elif position == "top-right":
+                                x, y = (img_width - text_width - margin, margin)
+                            elif position == "middle-left":
+                                x, y = (margin, (img_height - text_height) // 2)
+                            elif position == "center":
+                                x, y = ((img_width - text_width) // 2, (img_height - text_height) // 2)
+                            elif position == "middle-right":
+                                x, y = (img_width - text_width - margin, (img_height - text_height) // 2)
+                            elif position == "bottom-left":
+                                x, y = (margin, img_height - text_height - margin)
+                            elif position == "bottom-center":
+                                x, y = ((img_width - text_width) // 2, img_height - text_height - margin)
+                            elif position == "bottom-right":
+                                x, y = (img_width - text_width - margin, img_height - text_height - margin)
+                            else:
+                                x, y = (margin, margin)
+                    except Exception as e:
+                        # 如果获取实际位置失败，使用估算值
+                        print(f"[DEBUG] 获取水印实际位置失败: {e}，使用估算值")
+                        # 计算文本尺寸（估算）
+                        font_size = current_watermark_settings.get("font_size", 24)
+                        text = current_watermark_settings.get("text", "")
+                        # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                        text_width = int(len(text) * font_size * 0.6)
+                        text_height = font_size
+                        
+                        # 使用与watermark_renderer.py中_calculate_position方法相同的逻辑计算水印坐标
+                        position = current_watermark_settings.get("position", "center")
+                        margin = 20  # 边距，与watermark_renderer.py保持一致
+                        
+                        if position == "top-left":
+                            x, y = (margin, margin)
+                        elif position == "top-center":
+                            x, y = ((img_width - text_width) // 2, margin)
+                        elif position == "top-right":
+                            x, y = (img_width - text_width - margin, margin)
+                        elif position == "middle-left":
+                            x, y = (margin, (img_height - text_height) // 2)
+                        elif position == "center":
+                            x, y = ((img_width - text_width) // 2, (img_height - text_height) // 2)
+                        elif position == "middle-right":
+                            x, y = (img_width - text_width - margin, (img_height - text_height) // 2)
+                        elif position == "bottom-left":
+                            x, y = (margin, img_height - text_height - margin)
+                        elif position == "bottom-center":
+                            x, y = ((img_width - text_width) // 2, img_height - text_height - margin)
+                        elif position == "bottom-right":
+                            x, y = (img_width - text_width - margin, img_height - text_height - margin)
+                        else:
+                            x, y = (margin, margin)
                     
-                    # 保存估算的水印偏移量
+                    # 保存计算出的水印偏移量
                     self.watermark_offset = (x, y)
+                    
+                    # 立即更新水印设置为自定义位置，避免第一次移动时的跳跃
+                    current_image_path = self.image_manager.get_current_image_path()
+                    if current_image_path:
+                        current_watermark_settings["position"] = (x, y)
+                        self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+                        self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
                 else:
                     # 如果已有自定义位置，直接使用
                     self.watermark_offset = current_watermark_settings["position"]
@@ -1004,16 +1122,66 @@ class MainWindow(QMainWindow):
             delta_x = event.pos().x() - self.drag_start_pos.x()
             delta_y = event.pos().y() - self.drag_start_pos.y()
             
-            # 直接使用鼠标移动距离，不再根据缩放比例调整
-            # 这样鼠标移动多远，水印就会移动多远，提供更直观的用户体验
-            new_x = max(0, self.watermark_offset[0] + delta_x)
-            new_y = max(0, self.watermark_offset[1] + delta_y)
+            # 获取原始图片尺寸
+            original_width = self.original_pixmap.width()
+            original_height = self.original_pixmap.height()
+            
+            # 获取当前预览图片的实际尺寸（考虑缩放比例）
+            if hasattr(self, 'preview_widget') and self.preview_widget.pixmap():
+                preview_pixmap = self.preview_widget.pixmap()
+                display_width = preview_pixmap.width()
+                display_height = preview_pixmap.height()
+                
+                # 计算显示尺寸与原始图片的比例
+                display_to_original_scale_x = original_width / display_width
+                display_to_original_scale_y = original_height / display_height
+                
+                # 使用保存的比例信息（如果有）
+                if hasattr(self, 'preview_ratio_info') and self.preview_ratio_info:
+                    # 从保存的比例信息中获取预览图的实际尺寸
+                    actual_preview_width = self.preview_ratio_info.get('preview_width', 800)
+                    actual_preview_height = self.preview_ratio_info.get('preview_height', 600)
+                    
+                    # 计算原始图片到实际预览尺寸的比例
+                    original_to_actual_preview_scale_x = actual_preview_width / original_width
+                    original_to_actual_preview_scale_y = actual_preview_height / original_height
+                    
+                    # 计算显示尺寸与实际预览尺寸的比例（考虑current_scale）
+                    display_to_actual_preview_scale_x = display_width / actual_preview_width
+                    display_to_actual_preview_scale_y = display_height / actual_preview_height
+                    
+                    # 计算鼠标移动距离在原始图片上的对应距离
+                    # 转换过程：
+                    # 1. 显示距离 -> 实际预览距离（考虑current_scale）
+                    # 2. 实际预览距离 -> 原始图片距离
+                    scaled_delta_x = int(delta_x * display_to_actual_preview_scale_x / original_to_actual_preview_scale_x)
+                    scaled_delta_y = int(delta_y * display_to_actual_preview_scale_y / original_to_actual_preview_scale_y)
+                else:
+                    # 如果没有保存的比例信息，使用固定预览尺寸 (800, 600) 计算
+                    # 计算显示尺寸与固定预览尺寸的比例（考虑current_scale）
+                    display_to_fixed_preview_scale_x = display_width / 800
+                    display_to_fixed_preview_scale_y = display_height / 600
+                    
+                    # 计算原始图片到固定预览尺寸的比例
+                    original_to_fixed_preview_scale_x = 800 / original_width
+                    original_to_fixed_preview_scale_y = 600 / original_height
+                    
+                    # 计算鼠标移动距离在原始图片上的对应距离
+                    scaled_delta_x = int(delta_x * display_to_fixed_preview_scale_x / original_to_fixed_preview_scale_x)
+                    scaled_delta_y = int(delta_y * display_to_fixed_preview_scale_y / original_to_fixed_preview_scale_y)
+            else:
+                # 如果无法获取预览图片尺寸，直接使用鼠标移动距离
+                scaled_delta_x = delta_x
+                scaled_delta_y = delta_y
+            
+            new_x = max(0, self.watermark_offset[0] + scaled_delta_x)
+            new_y = max(0, self.watermark_offset[1] + scaled_delta_y)
             
             # 获取原始图片尺寸
             img_width = self.original_pixmap.width()
             img_height = self.original_pixmap.height()
             
-            # 确保水印不会超出图片边界太多
+            # 确保水印不会超出图片边界
             new_x = min(new_x, img_width)
             new_y = min(new_y, img_height)
             

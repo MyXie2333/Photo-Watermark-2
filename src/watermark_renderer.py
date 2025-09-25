@@ -14,6 +14,7 @@ class WatermarkRenderer:
     
     def __init__(self):
         self.font_cache = {}
+        self.last_watermark_position = None  # 记录最后一次渲染的水印位置
         
     def render_text_watermark(self, image, watermark_settings):
         """
@@ -65,6 +66,9 @@ class WatermarkRenderer:
         # 计算水印位置
         img_width, img_height = watermarked_image.size
         x, y = self._calculate_position(position, img_width, img_height, text_width, text_height)
+        
+        # 记录水印位置
+        self.last_watermark_position = (x, y)
         
         # 应用旋转
         if rotation != 0:
@@ -1205,13 +1209,14 @@ class WatermarkRenderer:
             # 应用水印
             watermarked_image = self.render_text_watermark(preview_image, watermark_settings)
             
-            # 返回水印预览图和原始图片比例信息
+            # 返回水印预览图、原始图片比例信息和水印位置
             return watermarked_image, {
                 'original_width': original_width,
                 'original_height': original_height,
                 'original_aspect_ratio': original_aspect_ratio,
                 'preview_width': new_width,
-                'preview_height': new_height
+                'preview_height': new_height,
+                'watermark_position': self.last_watermark_position  # 添加水印位置信息
             }
             
         except Exception as e:
