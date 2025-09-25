@@ -1004,13 +1004,10 @@ class MainWindow(QMainWindow):
             delta_x = event.pos().x() - self.drag_start_pos.x()
             delta_y = event.pos().y() - self.drag_start_pos.y()
             
-            # 根据缩放比例调整移动距离
-            scaled_delta_x = int(delta_x / self.current_scale)
-            scaled_delta_y = int(delta_y / self.current_scale)
-            
-            # 计算新的水印位置
-            new_x = max(0, self.watermark_offset[0] + scaled_delta_x)
-            new_y = max(0, self.watermark_offset[1] + scaled_delta_y)
+            # 直接使用鼠标移动距离，不再根据缩放比例调整
+            # 这样鼠标移动多远，水印就会移动多远，提供更直观的用户体验
+            new_x = max(0, self.watermark_offset[0] + delta_x)
+            new_y = max(0, self.watermark_offset[1] + delta_y)
             
             # 获取原始图片尺寸
             img_width = self.original_pixmap.width()
