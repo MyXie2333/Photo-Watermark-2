@@ -46,6 +46,7 @@ class WatermarkRenderer:
         enable_outline = watermark_settings.get("enable_outline", False)
         outline_color = watermark_settings.get("outline_color", (0, 0, 0))
         outline_width = watermark_settings.get("outline_width", None)
+        outline_offset = watermark_settings.get("outline_offset", (0, 0))
         shadow_color = watermark_settings.get("shadow_color", (0, 0, 0))
         shadow_offset = watermark_settings.get("shadow_offset", None)
         shadow_blur = watermark_settings.get("shadow_blur", None)
@@ -145,8 +146,9 @@ class WatermarkRenderer:
             rotated_text_img = self._apply_text_effects(temp_img, text_width, text_height, diagonal, 
                                                        enable_shadow, enable_outline, color, opacity, font, text, 
                                                        outline_color=outline_color, outline_width=outline_width, 
+                                                       outline_offset=outline_offset,
                                                        shadow_color=shadow_color, shadow_offset=shadow_offset, 
-                                                       shadow_blur=shadow_blur)
+                                                       shadow_blur=shadow_blur, italic=font_italic)
             
             # 旋转文本图像
             rotated_text_img = rotated_text_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
@@ -155,8 +157,9 @@ class WatermarkRenderer:
             final_rotated_img = self._apply_text_effects(rotated_text_img, text_width, text_height, diagonal, 
                                                        enable_shadow, enable_outline, color, opacity, font, text, 
                                                        outline_color=outline_color, outline_width=outline_width, 
+                                                       outline_offset=outline_offset,
                                                        shadow_color=shadow_color, shadow_offset=shadow_offset, 
-                                                       shadow_blur=shadow_blur)
+                                                       shadow_blur=shadow_blur, italic=font_italic)
             
             # 将应用效果后的旋转图像粘贴到主图像上
             paste_x = x - (final_rotated_img.width - text_width) // 2
@@ -239,8 +242,9 @@ class WatermarkRenderer:
             final_img = self._apply_text_effects(temp_img, text_width, text_height, 0, 
                                                 enable_shadow, enable_outline, color, opacity, font, text, 
                                                 outline_color=outline_color, outline_width=outline_width, 
+                                                outline_offset=outline_offset,
                                                 shadow_color=shadow_color, shadow_offset=shadow_offset, 
-                                                shadow_blur=shadow_blur)
+                                                shadow_blur=shadow_blur, italic=font_italic)
             
             # 将最终图像粘贴到主图像上
             watermarked_image.paste(final_img, (x - 10, y - 10), final_img)
@@ -249,7 +253,7 @@ class WatermarkRenderer:
     
     def _apply_text_effects(self, temp_img, text_width, text_height, diagonal, enable_shadow, enable_outline, 
                           color, opacity, font, text, outline_color=(0, 0, 0), outline_width=None, 
-                          shadow_color=(0, 0, 0), shadow_offset=None, shadow_blur=None):
+                          outline_offset=(0, 0), shadow_color=(0, 0, 0), shadow_offset=None, shadow_blur=None, italic=False):
         """
         应用文本效果（阴影和描边）
         
@@ -266,9 +270,11 @@ class WatermarkRenderer:
             text: 实际文本内容
             outline_color: 描边颜色，默认为黑色
             outline_width: 描边宽度，默认为字体大小的1/12
+            outline_offset: 描边偏移量，默认为(0, 0)
             shadow_color: 阴影颜色，默认为黑色
             shadow_offset: 阴影偏移量，默认为(3, 3)
             shadow_blur: 阴影模糊半径，默认为3
+            italic: 是否斜体
         
         Returns:
             PIL Image对象: 应用效果后的图像
@@ -310,14 +316,83 @@ class WatermarkRenderer:
                          (0, -stroke_width), (0, stroke_width),
                          (stroke_width, -stroke_width), (stroke_width, 0), (stroke_width, stroke_width)]
             
-            for dx, dy in directions:
+            # 如果是斜体文本，我们需要特殊处理描边，确保描边也倾斜
+            if italic and (not diagonal > 0 or (diagonal > 0 and not self._is_font_file_italic(font.getname()[0]))):
+                # 对于斜体文本，我们不使用传统的8方向描边，而是使用另一种方式创建倾斜的描边
+                # 创建一个临时图像来绘制斜体描边
+                if diagonal > 0:
+                    outline_temp_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
+                else:
+                    outline_temp_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
+                outline_temp_draw = ImageDraw.Draw(outline_temp_img)
+                
+                # 绘制斜体描边
+                if diagonal > 0:
+                    # 绘制斜体描边
+                    for dx, dy in directions:
+                        outline_temp_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
+                                              fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                    
+                    # 对描边应用斜体变换
+                    import numpy as np
+                    shear_factor = 0.15  # 与主文本相同的倾斜系数
+                    matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
+                    # 应用变换
+                    skewed_outline_img = outline_temp_img.transform(
+                        (int(outline_temp_img.width + outline_temp_img.height * shear_factor), outline_temp_img.height),
+                        Image.AFFINE,
+                        matrix,
+                        resample=Image.BICUBIC
+                    )
+                    
+                    # 将倾斜后的描边粘贴到结果图像
+                    result_img.paste(skewed_outline_img, ((diagonal - skewed_outline_img.width) // 2, 
+                                                         (diagonal - text_height) // 2 - 5), skewed_outline_img)
+                else:
+                    # 非旋转情况的斜体描边
+                    if self._contains_chinese(text):
+                        # 中文斜体描边
+                        for dx, dy in directions:
+                            outline_temp_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
+                                              fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                        
+                        # 对描边应用斜体变换
+                        shear_factor = 0.15  # 与主文本相同的倾斜系数
+                        matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
+                        # 应用变换
+                        skewed_outline_img = outline_temp_img.transform(
+                            (int(outline_temp_img.width + outline_temp_img.height * shear_factor), outline_temp_img.height),
+                            Image.AFFINE,
+                            matrix,
+                            resample=Image.BICUBIC
+                        )
+                        
+                        # 将倾斜后的描边粘贴到结果图像
+                        result_img.paste(skewed_outline_img, (0, 0), skewed_outline_img)
+                    else:
+                        # 英文斜体描边，使用逐行偏移方法
+                        lines = text.split('\n')
+                        line_height = font.size  # 估算行高
+                        for i, line in enumerate(lines):
+                            # 计算当前行的y坐标
+                            line_y = text_y + i * line_height
+                            # 根据行号计算水平偏移量（模拟斜体倾斜效果）
+                            offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
+                            
+                            # 绘制倾斜的描边
+                            for dx, dy in directions:
+                                result_draw.text((text_x + dx + offset_x + outline_offset[0], line_y + dy + outline_offset[1]), line, font=font, 
+                                                fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+            else:
+                # 非斜体文本的传统8方向描边
+                for dx, dy in directions:
                     if diagonal > 0:
                         # 使用指定的描边颜色
-                        result_draw.text((text_x + dx, text_y + dy), text, font=font, 
+                        result_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
                                         fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
                     else:
                         # 对于非旋转情况，我们只处理单行文本
-                        result_draw.text((text_x + dx, text_y + dy), text, font=font, 
+                        result_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
                                         fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
         
         # 然后将原图像粘贴到结果图像上（如果有描边，这会覆盖描边内部）

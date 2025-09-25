@@ -37,7 +37,8 @@ class TextWatermarkWidget(QWidget):
         self.enable_outline = False
         # 阴影和描边详细设置
         self.outline_color = QColor(0, 0, 0)  # 描边颜色默认为黑色
-        self.outline_width = None  # 描边宽度（None表示自动）
+        self.outline_width = 1  # 描边宽度默认为1
+        self.outline_offset = (0, 0)  # 描边偏移默认为(0,0)
         self.shadow_color = QColor(0, 0, 0)  # 阴影颜色默认为黑色
         self.shadow_offset = (3, 3)  # 阴影偏移默认为(3,3)
         self.shadow_blur = 3  # 阴影模糊半径默认为3
@@ -229,16 +230,28 @@ class TextWatermarkWidget(QWidget):
         outline_settings_layout.addWidget(QLabel("描边粗细:"))
         self.outline_width_spin = QSpinBox()
         self.outline_width_spin.setRange(1, 10)
-        self.outline_width_spin.setSpecialValueText("自动")
-        if self.outline_width is not None:
-            self.outline_width_spin.setValue(self.outline_width)
-        else:
-            self.outline_width_spin.setValue(0)  # 0表示自动
+        self.outline_width_spin.setValue(self.outline_width)
         outline_settings_layout.addWidget(self.outline_width_spin)
         outline_settings_layout.addWidget(QLabel("px"))
         outline_settings_layout.addStretch()
         
+        # 描边偏移设置
+        outline_offset_layout = QHBoxLayout()
+        outline_offset_layout.addWidget(QLabel("描边偏移:"))
+        outline_offset_layout.addWidget(QLabel("X:"))
+        self.outline_offset_x_spin = QSpinBox()
+        self.outline_offset_x_spin.setRange(-10, 10)
+        self.outline_offset_x_spin.setValue(self.outline_offset[0])
+        outline_offset_layout.addWidget(self.outline_offset_x_spin)
+        outline_offset_layout.addWidget(QLabel("Y:"))
+        self.outline_offset_y_spin = QSpinBox()
+        self.outline_offset_y_spin.setRange(-10, 10)
+        self.outline_offset_y_spin.setValue(self.outline_offset[1])
+        outline_offset_layout.addWidget(self.outline_offset_y_spin)
+        outline_offset_layout.addStretch()
+        
         effect_layout.addLayout(outline_settings_layout, 1, 0, 1, 2)
+        effect_layout.addLayout(outline_offset_layout, 2, 0, 1, 2)
         
         # 阴影详细设置
         shadow_color_layout = QHBoxLayout()
@@ -272,9 +285,9 @@ class TextWatermarkWidget(QWidget):
         shadow_blur_layout.addWidget(QLabel("px"))
         shadow_blur_layout.addStretch()
         
-        effect_layout.addLayout(shadow_color_layout, 2, 0, 1, 2)
-        effect_layout.addLayout(shadow_offset_layout, 3, 0)
-        effect_layout.addLayout(shadow_blur_layout, 3, 1)
+        effect_layout.addLayout(shadow_color_layout, 3, 0, 1, 2)
+        effect_layout.addLayout(shadow_offset_layout, 4, 0)
+        effect_layout.addLayout(shadow_blur_layout, 4, 1)
         
         layout.addWidget(effect_group)
         
@@ -468,6 +481,8 @@ class TextWatermarkWidget(QWidget):
         self.outline_checkbox.stateChanged.connect(self.on_outline_changed)
         self.outline_color_button.clicked.connect(self.on_outline_color_clicked)
         self.outline_width_spin.valueChanged.connect(self.on_outline_width_changed)
+        self.outline_offset_x_spin.valueChanged.connect(self.on_outline_offset_changed)
+        self.outline_offset_y_spin.valueChanged.connect(self.on_outline_offset_changed)
         self.shadow_color_button.clicked.connect(self.on_shadow_color_clicked)
         self.shadow_offset_x_spin.valueChanged.connect(self.on_shadow_offset_changed)
         self.shadow_offset_y_spin.valueChanged.connect(self.on_shadow_offset_changed)
@@ -700,10 +715,7 @@ class TextWatermarkWidget(QWidget):
     
     def on_outline_width_changed(self, value):
         """描边宽度变化"""
-        if value == 0:
-            self.outline_width = None  # 自动
-        else:
-            self.outline_width = value
+        self.outline_width = value
         self.watermark_changed.emit()
     
     def on_shadow_color_clicked(self):
@@ -714,6 +726,11 @@ class TextWatermarkWidget(QWidget):
             self.update_shadow_color_button()
             self.watermark_changed.emit()
     
+    def on_outline_offset_changed(self):
+        """描边偏移变化"""
+        self.outline_offset = (self.outline_offset_x_spin.value(), self.outline_offset_y_spin.value())
+        self.watermark_changed.emit()
+        
     def on_shadow_offset_changed(self):
         """阴影偏移变化"""
         self.shadow_offset = (self.shadow_offset_x_spin.value(), self.shadow_offset_y_spin.value())
@@ -748,6 +765,7 @@ class TextWatermarkWidget(QWidget):
             "enable_outline": self.enable_outline,
             "outline_color": (self.outline_color.red(), self.outline_color.green(), self.outline_color.blue()),
             "outline_width": self.outline_width,
+            "outline_offset": self.outline_offset,
             "shadow_color": (self.shadow_color.red(), self.shadow_color.green(), self.shadow_color.blue()),
             "shadow_offset": self.shadow_offset,
             "shadow_blur": self.shadow_blur
