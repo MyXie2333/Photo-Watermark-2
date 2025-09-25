@@ -45,6 +45,20 @@ class MainWindow(QMainWindow):
         # 当前水印设置（用于UI显示和临时预览）
         self.current_watermark_settings = {}
         
+        # 初始化缩放相关变量
+        self.current_scale = 1.0
+        self.min_scale = 0.1
+        self.max_scale = 5.0
+        self.scale_step = 0.1
+        
+        # 初始化原始图片变量
+        self.original_pixmap = None
+        
+        # 初始化拖拽相关变量
+        self.is_dragging = False
+        self.drag_start_pos = None
+        self.watermark_offset = None
+        
         self.setup_ui()
         self.setup_connections()
         
@@ -146,6 +160,12 @@ class MainWindow(QMainWindow):
         self.preview_widget.setAcceptDrops(True)
         self.preview_widget.dragEnterEvent = self.dragEnterEvent
         self.preview_widget.dropEvent = self.dropEvent
+        
+        # 安装事件过滤器以捕获鼠标事件用于水印拖拽
+        self.preview_widget.mousePressEvent = self.on_preview_mouse_press
+        self.preview_widget.mouseMoveEvent = self.on_preview_mouse_move
+        self.preview_widget.mouseReleaseEvent = self.on_preview_mouse_release
+        self.preview_widget.setMouseTracking(True)
         
         # 预览滚动区域
         self.preview_scroll_area = QScrollArea()
@@ -919,6 +939,122 @@ class MainWindow(QMainWindow):
                          "一个功能强大的图片水印软件\n"
                          "支持文本水印和图片水印\n"
                          "版本 1.0.0")
+                         
+    def on_preview_mouse_press(self, event):
+        """预览区域鼠标按下事件"""
+        if event.button() == Qt.LeftButton and self.original_pixmap and self.image_manager.get_current_image_path():
+            # 获取当前图片的水印设置
+            current_watermark_settings = self.image_manager.get_current_watermark_settings()
+            
+            # 只有当有水印文本时才允许拖拽
+            if current_watermark_settings.get("text"):
+                self.is_dragging = True
+                self.drag_start_pos = event.pos()
+                
+                # 保存当前水印位置信息
+                # 如果之前没有自定义位置，使用默认位置
+                if not isinstance(current_watermark_settings.get("position"), tuple):
+                    # 获取图片原始尺寸
+                    img_width = self.original_pixmap.width()
+                    img_height = self.original_pixmap.height()
+                    
+                    # 计算文本尺寸（估算）
+                    font_size = current_watermark_settings.get("font_size", 24)
+                    text = current_watermark_settings.get("text", "")
+                    # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                    text_width = int(len(text) * font_size * 0.6)
+                    text_height = font_size
+                    
+                    # 根据当前位置设置计算水印坐标
+                    position = current_watermark_settings.get("position", "center")
+                    if position == "top-left":
+                        x, y = (20, 20)
+                    elif position == "top-center":
+                        x, y = ((img_width - text_width) // 2, 20)
+                    elif position == "top-right":
+                        x, y = (img_width - text_width - 20, 20)
+                    elif position == "middle-left":
+                        x, y = (20, (img_height - text_height) // 2)
+                    elif position == "center":
+                        x, y = ((img_width - text_width) // 2, (img_height - text_height) // 2)
+                    elif position == "middle-right":
+                        x, y = (img_width - text_width - 20, (img_height - text_height) // 2)
+                    elif position == "bottom-left":
+                        x, y = (20, img_height - text_height - 20)
+                    elif position == "bottom-center":
+                        x, y = ((img_width - text_width) // 2, img_height - text_height - 20)
+                    elif position == "bottom-right":
+                        x, y = (img_width - text_width - 20, img_height - text_height - 20)
+                    else:
+                        x, y = (20, 20)
+                    
+                    # 保存估算的水印偏移量
+                    self.watermark_offset = (x, y)
+                else:
+                    # 如果已有自定义位置，直接使用
+                    self.watermark_offset = current_watermark_settings["position"]
+                
+                # 更改鼠标样式为手型
+                self.setCursor(Qt.ClosedHandCursor)
+        
+    def on_preview_mouse_move(self, event):
+        """预览区域鼠标移动事件"""
+        if self.is_dragging and self.drag_start_pos and self.watermark_offset:
+            # 计算鼠标移动距离
+            delta_x = event.pos().x() - self.drag_start_pos.x()
+            delta_y = event.pos().y() - self.drag_start_pos.y()
+            
+            # 根据缩放比例调整移动距离
+            scaled_delta_x = int(delta_x / self.current_scale)
+            scaled_delta_y = int(delta_y / self.current_scale)
+            
+            # 计算新的水印位置
+            new_x = max(0, self.watermark_offset[0] + scaled_delta_x)
+            new_y = max(0, self.watermark_offset[1] + scaled_delta_y)
+            
+            # 获取原始图片尺寸
+            img_width = self.original_pixmap.width()
+            img_height = self.original_pixmap.height()
+            
+            # 确保水印不会超出图片边界太多
+            new_x = min(new_x, img_width)
+            new_y = min(new_y, img_height)
+            
+            # 更新水印设置
+            current_image_path = self.image_manager.get_current_image_path()
+            if current_image_path:
+                current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
+                
+                # 使用元组存储自定义位置
+                current_watermark_settings["position"] = (new_x, new_y)
+                
+                # 保存更新后的水印设置
+                self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+                
+                # 更新文本水印组件
+                self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
+                
+                # 更新预览
+                self.update_preview_with_watermark()
+                
+                # 更新拖拽起始位置和水印偏移量
+                self.drag_start_pos = event.pos()
+                self.watermark_offset = (new_x, new_y)
+        elif not self.is_dragging and self.original_pixmap and self.image_manager.get_current_image_path():
+            # 如果鼠标悬停在预览区域且没有拖拽，显示手型光标
+            self.setCursor(Qt.OpenHandCursor)
+        else:
+            # 恢复默认光标
+            self.setCursor(Qt.ArrowCursor)
+        
+    def on_preview_mouse_release(self, event):
+        """预览区域鼠标释放事件"""
+        if event.button() == Qt.LeftButton and self.is_dragging:
+            self.is_dragging = False
+            self.drag_start_pos = None
+            
+            # 恢复默认光标
+            self.setCursor(Qt.ArrowCursor)
 
 
 if __name__ == "__main__":

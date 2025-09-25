@@ -1128,6 +1128,11 @@ class WatermarkRenderer:
         """计算水印位置"""
         margin = 20  # 边距
         
+        # 处理元组形式的自定义位置（通过拖拽设置的位置）
+        if isinstance(position, tuple) and len(position) >= 2:
+            return position[0], position[1]
+        
+        # 处理预定义的位置字符串
         if position == "top-left":
             x = margin
             y = margin
