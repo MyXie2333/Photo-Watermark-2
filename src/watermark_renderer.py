@@ -1173,22 +1173,46 @@ class WatermarkRenderer:
         Args:
             image_path: 图片路径
             watermark_settings: 水印设置
-            preview_size: 预览尺寸
+            preview_size: 预览尺寸（最大尺寸，会保持原图比例）
             
         Returns:
-            PIL Image对象（预览图片）
+            PIL Image对象（预览图片）和原始图片尺寸比例
         """
         try:
             # 加载原始图片
             original_image = Image.open(image_path)
             
-            # 调整图片大小用于预览
-            original_image.thumbnail(preview_size, Image.Resampling.LANCZOS)
+            # 保存原始图片尺寸和比例
+            original_width, original_height = original_image.size
+            original_aspect_ratio = original_width / original_height
+            
+            # 计算保持原图比例的预览尺寸
+            preview_width, preview_height = preview_size
+            
+            # 根据原图比例调整预览尺寸，确保不超过最大预览尺寸
+            if original_aspect_ratio > preview_width / preview_height:
+                # 原图更宽，以宽度为基准
+                new_width = preview_width
+                new_height = int(preview_width / original_aspect_ratio)
+            else:
+                # 原图更高，以高度为基准
+                new_height = preview_height
+                new_width = int(preview_height * original_aspect_ratio)
+            
+            # 调整图片大小用于预览，保持原图比例
+            preview_image = original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
             
             # 应用水印
-            watermarked_image = self.render_text_watermark(original_image, watermark_settings)
+            watermarked_image = self.render_text_watermark(preview_image, watermark_settings)
             
-            return watermarked_image
+            # 返回水印预览图和原始图片比例信息
+            return watermarked_image, {
+                'original_width': original_width,
+                'original_height': original_height,
+                'original_aspect_ratio': original_aspect_ratio,
+                'preview_width': new_width,
+                'preview_height': new_height
+            }
             
         except Exception as e:
             print(f"预览水印失败: {e}")
@@ -1196,4 +1220,11 @@ class WatermarkRenderer:
             error_image = Image.new('RGB', preview_size, (255, 255, 255))
             draw = ImageDraw.Draw(error_image)
             draw.text((10, 10), f"预览失败: {str(e)}", fill=(255, 0, 0))
-            return error_image
+            # 返回错误图片和默认比例信息
+            return error_image, {
+                'original_width': preview_size[0],
+                'original_height': preview_size[1],
+                'original_aspect_ratio': preview_size[0] / preview_size[1],
+                'preview_width': preview_size[0],
+                'preview_height': preview_size[1]
+            }
