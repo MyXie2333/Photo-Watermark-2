@@ -995,7 +995,7 @@ class MainWindow(QMainWindow):
                     self.watermark_offset = current_watermark_settings["position"]
                 
                 # 更改鼠标样式为手型
-                self.setCursor(Qt.ClosedHandCursor)
+                self.preview_widget.setCursor(Qt.ClosedHandCursor)
         
     def on_preview_mouse_move(self, event):
         """预览区域鼠标移动事件"""
@@ -1041,11 +1041,16 @@ class MainWindow(QMainWindow):
                 self.drag_start_pos = event.pos()
                 self.watermark_offset = (new_x, new_y)
         elif not self.is_dragging and self.original_pixmap and self.image_manager.get_current_image_path():
-            # 如果鼠标悬停在预览区域且没有拖拽，显示手型光标
-            self.setCursor(Qt.OpenHandCursor)
+            # 检查鼠标是否在预览区域内
+            # 只有当鼠标在预览区域内时才显示手型光标
+            preview_rect = self.preview_widget.rect()
+            if preview_rect.contains(event.pos()):
+                self.preview_widget.setCursor(Qt.OpenHandCursor)
+            else:
+                self.preview_widget.unsetCursor()
         else:
             # 恢复默认光标
-            self.setCursor(Qt.ArrowCursor)
+            self.preview_widget.unsetCursor()
         
     def on_preview_mouse_release(self, event):
         """预览区域鼠标释放事件"""
