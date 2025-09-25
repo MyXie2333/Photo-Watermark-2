@@ -35,6 +35,12 @@ class TextWatermarkWidget(QWidget):
         self.rotation = 0  # 旋转角度
         self.enable_shadow = False
         self.enable_outline = False
+        # 阴影和描边详细设置
+        self.outline_color = QColor(0, 0, 0)  # 描边颜色默认为黑色
+        self.outline_width = None  # 描边宽度（None表示自动）
+        self.shadow_color = QColor(0, 0, 0)  # 阴影颜色默认为黑色
+        self.shadow_offset = (3, 3)  # 阴影偏移默认为(3,3)
+        self.shadow_blur = 3  # 阴影模糊半径默认为3
         
         self.setup_ui()
         self.setup_connections()
@@ -197,17 +203,79 @@ class TextWatermarkWidget(QWidget):
         
         # 效果设置组
         effect_group = QGroupBox("效果设置")
-        effect_layout = QHBoxLayout(effect_group)
+        effect_layout = QGridLayout(effect_group)
         
+        # 基础效果开关
+        effect_switch_layout = QHBoxLayout()
         self.shadow_checkbox = QCheckBox("阴影效果")
         self.shadow_checkbox.setChecked(self.enable_shadow)
-        effect_layout.addWidget(self.shadow_checkbox)
+        effect_switch_layout.addWidget(self.shadow_checkbox)
         
         self.outline_checkbox = QCheckBox("描边效果")
         self.outline_checkbox.setChecked(self.enable_outline)
-        effect_layout.addWidget(self.outline_checkbox)
+        effect_switch_layout.addWidget(self.outline_checkbox)
+        effect_switch_layout.addStretch()
         
-        effect_layout.addStretch()
+        effect_layout.addLayout(effect_switch_layout, 0, 0, 1, 2)
+        
+        # 描边详细设置
+        outline_settings_layout = QHBoxLayout()
+        outline_settings_layout.addWidget(QLabel("描边颜色:"))
+        self.outline_color_button = QPushButton()
+        self.outline_color_button.setFixedSize(40, 24)
+        self.update_outline_color_button()
+        outline_settings_layout.addWidget(self.outline_color_button)
+        
+        outline_settings_layout.addWidget(QLabel("描边粗细:"))
+        self.outline_width_spin = QSpinBox()
+        self.outline_width_spin.setRange(1, 10)
+        self.outline_width_spin.setSpecialValueText("自动")
+        if self.outline_width is not None:
+            self.outline_width_spin.setValue(self.outline_width)
+        else:
+            self.outline_width_spin.setValue(0)  # 0表示自动
+        outline_settings_layout.addWidget(self.outline_width_spin)
+        outline_settings_layout.addWidget(QLabel("px"))
+        outline_settings_layout.addStretch()
+        
+        effect_layout.addLayout(outline_settings_layout, 1, 0, 1, 2)
+        
+        # 阴影详细设置
+        shadow_color_layout = QHBoxLayout()
+        shadow_color_layout.addWidget(QLabel("阴影颜色:"))
+        self.shadow_color_button = QPushButton()
+        self.shadow_color_button.setFixedSize(40, 24)
+        self.update_shadow_color_button()
+        shadow_color_layout.addWidget(self.shadow_color_button)
+        shadow_color_layout.addStretch()
+        
+        shadow_offset_layout = QHBoxLayout()
+        shadow_offset_layout.addWidget(QLabel("阴影偏移:"))
+        shadow_offset_layout.addWidget(QLabel("X:"))
+        self.shadow_offset_x_spin = QSpinBox()
+        self.shadow_offset_x_spin.setRange(0, 20)
+        self.shadow_offset_x_spin.setValue(self.shadow_offset[0])
+        shadow_offset_layout.addWidget(self.shadow_offset_x_spin)
+        shadow_offset_layout.addWidget(QLabel("Y:"))
+        self.shadow_offset_y_spin = QSpinBox()
+        self.shadow_offset_y_spin.setRange(0, 20)
+        self.shadow_offset_y_spin.setValue(self.shadow_offset[1])
+        shadow_offset_layout.addWidget(self.shadow_offset_y_spin)
+        shadow_offset_layout.addStretch()
+        
+        shadow_blur_layout = QHBoxLayout()
+        shadow_blur_layout.addWidget(QLabel("阴影模糊:"))
+        self.shadow_blur_spin = QSpinBox()
+        self.shadow_blur_spin.setRange(0, 10)
+        self.shadow_blur_spin.setValue(self.shadow_blur)
+        shadow_blur_layout.addWidget(self.shadow_blur_spin)
+        shadow_blur_layout.addWidget(QLabel("px"))
+        shadow_blur_layout.addStretch()
+        
+        effect_layout.addLayout(shadow_color_layout, 2, 0, 1, 2)
+        effect_layout.addLayout(shadow_offset_layout, 3, 0)
+        effect_layout.addLayout(shadow_blur_layout, 3, 1)
+        
         layout.addWidget(effect_group)
         
         # 预览和应用按钮
@@ -398,6 +466,12 @@ class TextWatermarkWidget(QWidget):
         # 效果设置
         self.shadow_checkbox.stateChanged.connect(self.on_shadow_changed)
         self.outline_checkbox.stateChanged.connect(self.on_outline_changed)
+        self.outline_color_button.clicked.connect(self.on_outline_color_clicked)
+        self.outline_width_spin.valueChanged.connect(self.on_outline_width_changed)
+        self.shadow_color_button.clicked.connect(self.on_shadow_color_clicked)
+        self.shadow_offset_x_spin.valueChanged.connect(self.on_shadow_offset_changed)
+        self.shadow_offset_y_spin.valueChanged.connect(self.on_shadow_offset_changed)
+        self.shadow_blur_spin.valueChanged.connect(self.on_shadow_blur_changed)
         
         # 按钮
         self.preview_button.clicked.connect(self.on_preview_clicked)
@@ -569,6 +643,16 @@ class TextWatermarkWidget(QWidget):
         """更新颜色按钮样式"""
         color_style = f"background-color: rgba({self.font_color.red()}, {self.font_color.green()}, {self.font_color.blue()}, {self.opacity * 255 // 100});"
         self.color_button.setStyleSheet(color_style)
+    
+    def update_outline_color_button(self):
+        """更新描边颜色按钮的背景色"""
+        color = self.outline_color
+        self.outline_color_button.setStyleSheet(f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); border: 1px solid #ccc;")
+        
+    def update_shadow_color_button(self):
+        """更新阴影颜色按钮的背景色"""
+        color = self.shadow_color
+        self.shadow_color_button.setStyleSheet(f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); border: 1px solid #ccc;")
         
     def on_opacity_changed(self, value):
         """透明度变化"""
@@ -606,6 +690,40 @@ class TextWatermarkWidget(QWidget):
         self.enable_outline = (state == Qt.Checked)
         self.watermark_changed.emit()
         
+    def on_outline_color_clicked(self):
+        """描边颜色按钮点击"""
+        color = QColorDialog.getColor(self.outline_color, self, "选择描边颜色")
+        if color.isValid():
+            self.outline_color = color
+            self.update_outline_color_button()
+            self.watermark_changed.emit()
+    
+    def on_outline_width_changed(self, value):
+        """描边宽度变化"""
+        if value == 0:
+            self.outline_width = None  # 自动
+        else:
+            self.outline_width = value
+        self.watermark_changed.emit()
+    
+    def on_shadow_color_clicked(self):
+        """阴影颜色按钮点击"""
+        color = QColorDialog.getColor(self.shadow_color, self, "选择阴影颜色")
+        if color.isValid():
+            self.shadow_color = color
+            self.update_shadow_color_button()
+            self.watermark_changed.emit()
+    
+    def on_shadow_offset_changed(self):
+        """阴影偏移变化"""
+        self.shadow_offset = (self.shadow_offset_x_spin.value(), self.shadow_offset_y_spin.value())
+        self.watermark_changed.emit()
+    
+    def on_shadow_blur_changed(self, value):
+        """阴影模糊半径变化"""
+        self.shadow_blur = value
+        self.watermark_changed.emit()
+        
     def on_preview_clicked(self):
         """预览按钮点击"""
         self.watermark_changed.emit()
@@ -627,7 +745,12 @@ class TextWatermarkWidget(QWidget):
             "position": self.position,
             "rotation": self.rotation,
             "enable_shadow": self.enable_shadow,
-            "enable_outline": self.enable_outline
+            "enable_outline": self.enable_outline,
+            "outline_color": (self.outline_color.red(), self.outline_color.green(), self.outline_color.blue()),
+            "outline_width": self.outline_width,
+            "shadow_color": (self.shadow_color.red(), self.shadow_color.green(), self.shadow_color.blue()),
+            "shadow_offset": self.shadow_offset,
+            "shadow_blur": self.shadow_blur
         }
     
     def set_watermark_settings(self, settings):
@@ -708,6 +831,33 @@ class TextWatermarkWidget(QWidget):
             if "enable_outline" in settings:
                 self.enable_outline = settings["enable_outline"]
                 self.outline_checkbox.setChecked(self.enable_outline)
+            
+            # 更新效果详细设置
+            if "outline_color" in settings:
+                color_rgb = settings["outline_color"]
+                self.outline_color = QColor(color_rgb[0], color_rgb[1], color_rgb[2])
+                self.update_outline_color_button()
+            
+            if "outline_width" in settings:
+                self.outline_width = settings["outline_width"]
+                if self.outline_width is None:
+                    self.outline_width_spin.setValue(0)  # 0表示自动
+                else:
+                    self.outline_width_spin.setValue(self.outline_width)
+            
+            if "shadow_color" in settings:
+                color_rgb = settings["shadow_color"]
+                self.shadow_color = QColor(color_rgb[0], color_rgb[1], color_rgb[2])
+                self.update_shadow_color_button()
+            
+            if "shadow_offset" in settings:
+                self.shadow_offset = settings["shadow_offset"]
+                self.shadow_offset_x_spin.setValue(self.shadow_offset[0])
+                self.shadow_offset_y_spin.setValue(self.shadow_offset[1])
+            
+            if "shadow_blur" in settings:
+                self.shadow_blur = settings["shadow_blur"]
+                self.shadow_blur_spin.setValue(self.shadow_blur)
                 
         finally:
             # 恢复信号发射

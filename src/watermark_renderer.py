@@ -42,6 +42,13 @@ class WatermarkRenderer:
         opacity = watermark_settings.get("opacity", 80) / 100.0
         position = watermark_settings.get("position", "center")
         rotation = watermark_settings.get("rotation", 0)
+        enable_shadow = watermark_settings.get("enable_shadow", False)
+        enable_outline = watermark_settings.get("enable_outline", False)
+        outline_color = watermark_settings.get("outline_color", (0, 0, 0))
+        outline_width = watermark_settings.get("outline_width", None)
+        shadow_color = watermark_settings.get("shadow_color", (0, 0, 0))
+        shadow_offset = watermark_settings.get("shadow_offset", None)
+        shadow_blur = watermark_settings.get("shadow_blur", None)
         
         # 创建绘图对象
         draw = ImageDraw.Draw(watermarked_image, 'RGBA')
@@ -69,6 +76,11 @@ class WatermarkRenderer:
             # 处理粗体和斜体效果
             # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
             is_chinese_text = self._contains_chinese(text)
+            
+            # 创建临时图像来处理文本效果
+            temp_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
+            temp_draw = ImageDraw.Draw(temp_img)
+            
             if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
                 print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
                 # 如果是中文字体且需要斜体效果
@@ -99,10 +111,10 @@ class WatermarkRenderer:
                             for dy in range(2):
                                 x_offset = (diagonal - text_width) // 2 + dx
                                 y_offset = (diagonal - text_height) // 2 + dy
-                                rotated_text_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
+                                temp_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
                     else:
                         # 仅斜体效果
-                        rotated_text_img.paste(skewed_img, ((diagonal - text_width) // 2, (diagonal - text_height) // 2), skewed_img)
+                        temp_img.paste(skewed_img, ((diagonal - text_width) // 2, (diagonal - text_height) // 2), skewed_img)
                 # 对于英文字体或不需要斜体的字体
                 else:
                     # 通过多次绘制文本实现粗体效果
@@ -120,27 +132,46 @@ class WatermarkRenderer:
                                     line_y = y_offset + i * line_height
                                     # 根据行号计算水平偏移量（模拟斜体倾斜效果）
                                     offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                                    rotated_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                                    temp_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
                             else:
-                                rotated_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                                temp_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
             else:
                 # 正常绘制文本 - 添加向上的位移以避免汉字下半部分被截断
                 text_x = (diagonal - text_width) // 2
                 text_y = (diagonal - text_height) // 2 - 5  # 向上移动5个像素
-                rotated_draw.text((text_x, text_y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                temp_draw.text((text_x, text_y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+            
+            # 应用阴影和描边效果
+            rotated_text_img = self._apply_text_effects(temp_img, text_width, text_height, diagonal, 
+                                                       enable_shadow, enable_outline, color, opacity, font, text, 
+                                                       outline_color=outline_color, outline_width=outline_width, 
+                                                       shadow_color=shadow_color, shadow_offset=shadow_offset, 
+                                                       shadow_blur=shadow_blur)
             
             # 旋转文本图像
             rotated_text_img = rotated_text_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
             
-            # 将旋转后的文本图像粘贴到主图像上
-            paste_x = x - (rotated_text_img.width - text_width) // 2
-            paste_y = y - (rotated_text_img.height - text_height) // 2
-            watermarked_image.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
+            # 应用阴影和描边效果
+            final_rotated_img = self._apply_text_effects(rotated_text_img, text_width, text_height, diagonal, 
+                                                       enable_shadow, enable_outline, color, opacity, font, text, 
+                                                       outline_color=outline_color, outline_width=outline_width, 
+                                                       shadow_color=shadow_color, shadow_offset=shadow_offset, 
+                                                       shadow_blur=shadow_blur)
+            
+            # 将应用效果后的旋转图像粘贴到主图像上
+            paste_x = x - (final_rotated_img.width - text_width) // 2
+            paste_y = y - (final_rotated_img.height - text_height) // 2
+            watermarked_image.paste(final_rotated_img, (paste_x, paste_y), final_rotated_img)
         else:
             # 直接在主图像上绘制文本（无旋转）
             # 处理粗体和斜体效果
             # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
             is_chinese_text = self._contains_chinese(text)
+            
+            # 创建临时图像来处理文本效果
+            temp_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
+            temp_draw = ImageDraw.Draw(temp_img)
+            
             if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
                 print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
                 # 如果是中文字体且需要斜体效果
@@ -173,19 +204,19 @@ class WatermarkRenderer:
                     if font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text):
                         for dx in range(2):
                             for dy in range(2):
-                                x_offset = x + dx
-                                y_offset = y + dy + vertical_offset  # 添加垂直位移
-                                watermarked_image.paste(skewed_img, (x_offset, y_offset), skewed_img)
+                                x_offset = 20 + dx
+                                y_offset = 20 + dy + vertical_offset  # 添加垂直位移
+                                temp_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
                     else:
                         # 仅斜体效果
-                        watermarked_image.paste(skewed_img, (x, y + vertical_offset), skewed_img)  # 添加垂直位移
+                        temp_img.paste(skewed_img, (20, 20 + vertical_offset), skewed_img)  # 添加垂直位移
                 # 对于英文字体或不需要斜体的字体
                 else:
                     # 通过多次绘制文本实现粗体效果
                     for dx in range(2):
                         for dy in range(2):
-                            x_offset = x + dx
-                            y_offset = y + dy
+                            x_offset = 20 + dx
+                            y_offset = 20 + dy
                             # 如果需要斜体效果（英文字体）
                             if font_italic and not self._is_font_file_italic(font_family):
                                 # 对于英文字体，使用逐行偏移方法
@@ -196,21 +227,160 @@ class WatermarkRenderer:
                                     line_y = y_offset + i * line_height
                                     # 根据行号计算水平偏移量（模拟斜体倾斜效果）
                                     offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                                    draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                                    temp_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
                             else:
-                                draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                                temp_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
             else:
                 # 正常绘制文本
-                # 创建一个单独的透明图像来绘制文本，确保透明度正确应用
-                text_img = Image.new('RGBA', (text_width + 20, text_height + 20), (0, 0, 0, 0))
-                text_draw = ImageDraw.Draw(text_img)
                 # 添加向上的位移以避免汉字下半部分被截断
-                text_draw.text((10, 5), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-                
-                # 将文本图像粘贴到主图像上
-                watermarked_image.paste(text_img, (x - 10, y - 10), text_img)
+                temp_draw.text((20, 15), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+            
+            # 应用阴影和描边效果
+            final_img = self._apply_text_effects(temp_img, text_width, text_height, 0, 
+                                                enable_shadow, enable_outline, color, opacity, font, text, 
+                                                outline_color=outline_color, outline_width=outline_width, 
+                                                shadow_color=shadow_color, shadow_offset=shadow_offset, 
+                                                shadow_blur=shadow_blur)
+            
+            # 将最终图像粘贴到主图像上
+            watermarked_image.paste(final_img, (x - 10, y - 10), final_img)
             
         return watermarked_image
+    
+    def _apply_text_effects(self, temp_img, text_width, text_height, diagonal, enable_shadow, enable_outline, 
+                          color, opacity, font, text, outline_color=(0, 0, 0), outline_width=None, 
+                          shadow_color=(0, 0, 0), shadow_offset=None, shadow_blur=None):
+        """
+        应用文本效果（阴影和描边）
+        
+        Args:
+            temp_img: 包含基本文本的临时图像
+            text_width: 文本宽度
+            text_height: 文本高度
+            diagonal: 对角线长度（用于旋转情况）
+            enable_shadow: 是否启用阴影
+            enable_outline: 是否启用描边
+            color: 文本颜色
+            opacity: 透明度
+            font: 字体对象
+            text: 实际文本内容
+            outline_color: 描边颜色，默认为黑色
+            outline_width: 描边宽度，默认为字体大小的1/12
+            shadow_color: 阴影颜色，默认为黑色
+            shadow_offset: 阴影偏移量，默认为(3, 3)
+            shadow_blur: 阴影模糊半径，默认为3
+        
+        Returns:
+            PIL Image对象: 应用效果后的图像
+        """
+        # 创建最终图像
+        if diagonal > 0:
+            # 旋转情况
+            result_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
+        else:
+            # 非旋转情况
+            result_img = Image.new('RGBA', temp_img.size, (0, 0, 0, 0))
+        
+        result_draw = ImageDraw.Draw(result_img)
+        
+        # 先应用描边效果
+        if enable_outline:
+            # 设置默认描边参数
+            if outline_width is None:
+                # 增加描边宽度为字体大小的1/12，使描边更明显
+                stroke_width = max(2, int(font.size / 12))
+            else:
+                stroke_width = outline_width
+                
+            # 描边透明度略高于文本
+            outline_opacity = min(1.0, opacity * 1.2)
+            
+            # 对于旋转和非旋转情况，我们都直接在结果图像上绘制描边
+            if diagonal > 0:
+                # 旋转情况
+                text_x = (diagonal - text_width) // 2
+                text_y = (diagonal - text_height) // 2 - 5  # 向上移动5个像素
+            else:
+                # 非旋转情况
+                text_x = 20
+                text_y = 15  # 与之前的绘制位置一致
+                
+            # 绘制描边（使用8个方向）
+            directions = [(-stroke_width, -stroke_width), (-stroke_width, 0), (-stroke_width, stroke_width),
+                         (0, -stroke_width), (0, stroke_width),
+                         (stroke_width, -stroke_width), (stroke_width, 0), (stroke_width, stroke_width)]
+            
+            for dx, dy in directions:
+                    if diagonal > 0:
+                        # 使用指定的描边颜色
+                        result_draw.text((text_x + dx, text_y + dy), text, font=font, 
+                                        fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                    else:
+                        # 对于非旋转情况，我们只处理单行文本
+                        result_draw.text((text_x + dx, text_y + dy), text, font=font, 
+                                        fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+        
+        # 然后将原图像粘贴到结果图像上（如果有描边，这会覆盖描边内部）
+        if diagonal > 0:
+            # 旋转情况：居中粘贴
+            paste_x = (diagonal - temp_img.width) // 2
+            paste_y = (diagonal - temp_img.height) // 2
+            result_img.paste(temp_img, (paste_x, paste_y), temp_img)
+        else:
+            # 非旋转情况：直接复制
+            result_img.paste(temp_img, (0, 0), temp_img)
+        
+        # 应用阴影效果
+        if enable_shadow:
+            # 设置默认阴影参数
+            if shadow_offset is None:
+                # 增加阴影偏移量使阴影更明显
+                shadow_offset = (3, 3)
+            if shadow_blur is None:
+                # 默认模糊半径
+                shadow_blur = 3
+                
+            # 阴影透明度增加，使阴影更明显
+            shadow_opacity = min(0.7, opacity * 0.8)  # 提高阴影不透明度
+            
+            if diagonal > 0:
+                # 旋转情况
+                shadow_img = Image.new('RGBA', (diagonal + shadow_offset * 2, diagonal + shadow_offset * 2), (0, 0, 0, 0))
+                shadow_draw = ImageDraw.Draw(shadow_img)
+                
+                # 绘制阴影
+                text_x = (diagonal - text_width) // 2 + shadow_offset[0]
+                text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]  # 绘制阴影
+                shadow_draw.text((text_x, text_y), text, font=font, 
+                                fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                
+                # 将原图像放在阴影上方
+                shadow_img.paste(result_img, (shadow_offset[0], shadow_offset[1]), result_img)
+                result_img = shadow_img
+            else:
+                # 非旋转情况
+                shadow_img = Image.new('RGBA', (result_img.width + shadow_offset[0], result_img.height + shadow_offset[1]), (0, 0, 0, 0))
+                shadow_draw = ImageDraw.Draw(shadow_img)
+                
+                # 绘制阴影
+                shadow_draw.text((20 + shadow_offset[0], 15 + shadow_offset[1]), text, font=font, 
+                                fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                
+                # 将原图像放在阴影上方
+                shadow_img.paste(result_img, (shadow_offset[0], shadow_offset[1]), result_img)
+                result_img = shadow_img
+        
+            # 如果需要阴影模糊效果且PIL支持ImageFilter
+            if shadow_blur > 0:
+                try:
+                    from PIL import ImageFilter
+                    # 应用高斯模糊使阴影更柔和
+                    result_img = result_img.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+                except ImportError:
+                    # 如果PIL不支持ImageFilter，则忽略模糊效果
+                    pass
+        
+        return result_img
     
     def _get_font(self, font_family, font_size, text="", bold=False, italic=False):
         """获取字体对象
