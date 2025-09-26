@@ -148,7 +148,6 @@ class MainWindow(QMainWindow):
             QLabel {
                 border: 2px dashed #ccc;
                 background-color: #f8f9fa;
-                min-height: 400px;
             }
             QLabel[dragEnabled="true"] {
                 border: 2px dashed #007acc;
@@ -171,6 +170,9 @@ class MainWindow(QMainWindow):
         # 预览滚动区域
         self.preview_scroll_area = QScrollArea()
         self.preview_scroll_area.setWidgetResizable(True)
+        # 明确设置滚动条策略，确保在内容超出时显示滚动条
+        self.preview_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.preview_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.preview_scroll_area.setWidget(self.preview_widget)
         layout.addWidget(self.preview_scroll_area)
         
