@@ -705,135 +705,28 @@ class TextWatermarkWidget(QWidget):
             if position_tuple:
                 # 获取当前图片的原始尺寸
                 try:
-                    # 尝试从主窗口获取当前图片路径
-                    main_window = self.parent()
-                    if hasattr(main_window, 'image_manager'):
-                        current_image_path = main_window.image_manager.get_current_image_path()
-                        if current_image_path:
-                            # 使用PIL打开图片获取原始尺寸
-                            from PIL import Image
-                            with Image.open(current_image_path) as img:
-                                img_width, img_height = img.size
-                                
-                                # 计算文本尺寸（估算）
-                                font_size = self.font_size
-                                text = self.watermark_text
-                                # 简单估算文本宽度：每个字符约为font_size的0.6倍
-                                text_width = int(len(text) * font_size * 0.6) if text else font_size * 3
-                                text_height = font_size
-                                
-                                # 获取按钮文本以确定位置
-                                position_str = sender.text()
-                                
-                                # 根据按钮文本直接计算水印在原图上的坐标
-                                margin = 20  # 边距
-                                
-                                if position_str == "左上":
-                                    x = margin
-                                    y = margin
-                                elif position_str == "上中":
-                                    x = round(img_width / 2 - text_width / 2)
-                                    y = margin
-                                elif position_str == "右上":
-                                    x = img_width - text_width - margin
-                                    y = margin
-                                elif position_str == "左中":
-                                    x = margin
-                                    y = round(img_height / 2 - text_height / 2)
-                                elif position_str == "中心":
-                                    x = round(img_width / 2 - text_width / 2)
-                                    y = round(img_height / 2 - text_height / 2)
-                                elif position_str == "右中":
-                                    x = img_width - text_width - margin
-                                    y = round(img_height / 2 - text_height / 2)
-                                elif position_str == "左下":
-                                    x = margin
-                                    y = img_height - text_height - margin
-                                elif position_str == "下中":
-                                    x = round(img_width / 2 - text_width / 2)
-                                    y = img_height - text_height - margin
-                                elif position_str == "右下":
-                                    x = img_width - text_width - margin
-                                    y = img_height - text_height - margin
-                                else:
-                                    # 默认使用中心位置
-                                    x = round(img_width / 2 - text_width / 2)
-                                    y = round(img_height / 2 - text_height / 2)
-                                
-                                # 使用update_position函数统一处理position更新
-                                self.update_position((x, y))
-                                return
-                except Exception as e:
-                    print(f"[DEBUG] 获取图片尺寸或计算坐标失败: {e}")
-            
-                # 如果获取原图尺寸失败，回退到原来的相对位置处理方式
-                # 但不直接使用相对位置，而是尝试将其转换为具体坐标
-                try:
-                    # 尝试从主窗口获取当前图片路径
-                    main_window = self.parent()
-                    if hasattr(main_window, 'original_pixmap'):
-                        # 使用主窗口中的原始图片尺寸
-                        original_pixmap = main_window.original_pixmap
-                        if original_pixmap:
-                            img_width = original_pixmap.width()
-                            img_height = original_pixmap.height()
-                            
-                            # 计算文本尺寸（估算）
-                            font_size = self.font_size
-                            text = self.watermark_text
-                            # 简单估算文本宽度：每个字符约为font_size的0.6倍
-                            text_width = int(len(text) * font_size * 0.6) if text else font_size * 3
-                            text_height = font_size
-                            
-                            # 获取按钮文本以确定位置
-                            position_str = sender.text()
-                            
-                            # 根据按钮文本直接计算水印在原图上的坐标
-                            margin = 20  # 边距
-                            
-                            if position_str == "左上":
-                                x = margin
-                                y = margin
-                            elif position_str == "上中":
-                                x = round(img_width / 2 - text_width / 2)
-                                y = margin
-                            elif position_str == "右上":
-                                x = img_width - text_width - margin
-                                y = margin
-                            elif position_str == "左中":
-                                x = margin
-                                y = round(img_height / 2 - text_height / 2)
-                            elif position_str == "中心":
-                                x = round(img_width / 2 - text_width / 2)
-                                y = round(img_height / 2 - text_height / 2)
-                            elif position_str == "右中":
-                                x = img_width - text_width - margin
-                                y = round(img_height / 2 - text_height / 2)
-                            elif position_str == "左下":
-                                x = margin
-                                y = img_height - text_height - margin
-                            elif position_str == "下中":
-                                x = round(img_width / 2 - text_width / 2)
-                                y = img_height - text_height - margin
-                            elif position_str == "右下":
-                                x = img_width - text_width - margin
-                                y = img_height - text_height - margin
+                    # 首先尝试使用传递的原图尺寸
+                    if hasattr(self, 'original_width') and hasattr(self, 'original_height'):
+                        img_width = self.original_width
+                        img_height = self.original_height
+                        print(f"[DEBUG] 使用传递的原图尺寸: {img_width}x{img_height}")
+                    else:
+                        # 如果没有传递的尺寸，回退到原来的获取方式
+                        # 尝试从主窗口获取当前图片路径
+                        main_window = self.parent()
+                        if hasattr(main_window, 'image_manager'):
+                            current_image_path = main_window.image_manager.get_current_image_path()
+                            if current_image_path:
+                                # 使用PIL打开图片获取原始尺寸
+                                from PIL import Image
+                                with Image.open(current_image_path) as img:
+                                    img_width, img_height = img.size
                             else:
-                                # 默认使用中心位置
-                                x = round(img_width / 2 - text_width / 2)
-                                y = round(img_height / 2 - text_height / 2)
-                            
-                            # 使用update_position函数统一处理position更新
-                            self.update_position((x, y))
-                            return
-                except Exception as e:
-                    print(f"[DEBUG] 使用主窗口图片尺寸计算坐标失败: {e}")
-                
-                # 如果仍然失败，使用默认尺寸计算
-                try:
-                    # 使用默认尺寸计算
-                    img_width = 800  # 默认宽度
-                    img_height = 600  # 默认高度
+                                # 如果获取原图尺寸失败，回退到原来的相对位置处理方式
+                                raise Exception("无法获取图片路径")
+                        else:
+                            # 如果获取原图尺寸失败，回退到原来的相对位置处理方式
+                            raise Exception("无法访问主窗口的image_manager")
                     
                     # 计算文本尺寸（估算）
                     font_size = self.font_size
@@ -852,42 +745,43 @@ class TextWatermarkWidget(QWidget):
                         x = margin
                         y = margin
                     elif position_str == "上中":
-                        x = round(img_width / 2 - text_width / 2)
+                        x = round(img_width / 2)
                         y = margin
                     elif position_str == "右上":
-                        x = img_width - text_width - margin
+                        x = img_width - margin
                         y = margin
                     elif position_str == "左中":
                         x = margin
-                        y = round(img_height / 2 - text_height / 2)
+                        y = round(img_height / 2)
                     elif position_str == "中心":
-                        x = round(img_width / 2 - text_width / 2)
-                        y = round(img_height / 2 - text_height / 2)
+                        x = round(img_width / 2)
+                        y = round(img_height / 2)
                     elif position_str == "右中":
-                        x = img_width - text_width - margin
-                        y = round(img_height / 2 - text_height / 2)
+                        x = img_width - margin
+                        y = round(img_height / 2)
                     elif position_str == "左下":
                         x = margin
-                        y = img_height - text_height - margin
+                        y = img_height - margin
                     elif position_str == "下中":
-                        x = round(img_width / 2 - text_width / 2)
-                        y = img_height - text_height - margin
+                        x = round(img_width / 2)
+                        y = img_height - margin
                     elif position_str == "右下":
-                        x = img_width - text_width - margin
-                        y = img_height - text_height - margin
+                        x = img_width - margin
+                        y = img_height - margin
                     else:
                         # 默认使用中心位置
-                        x = round(img_width / 2 - text_width / 2)
-                        y = round(img_height / 2 - text_height / 2)
+                        x = round(img_width / 2)
+                        y = round(img_height / 2)
                     
                     # 使用update_position函数统一处理position更新
                     self.update_position((x, y))
                     return
                 except Exception as e:
-                    print(f"[DEBUG] 使用默认尺寸计算坐标失败: {e}")
+                    print(f"[DEBUG] 获取图片尺寸或计算坐标失败: {e}")
                 
-                # 如果所有尝试都失败，使用默认坐标（左上角）
-                self.update_position((20, 20))
+                # 如果前两种方案都失败，直接报错
+                print(f"[ERROR] 无法获取图片尺寸，无法计算水印位置")
+                return
             else:
                 # 如果没有位置属性，默认使用左上角位置
                 self.update_position((20, 20))
@@ -1200,3 +1094,15 @@ class TextWatermarkWidget(QWidget):
         finally:
             # 恢复信号发射
             self.blockSignals(False)
+
+    def set_original_dimensions(self, width, height):
+        """
+        设置原图尺寸
+        
+        Args:
+            width (int): 原图宽度
+            height (int): 原图高度
+        """
+        self.original_width = width
+        self.original_height = height
+        print(f"[DEBUG] TextWatermarkWidget接收到原图尺寸: {width}x{height}")

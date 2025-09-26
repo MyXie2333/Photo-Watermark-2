@@ -522,6 +522,9 @@ class MainWindow(QMainWindow):
                     print(f"[DEBUG] 原图尺寸: {original_width}x{original_height}")
                     # print(f"[DEBUG] 压缩比例: {compression_scale:.4f}")
                     print(f"[DEBUG] 压缩图尺寸: {preview_width}x{preview_height}")
+                    
+                    # 传递原图尺寸给text_watermark_widget
+                    self.text_watermark_widget.set_original_dimensions(original_width, original_height)
             else:
                 # 兼容旧版本返回格式
                 preview_image = preview_result
