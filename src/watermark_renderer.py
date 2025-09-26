@@ -69,6 +69,7 @@ class WatermarkRenderer:
         
         # 记录水印位置
         self.last_watermark_position = (x, y)
+        print(f"水印初始化坐标: x={x}, y={y}")
         
         # 应用旋转
         if rotation != 0:
@@ -1132,9 +1133,35 @@ class WatermarkRenderer:
         """计算水印位置"""
         margin = 20  # 边距
         
-        # 处理元组形式的自定义位置（通过拖拽设置的位置）
+        # 处理元组形式的相对位置（九宫格位置）
         if isinstance(position, tuple) and len(position) >= 2:
-            return position[0], position[1]
+            # 检查是否是相对位置（0-1之间的值）
+            x_ratio, y_ratio = position[0], position[1]
+            if 0 <= x_ratio <= 1 and 0 <= y_ratio <= 1:
+                # 计算绝对位置，直接转换为整数
+                x = int(round(img_width * x_ratio - text_width / 2))
+                y = int(round(img_height * y_ratio - text_height / 2))
+                
+                # 如果有压缩比例，应用压缩比例并确保结果为整数
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                    x = int(round(x * self.compression_scale))
+                    y = int(round(y * self.compression_scale))
+                    print(f"[DEBUG] 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                return x, y
+            else:
+                # 处理绝对坐标（九宫格计算出的原图坐标）
+                # 这些坐标已经是基于原图的绝对坐标，需要转换为相对于文本中心的坐标
+                x = int(round(position[0] - text_width / 2))
+                y = int(round(position[1] - text_height / 2))
+                
+                # 如果有压缩比例，应用压缩比例并确保结果为整数
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                    x = int(round(x * self.compression_scale))
+                    y = int(round(y * self.compression_scale))
+                    print(f"[DEBUG] 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                return x, y
         
         # 处理预定义的位置字符串
         if position == "top-left":
@@ -1170,14 +1197,14 @@ class WatermarkRenderer:
             
         return x, y
     
-    def preview_watermark(self, image_path, watermark_settings, preview_size=(400, 300)):
+    def preview_watermark(self, image_path, watermark_settings, preview_size=None):
         """
         预览水印效果
         
         Args:
             image_path: 图片路径
             watermark_settings: 水印设置
-            preview_size: 预览尺寸（最大尺寸，会保持原图比例）
+            preview_size: 预览尺寸（设置为None，自动计算适合的预览尺寸）
             
         Returns:
             PIL Image对象（预览图片）和原始图片尺寸比例
@@ -1190,46 +1217,89 @@ class WatermarkRenderer:
             original_width, original_height = original_image.size
             original_aspect_ratio = original_width / original_height
             
-            # 计算保持原图比例的预览尺寸
-            preview_width, preview_height = preview_size
-            
-            # 根据原图比例调整预览尺寸，确保不超过最大预览尺寸
-            if original_aspect_ratio > preview_width / preview_height:
-                # 原图更宽，以宽度为基准
-                new_width = preview_width
-                new_height = int(preview_width / original_aspect_ratio)
+            # 计算适合的预览尺寸（480p到720p之间）
+            if preview_size is None:
+                # 定义目标分辨率范围
+                min_dimension = 480  # 480p
+                max_dimension = 720  # 720p
+                
+                # 计算缩放比例，使预览尺寸在480p到720p之间
+                if original_width > max_dimension or original_height > max_dimension:
+                    # 如果原图尺寸大于720p，按比例缩小到720p以内
+                    if original_width > original_height:
+                        # 横向图片，以宽度为基准
+                        scale = max_dimension / original_width
+                    else:
+                        # 纵向图片，以高度为基准
+                        scale = max_dimension / original_height
+                elif original_width < min_dimension and original_height < min_dimension:
+                    # 如果原图尺寸小于480p，按比例放大到480p
+                    if original_width > original_height:
+                        # 横向图片，以宽度为基准
+                        scale = min_dimension / original_width
+                    else:
+                        # 纵向图片，以高度为基准
+                        scale = min_dimension / original_height
+                else:
+                    # 原图尺寸已在480p到720p之间，不缩放
+                    scale = 1.0
+                
+                # 计算预览尺寸
+                preview_width = int(original_width * scale)
+                preview_height = int(original_height * scale)
+                
+                print(f"[DEBUG] 原图尺寸: {original_width}x{original_height}, 缩放比例: {scale:.4f}, 预览尺寸: {preview_width}x{preview_height}")
             else:
-                # 原图更高，以高度为基准
-                new_height = preview_height
-                new_width = int(preview_height * original_aspect_ratio)
+                # 使用指定的预览尺寸
+                preview_width, preview_height = preview_size
             
-            # 调整图片大小用于预览，保持原图比例
-            preview_image = original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            # 创建预览图片（缩放到适合的尺寸）
+            preview_image = original_image.copy()
+            if preview_width != original_width or preview_height != original_height:
+                preview_image = preview_image.resize((preview_width, preview_height), Image.LANCZOS)
             
-            # 应用水印
+            # 计算压缩比例
+            compression_scale = preview_width / original_width
+            print(f"[DEBUG] 计算压缩比例: {compression_scale:.4f}")
+            
+            # 设置压缩比例，用于水印坐标计算
+            self.compression_scale = compression_scale
+            
+            # 应用水印并打印初始化坐标
             watermarked_image = self.render_text_watermark(preview_image, watermark_settings)
+            
+            # 重置压缩比例
+            self.compression_scale = None
+            
+            # 确保水印位置是整数
+            watermark_position = None
+            if self.last_watermark_position is not None:
+                # 直接存储为整数，不使用浮点数
+                watermark_position = (int(self.last_watermark_position[0]), int(self.last_watermark_position[1]))
             
             # 返回水印预览图、原始图片比例信息和水印位置
             return watermarked_image, {
                 'original_width': original_width,
                 'original_height': original_height,
                 'original_aspect_ratio': original_aspect_ratio,
-                'preview_width': new_width,
-                'preview_height': new_height,
-                'watermark_position': self.last_watermark_position  # 添加水印位置信息
+                'preview_width': preview_width,
+                'preview_height': preview_height,
+                'scale_factor': preview_width / original_width,  # 添加缩放因子
+                'watermark_position': watermark_position  # 添加水印位置信息
             }
             
         except Exception as e:
-            print(f"预览水印失败: {e}")
-            # 创建错误预览图片
-            error_image = Image.new('RGB', preview_size, (255, 255, 255))
+            print(f"Preview watermark failed: {e}")
+            # Create error preview image
+            error_image = Image.new('RGB', (800, 600), (255, 255, 255))
             draw = ImageDraw.Draw(error_image)
-            draw.text((10, 10), f"预览失败: {str(e)}", fill=(255, 0, 0))
-            # 返回错误图片和默认比例信息
+            draw.text((10, 10), f"Preview failed: {str(e)}", fill=(255, 0, 0))
+            # Return error image and default ratio info
             return error_image, {
-                'original_width': preview_size[0],
-                'original_height': preview_size[1],
-                'original_aspect_ratio': preview_size[0] / preview_size[1],
-                'preview_width': preview_size[0],
-                'preview_height': preview_size[1]
+                'original_width': 800,
+                'original_height': 600,
+                'original_aspect_ratio': 800 / 600,
+                'preview_width': 800,
+                'preview_height': 600,
+                'scale_factor': 1.0
             }

@@ -31,7 +31,7 @@ class TextWatermarkWidget(QWidget):
         self.font_italic = False  # 斜体
         self.font_color = QColor(255, 255, 255)  # 白色
         self.opacity = 80  # 透明度百分比
-        self.position = "center"  # 位置
+        self.position = (0.5, 0.5)  # 位置
         self.rotation = 0  # 旋转角度
         self.enable_shadow = False
         self.enable_outline = False
@@ -180,25 +180,34 @@ class TextWatermarkWidget(QWidget):
         position_layout = QGridLayout(position_group)
         
         # 九宫格定位
+        # 九宫格位置定义 - 使用元组形式表示相对位置
         positions = [
-            ("左上", "top-left"), ("上中", "top-center"), ("右上", "top-right"),
-            ("左中", "middle-left"), ("中心", "center"), ("右中", "middle-right"),
-            ("左下", "bottom-left"), ("下中", "bottom-center"), ("右下", "bottom-right")
+            ("左上", (0.1, 0.1)),     # 左上角
+            ("上中", (0.5, 0.1)),     # 上中
+            ("右上", (0.9, 0.1)),     # 右上角
+            ("左中", (0.1, 0.5)),     # 左中
+            ("中心", (0.5, 0.5)),     # 中心
+            ("右中", (0.9, 0.5)),     # 右中
+            ("左下", (0.1, 0.9)),     # 左下角
+            ("下中", (0.5, 0.9)),     # 下中
+            ("右下", (0.9, 0.9))      # 右下角
         ]
         
-        for i, (label, pos) in enumerate(positions):
+        for i, (label, pos_value) in enumerate(positions):
             btn = QPushButton(label)
             btn.setCheckable(True)
-            btn.setProperty("position", pos)
-            if pos == self.position:
+            btn.setProperty("position", pos_value)
+            if pos_value == self.position:
                 btn.setChecked(True)
             
+            # 添加到网格布局
             row = i // 3
             col = i % 3
             position_layout.addWidget(btn, row, col)
-            
-            # 存储按钮引用
-            setattr(self, f"pos_{pos.replace('-', '_')}_btn", btn)
+            # 存储按钮引用，命名格式为 pos_x_y_btn，其中x和y是位置坐标
+            setattr(self, f"pos_{pos_value[0]}_{pos_value[1]}_btn", btn)
+            # 按钮点击事件
+            btn.clicked.connect(self.on_position_changed)
         
         layout.addWidget(position_group)
         
@@ -471,10 +480,7 @@ class TextWatermarkWidget(QWidget):
         self.rotation_spin.valueChanged.connect(self.on_rotation_changed)
         
         # 位置设置
-        for attr_name in dir(self):
-            if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
-                btn = getattr(self, attr_name)
-                btn.clicked.connect(self.on_position_changed)
+        # 位置按钮的点击事件已在创建按钮时连接
         
         # 效果设置
         self.shadow_checkbox.stateChanged.connect(self.on_shadow_changed)
@@ -692,7 +698,46 @@ class TextWatermarkWidget(QWidget):
                     if btn != sender:
                         btn.setChecked(False)
             
-            self.position = sender.property("position")
+            # 获取按钮的位置属性（相对位置元组）
+            position_tuple = sender.property("position")
+            if position_tuple:
+                # 如果位置是元组形式（相对位置），需要转换为原图坐标
+                if isinstance(position_tuple, tuple) and len(position_tuple) == 2:
+                    # 获取当前图片的原始尺寸
+                    try:
+                        # 尝试从主窗口获取当前图片路径
+                        main_window = self.parent()
+                        if hasattr(main_window, 'image_manager'):
+                            current_image_path = main_window.image_manager.get_current_image_path()
+                            if current_image_path:
+                                # 使用PIL打开图片获取原始尺寸
+                                from PIL import Image
+                                with Image.open(current_image_path) as img:
+                                    img_width, img_height = img.size
+                                    
+                                    # 直接使用原图尺寸计算水印在原图的坐标
+                                    # 例如原图尺寸是1000*4000，那中间对应的坐标就是1000*0.5=500，4000*0.5=2000
+                                    x_ratio, y_ratio = position_tuple
+                                    x = int(round(img_width * x_ratio))
+                                    y = int(round(img_height * y_ratio))
+                                    
+                                    # 将计算出的绝对坐标赋值给position
+                                    self.position = (x, y)
+                                    print(f"[DEBUG] 九宫格位置计算: 原图尺寸({img_width}, {img_height}), 相对位置({x_ratio}, {y_ratio}) -> 绝对坐标({x}, {y})")
+                                    
+                                    # 触发水印变化信号
+                                    self.watermark_changed.emit()
+                                    return
+                    except Exception as e:
+                        print(f"[DEBUG] 获取图片尺寸失败: {e}")
+                
+                # 如果获取原图尺寸失败，回退到原来的相对位置处理方式
+                self.position = position_tuple
+            else:
+                # 如果没有位置属性，默认使用中心位置
+                self.position = (0.5, 0.5)
+                
+            # 触发水印变化信号
             self.watermark_changed.emit()
         
     def on_shadow_changed(self, state):
@@ -839,7 +884,16 @@ class TextWatermarkWidget(QWidget):
                     if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
                         btn = getattr(self, attr_name)
                         btn_pos = btn.property("position")
-                        btn.setChecked(btn_pos == self.position)
+                        # 检查是否为元组位置（九宫格位置）
+                        if isinstance(btn_pos, tuple) and isinstance(self.position, tuple):
+                            # 比较元组位置（允许一定的误差）
+                            if abs(btn_pos[0] - self.position[0]) < 0.01 and abs(btn_pos[1] - self.position[1]) < 0.01:
+                                btn.setChecked(True)
+                            else:
+                                btn.setChecked(False)
+                        else:
+                            # 如果不是元组位置，直接比较
+                            btn.setChecked(btn_pos == self.position)
             
             # 更新效果设置
             if "enable_shadow" in settings:
@@ -939,7 +993,16 @@ class TextWatermarkWidget(QWidget):
                     if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
                         btn = getattr(self, attr_name)
                         btn_pos = btn.property("position")
-                        btn.setChecked(btn_pos == self.position)
+                        # 检查是否为元组位置（九宫格位置）
+                        if isinstance(btn_pos, tuple) and isinstance(self.position, tuple):
+                            # 比较元组位置（允许一定的误差）
+                            if abs(btn_pos[0] - self.position[0]) < 0.01 and abs(btn_pos[1] - self.position[1]) < 0.01:
+                                btn.setChecked(True)
+                            else:
+                                btn.setChecked(False)
+                        else:
+                            # 如果不是元组位置，直接比较
+                            btn.setChecked(btn_pos == self.position)
             
             # 更新效果设置
             if "enable_shadow" in settings:

@@ -24,6 +24,7 @@ class ImageManager(QObject):
         self.thumbnail_size = (100, 100)  # 缩略图尺寸
         self.watermark_settings = {}  # 存储每张图片的水印设置，key为图片路径
         self.scale_settings = {}  # 存储每张图片的缩放比例设置，key为图片路径
+        self.watermark_position_initialized = {}  # 存储每张图片的水印位置初始化标志，key为图片路径
         
     def load_single_image(self, file_path):
         """加载单张图片"""
@@ -184,6 +185,7 @@ class ImageManager(QObject):
         self.images = []
         self.current_index = -1
         self.watermark_settings = {}
+        self.watermark_position_initialized = {}
         # 注意：缩放比例设置保存在配置文件中，不清除
         self.images_loaded.emit([])
         
@@ -224,6 +226,24 @@ class ImageManager(QObject):
         if current_path:
             return self.scale_settings.get(current_path)
         return None
+    
+    def set_watermark_position_initialized(self, image_path, initialized=True):
+        """设置指定图片的水印位置初始化标志"""
+        if image_path:
+            self.watermark_position_initialized[image_path] = initialized
+    
+    def get_watermark_position_initialized(self, image_path):
+        """获取指定图片的水印位置初始化标志"""
+        if image_path:
+            return self.watermark_position_initialized.get(image_path, False)
+        return False
+    
+    def get_current_watermark_position_initialized(self):
+        """获取当前图片的水印位置初始化标志"""
+        current_path = self.get_current_image_path()
+        if current_path:
+            return self.get_watermark_position_initialized(current_path)
+        return False
 
 
 if __name__ == "__main__":
