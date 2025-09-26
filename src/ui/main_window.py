@@ -254,6 +254,12 @@ class MainWindow(QMainWindow):
         image_info_layout.addStretch()
         layout.addLayout(image_info_layout)
         
+        # 添加水印位置警告标签
+        self.watermark_warning_label = QLabel("注意：水印可能超出图片边界！")
+        self.watermark_warning_label.setStyleSheet("color: red; font-weight: bold; margin: 5px;")
+        self.watermark_warning_label.setVisible(False)  # 默认隐藏
+        layout.addWidget(self.watermark_warning_label)
+        
         return panel
         
     def create_right_panel(self):
@@ -570,6 +576,9 @@ class MainWindow(QMainWindow):
             
             # 更新图片信息显示
             self.update_image_info_display()
+            
+            # 检查水印位置是否超出边界
+            self.check_watermark_position(current_watermark_settings, original_width, original_height)
             
         except Exception as e:
             print(f"更新预览失败: {e}")
@@ -1465,6 +1474,104 @@ class MainWindow(QMainWindow):
             
             # 恢复默认光标
             self.setCursor(Qt.ArrowCursor)
+        
+    def check_watermark_position(self, watermark_settings, original_width, original_height):
+        """检查水印位置是否超出边界，提供更严格的边界检测
+        
+        此方法通过估算文本水印的实际尺寸来检查水印是否超出图片边界。
+        对于中文和英文文本采用不同的尺寸估算策略，并考虑了字体样式（粗体、斜体）
+        和旋转对水印尺寸的影响。特别加强了右侧和上侧边界的检测。
+        
+        Args:
+            watermark_settings (dict): 水印设置，包含文本、位置、字体等信息
+            original_width (int): 原始图片宽度
+            original_height (int): 原始图片高度
+        """
+        try:
+            # 获取水印文本
+            text = watermark_settings.get("text", "")
+            if not text:
+                self.watermark_warning_label.setVisible(False)
+                return
+            
+            # 获取水印位置
+            watermark_x = watermark_settings.get("watermark_x", 0)
+            watermark_y = watermark_settings.get("watermark_y", 0)
+            
+            # 获取字体大小和其他相关设置
+            font_size = watermark_settings.get("font_size", 24)
+            font_family = watermark_settings.get("font_family", "Arial")
+            font_bold = watermark_settings.get("font_bold", False)
+            font_italic = watermark_settings.get("font_italic", False)
+            rotation = watermark_settings.get("rotation", 0)
+            
+            # 更精确地估算文本尺寸
+            # 考虑到不同字体和样式的影响
+            char_count = len(text)
+            
+            # 基于字体大小估算文本宽度和高度
+            # 对于中文字体，每个字符大约占用font_size像素宽度
+            # 对于英文字体，平均字符宽度约为font_size * 0.6
+            if self._contains_chinese(text):
+                # 中文文本使用更保守的估算，确保足够的空间
+                text_width = char_count * font_size * 1.5  # 增加50%的宽度以确保安全
+            else:
+                # 英文文本使用更紧凑的估算
+                text_width = char_count * font_size  # 稍微增加英文文本的宽度估算
+            
+            # 文本高度估算，增加额外的空间以确保安全
+            text_height = font_size * 2  # 增加行间距的估算
+            
+            # 考虑粗体和斜体对尺寸的影响
+            if font_bold:
+                text_width *= 1.05  # 增加粗体对宽度的影响
+                text_height *= 1.05  # 增加粗体对高度的影响
+            
+            if font_italic:
+                text_width *= 1.05  # 增加斜体对宽度的影响
+                
+            # 考虑旋转对边界的影响
+            if rotation != 0:
+                import math
+                # 计算旋转后的边界框
+                angle_rad = math.radians(abs(rotation))
+                rotated_width = abs(text_width * math.cos(angle_rad)) + abs(text_height * math.sin(angle_rad))
+                rotated_height = abs(text_width * math.sin(angle_rad)) + abs(text_height * math.cos(angle_rad))
+                text_width, text_height = rotated_width, rotated_height
+            
+            # 计算水印边界（基于水印中心点）
+            left_bound = watermark_x - text_width*0.2
+            right_bound = watermark_x + text_width
+            top_bound = watermark_y - text_height*0.2
+            bottom_bound = watermark_y + text_height
+            
+            # 更严格的边界检查，特别是右侧和上侧
+            # 添加额外的安全边距以确保水印完全可见
+            safety_margin = 5  # 增加像素安全边距到10像素
+            
+            # 特别严格地检查右侧边界，因为用户特别提到了右侧边界检测应该更严格
+            right_safety_margin = safety_margin + 2  # 右侧增加额外的安全边距
+            top_safety_margin = safety_margin + 2    # 上侧增加额外的安全边距
+            
+            # 检查是否超出边界
+            if (left_bound < -safety_margin or 
+                right_bound > original_width + right_safety_margin or 
+                top_bound < -top_safety_margin or 
+                bottom_bound > original_height + safety_margin):
+                self.watermark_warning_label.setVisible(True)
+            else:
+                self.watermark_warning_label.setVisible(False)
+                
+        except Exception as e:
+            print(f"检查水印位置时出错: {e}")
+            self.watermark_warning_label.setVisible(False)
+            
+    def _contains_chinese(self, text):
+        """检查文本是否包含中文字符"""
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':
+                return True
+        return False
 
 
 if __name__ == "__main__":

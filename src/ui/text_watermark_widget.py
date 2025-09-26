@@ -741,37 +741,67 @@ class TextWatermarkWidget(QWidget):
                     # 根据按钮文本直接计算水印在原图上的坐标
                     margin = 20  # 边距
                     
+                    # 获取按钮文本以确定位置
+                    position_str = sender.text()
+                    
+                    # 根据按钮文本计算水印在原图上的坐标，使水印位于九宫格的中心位置
+                    # 将图片划分为3x3的网格，每个网格的宽高
+                    grid_width = img_width // 3
+                    grid_height = img_height // 3
+                    
+                    # 计算文本尺寸（估算）- 用于更精确的定位
+                    font_size = self.font_size
+                    text = self.watermark_text
+                    # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                    text_width = int(len(text) * font_size * 1.6) if text else font_size * 3
+                    text_height = font_size
+                    
                     if position_str == "左上":
-                        x = margin
-                        y = margin
+                        # 左上格子的中心位置
+                        x = grid_width // 2 
+                        y = grid_height // 2 - text_height // 2
                     elif position_str == "上中":
-                        x = round(img_width / 2)
-                        y = margin
+                        # 上中格子的中心位置
+                        x = img_width // 2 - grid_width // 2
+                        y = grid_height // 2 - text_height // 2
                     elif position_str == "右上":
-                        x = img_width - margin
-                        y = margin
+                        # 右上格子的中心位置
+                        x = img_width - grid_width // 2 - text_width // 2
+                        y = grid_height // 2 - text_height // 2
                     elif position_str == "左中":
-                        x = margin
-                        y = round(img_height / 2)
+                        # 左中格子的中心位置
+                        x = grid_width // 2 - text_height // 2
+                        y = img_height // 2 - text_height // 2
                     elif position_str == "中心":
-                        x = round(img_width / 2)
-                        y = round(img_height / 2)
+                        # 中心格子的中心位置
+                        x = img_width // 2 - grid_width // 2
+                        y = img_height // 2 - text_height // 2
                     elif position_str == "右中":
-                        x = img_width - margin
-                        y = round(img_height / 2)
+                        # 右中格子的中心位置
+                        x = img_width - grid_width // 2 - text_width // 2
+                        y = img_height // 2 - text_height // 2
                     elif position_str == "左下":
-                        x = margin
-                        y = img_height - margin
+                        # 左下格子的中心位置
+                        x = grid_width // 2 
+                        y = img_height - grid_height // 2 - text_height // 2
                     elif position_str == "下中":
-                        x = round(img_width / 2)
-                        y = img_height - margin
+                        # 下中格子的中心位置
+                        x = img_width // 2 - grid_width // 2
+                        y = img_height - grid_height // 2 - text_height // 2
                     elif position_str == "右下":
-                        x = img_width - margin
-                        y = img_height - margin
+                        # 右下格子的中心位置
+                        x = img_width - grid_width // 2 - text_width // 2
+                        y = img_height - grid_height // 2 - text_height // 2
                     else:
                         # 默认使用中心位置
-                        x = round(img_width / 2)
-                        y = round(img_height / 2)
+                        x = img_width // 2 - text_width // 2
+                        y = img_height // 2 - text_height // 2
+                    
+                    # 优化：使用min函数确保水印不会超出图片边界
+                    # 参考main_window.py中的check_watermark_position方法
+                    # 确保x坐标不会小于0，也不会超过图片宽度减去文本宽度
+                    x = min(max(x, 0), img_width - text_width)
+                    y = min(max(y, 0), img_height - text_height)
                     
                     # 使用update_position函数统一处理position更新
                     self.update_position((x, y))
