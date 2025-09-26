@@ -293,13 +293,7 @@ class MainWindow(QMainWindow):
         # 操作按钮
         action_layout = QHBoxLayout()
         
-        self.preview_button = QPushButton("预览效果")
-        self.apply_button = QPushButton("应用水印")
-        self.export_button = QPushButton("导出图片")
         
-        action_layout.addWidget(self.preview_button)
-        action_layout.addWidget(self.apply_button)
-        action_layout.addWidget(self.export_button)
         
         layout.addLayout(action_layout)
         layout.addStretch()
@@ -336,13 +330,7 @@ class MainWindow(QMainWindow):
         # 编辑菜单
         edit_menu = menu_bar.addMenu("编辑")
         
-        self.undo_action = QAction("撤销", self)
-        self.undo_action.setShortcut("Ctrl+Z")
-        edit_menu.addAction(self.undo_action)
         
-        self.redo_action = QAction("重做", self)
-        self.redo_action.setShortcut("Ctrl+Y")
-        edit_menu.addAction(self.redo_action)
         
         # 视图菜单
         view_menu = menu_bar.addMenu("视图")
@@ -809,12 +797,19 @@ class MainWindow(QMainWindow):
                     # 如果已有水印设置，确保位置是坐标元组而不是字符串
                     position = current_watermark_settings.get("position", "center")
                     if isinstance(position, str):
-                        # 将字符串位置转换为坐标元组
+                        # 如果位置是字符串，设置默认的中心位置坐标
                         img_width = self.original_pixmap.width()
                         img_height = self.original_pixmap.height()
-                        coordinates = self._convert_position_to_coordinates(position, img_width, img_height, current_watermark_settings)
-                        current_watermark_settings["position"] = coordinates
-                        self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+                        # 计算文本尺寸（估算）
+                        font_size = current_watermark_settings.get("font_size", 24)
+                        text = current_watermark_settings.get("text", "")
+                        # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                        text_width = int(len(text) * font_size * 0.6)
+                        text_height = font_size
+                        # 计算中心位置坐标
+                        coordinates = ((img_width - text_width) // 2, (img_height - text_height) // 2)
+                        # 使用update_position函数统一处理position更新
+                        self.update_position(coordinates, current_watermark_settings)
                         print(f"将预设位置'{position}'转换为坐标元组: {coordinates}")
             
             # 使用基于水印设置的预览方法，避免循环调用
@@ -1167,7 +1162,7 @@ class MainWindow(QMainWindow):
         """切换到下一张图片"""
         self.image_manager.next_image()
         
-    # 缩放功能已经在前面定义，这里移除重复定义
+    
         
     def resizeEvent(self, event):
         """窗口大小改变事件"""
@@ -1184,256 +1179,9 @@ class MainWindow(QMainWindow):
                          "支持文本水印和图片水印\n"
                          "版本 1.0.0")
                          
-    def calculate_watermark_position(self, event, current_watermark_settings):
-        """
-        统一的水印位置计算函数，用于初次拖拽和后续拖拽
-        
-        Args:
-            event: 鼠标事件
-            current_watermark_settings: 当前水印设置
-            
-        Returns:
-            tuple: (x, y) 水印在原始图片上的位置
-        """
-        # 获取图片原始尺寸
-        img_width = self.original_pixmap.width()
-        img_height = self.original_pixmap.height()
-        
-        # 获取当前图片路径
-        current_image_path = self.image_manager.get_current_image_path()
-        
-        # 获取水印渲染器计算的实际位置
-        # 这样可以确保我们的估算与实际渲染位置一致
-        try:
-            from watermark_renderer import WatermarkRenderer
-            renderer = WatermarkRenderer()
-            
-            # 临时创建一个预览图来获取水印的实际位置
-            # 使用当前图片路径，而不是QImage对象
-            temp_preview, temp_ratio_info = renderer.preview_watermark(
-                current_image_path,
-                current_watermark_settings,
-                (800, 600)
-            )
-            
-            # 从ratio_info中获取实际的水印位置
-            if temp_ratio_info and 'watermark_position' in temp_ratio_info and temp_ratio_info['watermark_position'] is not None:
-                # 获取实际渲染的水印位置（这是预览图上的位置）
-                actual_x, actual_y = temp_ratio_info['watermark_position']
-                
-                # 将预览图上的位置转换为原始图片上的位置
-                # 考虑预览图的缩放比例
-                preview_width = temp_ratio_info.get('preview_width', 800)
-                preview_height = temp_ratio_info.get('preview_height', 600)
-                
-                # 计算原始图片到预览图的比例
-                original_to_preview_scale_x = preview_width / img_width
-                original_to_preview_scale_y = preview_height / img_height
-                
-                # 将预览图上的位置转换为原始图片上的位置
-                x = int(actual_x / original_to_preview_scale_x)
-                y = int(actual_y / original_to_preview_scale_y)
-                
-                print(f"[DEBUG] 从WatermarkRenderer获取实际水印位置: 预览图位置({actual_x}, {actual_y}) -> 原始图片位置({x}, {y})")
-                print(f"[DEBUG] 原始到预览图比例: original_to_preview_scale_x={original_to_preview_scale_x:.4f}, original_to_preview_scale_y={original_to_preview_scale_y:.4f}")
-                
-                # 直接使用原始图片位置，不计算鼠标与水印中心点的偏移量
-                # 这样拖拽会从当前水印位置开始，不会产生跳跃
-                print(f"[DEBUG] 直接使用水印位置: ({x}, {y})")
-                
-                # 确保水印位置在图片范围内
-                if hasattr(self, 'image_manager') and self.image_manager:
-                    current_image_path = self.image_manager.get_current_image_path()
-                    if current_image_path and os.path.exists(current_image_path):
-                        with PILImage.open(current_image_path) as img:
-                            img_width, img_height = img.size
-                            # 计算文本尺寸（估算）
-                            font_size = current_watermark_settings.get("font_size", 24)
-                            text = current_watermark_settings.get("text", "")
-                            text_width = int(len(text) * font_size * 0.6)
-                            text_height = font_size
-                            # 确保水印位置在图片范围内
-                            x = max(0, min(x, img_width - text_width))
-                            y = max(0, min(y, img_height - text_height))
-                            print(f"[DEBUG] 确保水印在图片范围内，最终位置({x}, {y})")
-                
-                return (x, y)
-            else:
-                # 如果无法获取实际位置，使用估算值
-                print("[DEBUG] 无法从WatermarkRenderer获取水印位置，使用估算值")
-                return self._estimate_watermark_position(current_watermark_settings, img_width, img_height)
-        except Exception as e:
-            # 如果获取实际位置失败，使用估算值
-            print(f"[DEBUG] 获取水印实际位置失败: {e}，使用估算值")
-            return self._estimate_watermark_position(current_watermark_settings, img_width, img_height)
     
-    def _convert_position_to_coordinates(self, position, img_width, img_height, current_watermark_settings):
-        """
-        将位置设置转换为坐标元组
-        
-        Args:
-            position: 位置设置（字符串或坐标元组）
-            img_width: 图片宽度
-            img_height: 图片高度
-            current_watermark_settings: 当前水印设置
-            
-        Returns:
-            tuple: (x, y) 水印坐标
-        """
-        # 如果已经是坐标元组，检查是否是九宫格计算出的绝对坐标
-        if isinstance(position, tuple) and len(position) == 2:
-            # 检查是否是绝对坐标（值大于1，且不是0-1之间的相对比例）
-            x, y = position
-            if (x > 1 or y > 1) and not (0 <= x <= 1 and 0 <= y <= 1):
-                # 这是九宫格计算出的绝对坐标，直接返回
-                return position
-            else:
-                # 这是相对坐标，需要转换为绝对坐标
-                # 计算文本尺寸（估算）
-                font_size = current_watermark_settings.get("font_size", 24)
-                text = current_watermark_settings.get("text", "")
-                # 简单估算文本宽度：每个字符约为font_size的0.6倍
-                text_width = int(len(text) * font_size * 0.6)
-                text_height = font_size
-                
-                # 将相对坐标转换为绝对坐标
-                x = int(round(img_width * x))
-                y = int(round(img_height * y))
-                return (x, y)
-        
-        # 计算文本尺寸（估算）
-        font_size = current_watermark_settings.get("font_size", 24)
-        text = current_watermark_settings.get("text", "")
-        # 简单估算文本宽度：每个字符约为font_size的0.6倍
-        text_width = int(len(text) * font_size * 0.6)
-        text_height = font_size
-        
-        # 使用与watermark_renderer.py中_calculate_position方法相同的逻辑计算水印坐标
-        margin = 20  # 边距，与watermark_renderer.py保持一致
-        
-        if position == "top-left":
-            x, y = (margin, margin)
-        elif position == "top-center":
-            x, y = ((img_width - text_width) // 2, margin)
-        elif position == "top-right":
-            x, y = (img_width - text_width - margin, margin)
-        elif position == "middle-left":
-            x, y = (margin, (img_height - text_height) // 2)
-        elif position == "center":
-            x, y = ((img_width - text_width) // 2, (img_height - text_height) // 2)
-        elif position == "middle-right":
-            x, y = (img_width - text_width - margin, (img_height - text_height) // 2)
-        elif position == "bottom-left":
-            x, y = (margin, img_height - text_height - margin)
-        elif position == "bottom-center":
-            x, y = ((img_width - text_width) // 2, img_height - text_height - margin)
-        elif position == "bottom-right":
-            x, y = (img_width - text_width - margin, img_height - text_height - margin)
-        else:
-            x, y = (margin, margin)
-        
-        return (x, y)
-    
-    def _estimate_watermark_position(self, current_watermark_settings, img_width, img_height):
-        """
-        估算水印位置，当无法从WatermarkRenderer获取实际位置时使用
-        
-        Args:
-            current_watermark_settings: 当前水印设置
-            img_width: 图片宽度
-            img_height: 图片高度
-            
-        Returns:
-            tuple: (x, y) 估算的水印位置
-        """
-        position = current_watermark_settings.get("position", "center")
-        return self._convert_position_to_coordinates(position, img_width, img_height, current_watermark_settings)
 
-    def calculate_drag_position(self, event):
-        """
-        计算拖拽过程中的水印位置
-        
-        Args:
-            event: 鼠标事件
-            
-        Returns:
-            tuple: (x, y) 水印在原始图片上的位置
-        """
-        if not self.drag_start_pos or not self.watermark_offset:
-            return None
-            
-        # 计算鼠标移动距离（这是预览显示上的移动距离）
-        delta_x = event.pos().x() - self.drag_start_pos.x()
-        delta_y = event.pos().y() - self.drag_start_pos.y()
-        
-        # 获取原始图片尺寸
-        original_width = self.original_pixmap.width()
-        original_height = self.original_pixmap.height()
-        
-        # 获取当前预览图片的实际尺寸（考虑缩放比例）
-        if hasattr(self, 'preview_widget') and self.preview_widget.pixmap():
-            preview_pixmap = self.preview_widget.pixmap()
-            display_width = preview_pixmap.width()
-            display_height = preview_pixmap.height()
-            
-            # 使用保存的比例信息（如果有）
-            if hasattr(self, 'preview_ratio_info') and self.preview_ratio_info:
-                # 从保存的比例信息中获取预览图的实际尺寸和缩放因子
-                scale_factor = self.preview_ratio_info.get('scale_factor', 1.0)
-                
-                # 计算总缩放比例（预览缩放比例 × 压缩比例）
-                total_scale = self.current_scale * scale_factor
-                
-                # 如果有压缩比例，将其纳入总缩放比例计算
-                if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
-                    total_scale *= self.compression_scale
-                
-                # 直接使用总缩放比例将鼠标移动距离转换为原图上的移动距离
-                if total_scale > 0:
-                    scaled_delta_x = delta_x / total_scale
-                    scaled_delta_y = delta_y / total_scale
-                else:
-                    scaled_delta_x = delta_x
-                    scaled_delta_y = delta_y
-            else:
-                # 如果没有保存的比例信息，使用显示尺寸与原始图片的比例
-                display_to_original_scale_x = original_width / display_width
-                display_to_original_scale_y = original_height / display_height
-                
-                # 计算总缩放比例（预览缩放比例 × 显示到原图比例）
-                total_scale_x = self.current_scale * display_to_original_scale_x
-                total_scale_y = self.current_scale * display_to_original_scale_y
-                
-                # 如果有压缩比例，将其纳入总缩放比例计算
-                if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
-                    total_scale_x *= self.compression_scale
-                    total_scale_y *= self.compression_scale
-                
-                # 使用总缩放比例将鼠标移动距离转换为原图上的移动距离
-                if total_scale_x > 0 and total_scale_y > 0:
-                    scaled_delta_x = delta_x / total_scale_x
-                    scaled_delta_y = delta_y / total_scale_y
-                else:
-                    scaled_delta_x = delta_x
-                    scaled_delta_y = delta_y
-        else:
-            # 如果无法获取预览图片尺寸，直接使用鼠标移动距离除以预览缩放比例
-            if self.current_scale > 0:
-                scaled_delta_x = delta_x / self.current_scale
-                scaled_delta_y = delta_y / self.current_scale
-            else:
-                scaled_delta_x = delta_x
-                scaled_delta_y = delta_y
-        
-        # 使用整数计算，避免使用浮点数
-        new_x = int(round(self.watermark_offset[0] + scaled_delta_x))
-        new_y = int(round(self.watermark_offset[1] + scaled_delta_y))
-        
-        # 确保水印不会超出图片边界
-        new_x = max(0, min(new_x, original_width))
-        new_y = max(0, min(new_y, original_height))
-        
-        return (new_x, new_y)
+    
 
     def on_preview_mouse_press(self, event):
         """预览区域鼠标按下事件"""
@@ -1446,8 +1194,14 @@ class MainWindow(QMainWindow):
                 self.is_dragging = True
                 self.drag_start_pos = event.pos()
                 
-                # 使用统一的水印位置计算函数
-                watermark_position = self.calculate_watermark_position(event, current_watermark_settings)
+                # 直接从水印设置中获取水印位置
+                if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
+                    watermark_position = (int(current_watermark_settings["watermark_x"]), int(current_watermark_settings["watermark_y"]))
+                elif "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
+                    watermark_position = current_watermark_settings["position"]
+                else:
+                    # 如果没有位置信息，使用默认位置（图片中心）
+                    watermark_position = (self.original_pixmap.width() // 2, self.original_pixmap.height() // 2)
                 
                 # 保存计算出的水印偏移量
                 self.watermark_offset = watermark_position
@@ -1455,11 +1209,8 @@ class MainWindow(QMainWindow):
                 # 立即更新水印设置为自定义位置，避免第一次移动时的跳跃
                 current_image_path = self.image_manager.get_current_image_path()
                 if current_image_path:
-                    # 将位置设置为坐标元组（确保position字段只包含坐标）
-                    current_watermark_settings["position"] = watermark_position
-                    
-                    self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
-                    self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
+                    # 使用update_position函数统一处理position更新
+                    self.update_position(watermark_position, current_watermark_settings)
                 
                 # 更改鼠标样式为手型
                 self.preview_widget.setCursor(Qt.ClosedHandCursor)
@@ -1507,25 +1258,11 @@ class MainWindow(QMainWindow):
             # 打印水印坐标
             print(f"[DEBUG] 水印坐标: x={new_x}, y={new_y}")
             
-            # 更新水印坐标显示
-            self.watermark_coord_label.setText(f"水印中心坐标: ({new_x}, {new_y})")
-            
-            # 更新水印设置
+            # 使用update_position函数统一处理position更新
             current_image_path = self.image_manager.get_current_image_path()
             if current_image_path:
                 current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
-                
-                # 使用元组存储自定义位置
-                current_watermark_settings["position"] = (new_x, new_y)
-                
-                # 保存更新后的水印设置
-                self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
-                
-                # 更新文本水印组件
-                self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
-                
-                # 更新预览
-                self.update_preview_with_watermark()
+                self.update_position((new_x, new_y), current_watermark_settings)
                 
                 # 更新拖拽起始位置和水印偏移量
                 self.drag_start_pos = event.pos()
@@ -1584,20 +1321,95 @@ class MainWindow(QMainWindow):
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_current_watermark_settings()
             
-            if current_watermark_settings.get("text") and "position" in current_watermark_settings:
-                position = current_watermark_settings["position"]
-                if isinstance(position, tuple) and len(position) == 2:
-                    # 确保水印坐标是基于原图坐标系的整数
-                    watermark_x = int(position[0])
-                    watermark_y = int(position[1])
-                    # 水印位置已经是基于原图坐标系的整数，直接显示
+            if current_watermark_settings.get("text"):
+                # 优先使用watermark_x和watermark_y
+                if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
+                    watermark_x = int(current_watermark_settings["watermark_x"])
+                    watermark_y = int(current_watermark_settings["watermark_y"])
                     self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                # 如果没有watermark_x和watermark_y，则使用position
+                elif "position" in current_watermark_settings:
+                    position = current_watermark_settings["position"]
+                    if isinstance(position, tuple) and len(position) == 2:
+                        # 确保水印坐标是基于原图坐标系的整数
+                        watermark_x = int(position[0])
+                        watermark_y = int(position[1])
+                        # 更新watermark_x和watermark_y，以便下次可以直接使用
+                        current_watermark_settings["watermark_x"] = watermark_x
+                        current_watermark_settings["watermark_y"] = watermark_y
+                        # 保存更新后的水印设置
+                        current_image_path = self.image_manager.get_current_image_path()
+                        if current_image_path:
+                            self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+                        # 水印位置已经是基于原图坐标系的整数，直接显示
+                        self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                    else:
+                        self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
                 else:
                     self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
             else:
                 self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
         else:
             self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+    
+    def update_position(self, new_position, current_watermark_settings=None):
+        """
+        统一更新position的函数，确保每次position变化时都更新watermark_x和watermark_y
+        
+        Args:
+            new_position: 新的位置，可以是元组(x, y)或相对位置字符串
+            current_watermark_settings: 当前水印设置，如果为None则从image_manager获取
+        """
+        # 获取当前图片路径
+        current_image_path = self.image_manager.get_current_image_path()
+        if not current_image_path:
+            return
+            
+        # 如果没有提供水印设置，则获取当前设置
+        if current_watermark_settings is None:
+            current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
+        
+        # 检查水印坐标变化是否超过200像素
+        if isinstance(new_position, tuple) and len(new_position) == 2:
+            # 获取之前的水印位置
+            old_x = 0
+            old_y = 0
+            if "watermark_x" in current_watermark_settings:
+                old_x = int(current_watermark_settings["watermark_x"])
+            if "watermark_y" in current_watermark_settings:
+                old_y = int(current_watermark_settings["watermark_y"])
+            
+            # 计算坐标变化
+            delta_x = abs(int(new_position[0]) - old_x)
+            delta_y = abs(int(new_position[1]) - old_y)
+            
+            # 如果坐标变化超过200像素，打印警告和调用栈
+            if delta_x > 200 or delta_y > 200:
+                import traceback
+                print(f"[WARNING] 水印坐标一次性变化超过200像素! X变化: {delta_x}, Y变化: {delta_y}")
+                print(f"[WARNING] 旧坐标: ({old_x}, {old_y}), 新坐标: ({new_position[0]}, {new_position[1]})")
+                print("[WARNING] 调用栈回溯:")
+                traceback.print_stack()
+        
+        # 更新position
+        current_watermark_settings["position"] = new_position
+        
+        # 如果新位置是元组格式，提取x和y坐标
+        if isinstance(new_position, tuple) and len(new_position) == 2:
+            current_watermark_settings["watermark_x"] = int(new_position[0])
+            current_watermark_settings["watermark_y"] = int(new_position[1])
+            print(f"[DEBUG] 更新position和坐标: position={new_position}, watermark_x={current_watermark_settings['watermark_x']}, watermark_y={current_watermark_settings['watermark_y']}")
+        
+        # 保存更新后的水印设置
+        self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+        
+        # 更新文本水印组件
+        self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
+        
+        # 更新预览（这会自动调用update_watermark_coordinates）
+        self.update_preview_with_watermark()
+        
+        return current_watermark_settings
             
     def update_image_info_display(self):
         """更新图片信息显示"""

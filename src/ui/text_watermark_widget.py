@@ -32,6 +32,8 @@ class TextWatermarkWidget(QWidget):
         self.font_color = QColor(255, 255, 255)  # 白色
         self.opacity = 80  # 透明度百分比
         self.position = (0.5, 0.5)  # 位置
+        self.watermark_x = 0  # 水印X坐标
+        self.watermark_y = 0  # 水印Y坐标
         self.rotation = 0  # 旋转角度
         self.enable_shadow = False
         self.enable_outline = False
@@ -701,45 +703,216 @@ class TextWatermarkWidget(QWidget):
             # 获取按钮的位置属性（相对位置元组）
             position_tuple = sender.property("position")
             if position_tuple:
-                # 如果位置是元组形式（相对位置），需要转换为原图坐标
-                if isinstance(position_tuple, tuple) and len(position_tuple) == 2:
-                    # 获取当前图片的原始尺寸
-                    try:
-                        # 尝试从主窗口获取当前图片路径
-                        main_window = self.parent()
-                        if hasattr(main_window, 'image_manager'):
-                            current_image_path = main_window.image_manager.get_current_image_path()
-                            if current_image_path:
-                                # 使用PIL打开图片获取原始尺寸
-                                from PIL import Image
-                                with Image.open(current_image_path) as img:
-                                    img_width, img_height = img.size
-                                    
-                                    # 直接使用原图尺寸计算水印在原图的坐标
-                                    # 例如原图尺寸是1000*4000，那中间对应的坐标就是1000*0.5=500，4000*0.5=2000
-                                    x_ratio, y_ratio = position_tuple
-                                    x = int(round(img_width * x_ratio))
-                                    y = int(round(img_height * y_ratio))
-                                    
-                                    # 将计算出的绝对坐标赋值给position
-                                    self.position = (x, y)
-                                    print(f"[DEBUG] 九宫格位置计算: 原图尺寸({img_width}, {img_height}), 相对位置({x_ratio}, {y_ratio}) -> 绝对坐标({x}, {y})")
-                                    
-                                    # 触发水印变化信号
-                                    self.watermark_changed.emit()
-                                    return
-                    except Exception as e:
-                        print(f"[DEBUG] 获取图片尺寸失败: {e}")
-                
+                # 获取当前图片的原始尺寸
+                try:
+                    # 尝试从主窗口获取当前图片路径
+                    main_window = self.parent()
+                    if hasattr(main_window, 'image_manager'):
+                        current_image_path = main_window.image_manager.get_current_image_path()
+                        if current_image_path:
+                            # 使用PIL打开图片获取原始尺寸
+                            from PIL import Image
+                            with Image.open(current_image_path) as img:
+                                img_width, img_height = img.size
+                                
+                                # 计算文本尺寸（估算）
+                                font_size = self.font_size
+                                text = self.watermark_text
+                                # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                                text_width = int(len(text) * font_size * 0.6) if text else font_size * 3
+                                text_height = font_size
+                                
+                                # 获取按钮文本以确定位置
+                                position_str = sender.text()
+                                
+                                # 根据按钮文本直接计算水印在原图上的坐标
+                                margin = 20  # 边距
+                                
+                                if position_str == "左上":
+                                    x = margin
+                                    y = margin
+                                elif position_str == "上中":
+                                    x = round(img_width / 2 - text_width / 2)
+                                    y = margin
+                                elif position_str == "右上":
+                                    x = img_width - text_width - margin
+                                    y = margin
+                                elif position_str == "左中":
+                                    x = margin
+                                    y = round(img_height / 2 - text_height / 2)
+                                elif position_str == "中心":
+                                    x = round(img_width / 2 - text_width / 2)
+                                    y = round(img_height / 2 - text_height / 2)
+                                elif position_str == "右中":
+                                    x = img_width - text_width - margin
+                                    y = round(img_height / 2 - text_height / 2)
+                                elif position_str == "左下":
+                                    x = margin
+                                    y = img_height - text_height - margin
+                                elif position_str == "下中":
+                                    x = round(img_width / 2 - text_width / 2)
+                                    y = img_height - text_height - margin
+                                elif position_str == "右下":
+                                    x = img_width - text_width - margin
+                                    y = img_height - text_height - margin
+                                else:
+                                    # 默认使用中心位置
+                                    x = round(img_width / 2 - text_width / 2)
+                                    y = round(img_height / 2 - text_height / 2)
+                                
+                                # 使用update_position函数统一处理position更新
+                                self.update_position((x, y))
+                                return
+                except Exception as e:
+                    print(f"[DEBUG] 获取图片尺寸或计算坐标失败: {e}")
+            
                 # 如果获取原图尺寸失败，回退到原来的相对位置处理方式
-                self.position = position_tuple
-            else:
-                # 如果没有位置属性，默认使用中心位置
-                self.position = (0.5, 0.5)
+                # 但不直接使用相对位置，而是尝试将其转换为具体坐标
+                try:
+                    # 尝试从主窗口获取当前图片路径
+                    main_window = self.parent()
+                    if hasattr(main_window, 'original_pixmap'):
+                        # 使用主窗口中的原始图片尺寸
+                        original_pixmap = main_window.original_pixmap
+                        if original_pixmap:
+                            img_width = original_pixmap.width()
+                            img_height = original_pixmap.height()
+                            
+                            # 计算文本尺寸（估算）
+                            font_size = self.font_size
+                            text = self.watermark_text
+                            # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                            text_width = int(len(text) * font_size * 0.6) if text else font_size * 3
+                            text_height = font_size
+                            
+                            # 获取按钮文本以确定位置
+                            position_str = sender.text()
+                            
+                            # 根据按钮文本直接计算水印在原图上的坐标
+                            margin = 20  # 边距
+                            
+                            if position_str == "左上":
+                                x = margin
+                                y = margin
+                            elif position_str == "上中":
+                                x = round(img_width / 2 - text_width / 2)
+                                y = margin
+                            elif position_str == "右上":
+                                x = img_width - text_width - margin
+                                y = margin
+                            elif position_str == "左中":
+                                x = margin
+                                y = round(img_height / 2 - text_height / 2)
+                            elif position_str == "中心":
+                                x = round(img_width / 2 - text_width / 2)
+                                y = round(img_height / 2 - text_height / 2)
+                            elif position_str == "右中":
+                                x = img_width - text_width - margin
+                                y = round(img_height / 2 - text_height / 2)
+                            elif position_str == "左下":
+                                x = margin
+                                y = img_height - text_height - margin
+                            elif position_str == "下中":
+                                x = round(img_width / 2 - text_width / 2)
+                                y = img_height - text_height - margin
+                            elif position_str == "右下":
+                                x = img_width - text_width - margin
+                                y = img_height - text_height - margin
+                            else:
+                                # 默认使用中心位置
+                                x = round(img_width / 2 - text_width / 2)
+                                y = round(img_height / 2 - text_height / 2)
+                            
+                            # 使用update_position函数统一处理position更新
+                            self.update_position((x, y))
+                            return
+                except Exception as e:
+                    print(f"[DEBUG] 使用主窗口图片尺寸计算坐标失败: {e}")
                 
-            # 触发水印变化信号
-            self.watermark_changed.emit()
+                # 如果仍然失败，使用默认尺寸计算
+                try:
+                    # 使用默认尺寸计算
+                    img_width = 800  # 默认宽度
+                    img_height = 600  # 默认高度
+                    
+                    # 计算文本尺寸（估算）
+                    font_size = self.font_size
+                    text = self.watermark_text
+                    # 简单估算文本宽度：每个字符约为font_size的0.6倍
+                    text_width = int(len(text) * font_size * 0.6) if text else font_size * 3
+                    text_height = font_size
+                    
+                    # 获取按钮文本以确定位置
+                    position_str = sender.text()
+                    
+                    # 根据按钮文本直接计算水印在原图上的坐标
+                    margin = 20  # 边距
+                    
+                    if position_str == "左上":
+                        x = margin
+                        y = margin
+                    elif position_str == "上中":
+                        x = round(img_width / 2 - text_width / 2)
+                        y = margin
+                    elif position_str == "右上":
+                        x = img_width - text_width - margin
+                        y = margin
+                    elif position_str == "左中":
+                        x = margin
+                        y = round(img_height / 2 - text_height / 2)
+                    elif position_str == "中心":
+                        x = round(img_width / 2 - text_width / 2)
+                        y = round(img_height / 2 - text_height / 2)
+                    elif position_str == "右中":
+                        x = img_width - text_width - margin
+                        y = round(img_height / 2 - text_height / 2)
+                    elif position_str == "左下":
+                        x = margin
+                        y = img_height - text_height - margin
+                    elif position_str == "下中":
+                        x = round(img_width / 2 - text_width / 2)
+                        y = img_height - text_height - margin
+                    elif position_str == "右下":
+                        x = img_width - text_width - margin
+                        y = img_height - text_height - margin
+                    else:
+                        # 默认使用中心位置
+                        x = round(img_width / 2 - text_width / 2)
+                        y = round(img_height / 2 - text_height / 2)
+                    
+                    # 使用update_position函数统一处理position更新
+                    self.update_position((x, y))
+                    return
+                except Exception as e:
+                    print(f"[DEBUG] 使用默认尺寸计算坐标失败: {e}")
+                
+                # 如果所有尝试都失败，使用默认坐标（左上角）
+                self.update_position((20, 20))
+            else:
+                # 如果没有位置属性，默认使用左上角位置
+                self.update_position((20, 20))
+                
+            # 不再需要手动触发水印变化信号，因为update_position函数已经触发了
         
+    def update_position(self, new_position):
+        """
+        统一更新position的函数，确保每次position变化时都更新watermark_x和watermark_y
+        
+        Args:
+            new_position: 新的位置，可以是元组(x, y)或相对位置字符串
+        """
+        # 更新position
+        self.position = new_position
+        
+        # 如果新位置是元组格式，提取x和y坐标
+        if isinstance(new_position, tuple) and len(new_position) == 2:
+            self.watermark_x = int(new_position[0])
+            self.watermark_y = int(new_position[1])
+            print(f"[DEBUG] 更新position和坐标: position={new_position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
+        
+        # 触发水印变化信号，这将更新预览和坐标显示
+        self.watermark_changed.emit()
+    
     def on_shadow_changed(self, state):
         """阴影效果变化"""
         self.enable_shadow = (state == Qt.Checked)
@@ -805,6 +978,8 @@ class TextWatermarkWidget(QWidget):
             "color": self.font_color,
             "opacity": self.opacity,
             "position": self.position,
+            "watermark_x": self.watermark_x,
+            "watermark_y": self.watermark_y,
             "rotation": self.rotation,
             "enable_shadow": self.enable_shadow,
             "enable_outline": self.enable_outline,
@@ -878,7 +1053,8 @@ class TextWatermarkWidget(QWidget):
             
             # 更新位置
             if "position" in settings:
-                self.position = settings["position"]
+                # 使用update_position函数统一处理position更新
+                self.update_position(settings["position"])
                 # 更新位置按钮状态
                 for attr_name in dir(self):
                     if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
@@ -894,6 +1070,13 @@ class TextWatermarkWidget(QWidget):
                         else:
                             # 如果不是元组位置，直接比较
                             btn.setChecked(btn_pos == self.position)
+            
+            # 更新watermark_x和watermark_y（如果position中没有提供这些值）
+            if "watermark_x" in settings and "watermark_y" not in settings:
+                self.watermark_x = settings["watermark_x"]
+            
+            if "watermark_y" in settings and "watermark_x" not in settings:
+                self.watermark_y = settings["watermark_y"]
             
             # 更新效果设置
             if "enable_shadow" in settings:
@@ -987,7 +1170,8 @@ class TextWatermarkWidget(QWidget):
             
             # 更新位置
             if "position" in settings:
-                self.position = settings["position"]
+                # 使用update_position函数统一处理position更新
+                self.update_position(settings["position"])
                 # 更新位置按钮状态
                 for attr_name in dir(self):
                     if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
