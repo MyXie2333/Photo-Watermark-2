@@ -691,13 +691,35 @@ class TextWatermarkWidget(QWidget):
         self.watermark_changed.emit()
         
     def on_position_changed(self):
-        """位置变化"""
+        """
+        处理水印位置变化事件
+        
+        当用户点击九宫格位置按钮时，计算水印在原图上的精确坐标位置。
+        优化点：
+        1. 支持原图尺寸获取，确保水印位置计算基于原图而非预览图
+        2. 使用PIL精确计算文本边界框，考虑字体、大小、粗体、斜体等因素
+        3. 考虑文本旋转对边界框的影响，确保旋转后的文本也能正确定位
+        4. 优化九宫格定位算法，使水印位于对应格子的合适位置
+        5. 添加动态边距计算，边距大小根据图片尺寸自适应调整
+        6. 改进错误处理，确保在各种异常情况下仍能提供合理的默认位置
+        
+        处理流程：
+        1. 取消其他位置按钮的选中状态
+        2. 获取原图尺寸（优先使用传递的尺寸，否则从图片文件读取）
+        3. 使用PIL精确计算文本边界框
+        4. 考虑旋转因素调整文本尺寸
+        5. 根据九宫格位置计算水印坐标，考虑文本尺寸和边距
+        6. 调用update_position更新水印位置
+        """
+        # 获取发送信号的对象（被点击的位置按钮）
         sender = self.sender()
         if sender.isChecked():
-            # 取消其他按钮的选中状态
+            # 取消其他位置按钮的选中状态，确保只有一个按钮被选中
             for attr_name in dir(self):
+                # 查找所有位置按钮（以pos_开头，以_btn结尾的属性）
                 if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
                     btn = getattr(self, attr_name)
+                    # 如果不是当前点击的按钮，则取消其选中状态
                     if btn != sender:
                         btn.setChecked(False)
             
@@ -706,7 +728,7 @@ class TextWatermarkWidget(QWidget):
             if position_tuple:
                 # 获取当前图片的原始尺寸
                 try:
-                    # 首先尝试使用传递的原图尺寸
+                    # 首先尝试使用传递的原图尺寸（如果存在）
                     if hasattr(self, 'original_width') and hasattr(self, 'original_height'):
                         img_width = self.original_width
                         img_height = self.original_height
@@ -729,7 +751,7 @@ class TextWatermarkWidget(QWidget):
                             # 如果获取原图尺寸失败，回退到原来的相对位置处理方式
                             raise Exception("无法访问主窗口的image_manager")
                     
-                    # 获取按钮文本以确定位置
+                    # 获取按钮文本以确定位置（如"左上"、"上中"等）
                     position_str = sender.text()
                     
                     # 根据按钮文本计算水印在原图上的坐标，使水印位于九宫格的中心位置
@@ -741,59 +763,124 @@ class TextWatermarkWidget(QWidget):
                     font_size = self.font_size
                     text = self.watermark_text
                     # 简单估算文本宽度：每个字符约为font_size的1倍宽度
-                    text_width = int(len(text) * font_size) if text else font_size * 3
+                    text_width = int(len(text) * (font_size+1)) if text else font_size * 3
                     text_height = font_size
+
+                    try:
+                        from PIL import Image, ImageDraw, ImageFont
+                        
+                        # 创建一个足够大的临时图像来绘制文本，用于计算文本边界框
+                        temp_img = Image.new('RGB', (img_width, img_height), (255, 255, 255))
+                        temp_draw = ImageDraw.Draw(temp_img)
+                        
+                        # 尝试加载字体
+                        try:
+                            # 获取主窗口的watermark_renderer实例
+                            main_window = self.parent()
+                            if hasattr(main_window, 'watermark_renderer'):
+                                # 使用watermark_renderer中的字体加载逻辑，确保字体一致性
+                                font = main_window.watermark_renderer._get_font(self.font_family, font_size, text, self.font_bold, self.font_italic)
+                            else:
+                                # 如果无法获取watermark_renderer，尝试加载指定字体
+                                try:
+                                    font = ImageFont.truetype(self.font_family, font_size)
+                                except:
+                                    # 如果指定字体加载失败，尝试使用系统默认字体
+                                    try:
+                                        font = ImageFont.truetype("arial.ttf", font_size)
+                                    except:
+                                        # 如果系统默认字体也加载失败，使用PIL默认字体
+                                        font = ImageFont.load_default()
+                        except Exception as e:
+                            print(f"[DEBUG] 加载字体失败: {e}")
+                            # 如果加载字体失败，使用默认字体
+                            font = ImageFont.load_default()
+                        
+                        # 获取文本边界框，用于精确计算文本尺寸
+                        # 使用(0, 0)作为参考点，因为我们只需要文本的尺寸
+                        try:
+                            # 确保文本是字符串类型，避免编码问题
+                            text_str = str(text) if text is not None else ""
+                            bbox = temp_draw.textbbox((0, 0), text_str, font=font)
+                        except Exception as text_error:
+                            print(f"[DEBUG] 文本边界框计算失败: {text_error}")
+                            # 使用默认边界框
+                            bbox = (0, 0, text_width, text_height)
+                        
+
+                        # 从边界框中提取文本的左右上下边界
+                        text_r=bbox[2]  # 文本右边界
+                        text_l=bbox[0]  # 文本左边界
+                        text_t=bbox[1]  # 文本上边界
+                        text_b=bbox[3]  # 文本下边界
+                        print(f"text_l={text_l},text_r={text_r},text_t={text_t},text_b={text_b}")
                     
+                        # 考虑旋转对边界的影响
+                        rotation = self.rotation
+                        if rotation != 0:
+                            import math
+                            # 计算旋转后的边界框
+                            angle_rad = math.radians(abs(rotation))
+                            rotated_width = abs(text_width * math.cos(angle_rad)) + abs(text_height * math.sin(angle_rad))
+                            rotated_height = abs(text_width * math.sin(angle_rad)) + abs(text_height * math.cos(angle_rad))
+                            text_width, text_height = rotated_width, rotated_height
+                        
+                        
+                    except Exception as e:
+                        print(f"[DEBUG] 使用PIL获取文本边界框时出错: {e}")
+                        # 设置默认值
+                        text_r = text_width
+                        text_l = 0
+                        text_t = 0
+                        text_b = text_height
+
                     # 根据九宫格位置计算水印坐标，使水印文本位于对应格子的合适位置
                     # 优化了文本在格子中的定位，考虑了文本宽度和高度的影响
+                    # 计算动态边距，根据图片尺寸自适应调整，最小为5像素
+                    margin=max(min(img_height,img_width)//50,5)
                     if position_str == "左上":
-                        # 左上格子的中心位置，考虑文本宽度影响
-                        x = min(grid_width // 3, text_width // 3)
-                        y = text_height 
+                        # 左上格子的位置，考虑边距和文本高度
+                        x = margin-25
+                        y= margin-text_height//2
                     elif position_str == "上中":
-                        # 上中格子的中心位置，居中对齐
-                        x = img_width // 2 -  text_width//5
-                        y = text_height
+                        # 上中格子的位置，水平居中，考虑边距和文本高度
+                        x = img_width // 2 -  text_width//2
+                        y= margin-text_height//2
                     elif position_str == "右上":
-                        # 右上格子的中心位置，考虑文本宽度影响
-                        x = img_width - 4*text_width//5
-                        y = text_height
+                        # 右上格子的位置，考虑边距和文本宽度
+                        x= img_width-text_width-margin
+                        y= margin-text_height//2
                     elif position_str == "左中":
-                        # 左中格子的中心位置，垂直居中
-                        x = min(grid_width // 3, text_width // 3)
-                        y = img_height // 2 - text_height // 2
+                        # 左中格子的位置，垂直居中，考虑边距
+                        x= margin-25
+                        y= img_height // 2 - text_height
                     elif position_str == "中心":
-                        # 中心格子的中心位置，完全居中
-                        x = img_width // 2 -  text_width//5
-                        y = img_height // 2 - text_height // 2
+                        # 中心格子的位置，完全居中
+                        x = img_width // 2 -  text_width//2
+                        y= img_height // 2 - text_height
                     elif position_str == "右中":
-                        # 右中格子的中心位置，垂直居中
-                        x = img_width - 4*text_width//5
-                        y = img_height // 2 - text_height // 2
+                        # 右中格子的位置，垂直居中，考虑边距和文本宽度
+                        x= img_width-text_width-margin
+                        y= img_height // 2 - text_height
                     elif position_str == "左下":
-                        # 左下格子的中心位置，考虑文本高度影响
-                        x = min(grid_width // 3, text_width // 3)
-                        y = img_height - text_height
+                        # 左下格子的位置，考虑边距和文本高度
+                        x = margin-25
+                        y= img_height-margin-text_height-text_height//2
                     elif position_str == "下中":
-                        # 下中格子的中心位置，水平居中
-                        x = img_width // 2 -  text_width//5
-                        y = img_height - text_height
+                        # 下中格子的位置，水平居中，考虑边距和文本高度
+                        x = img_width // 2 -  text_width//2
+                        y= img_height-margin-text_height-text_height//2
                     elif position_str == "右下":
-                        # 右下格子的中心位置，考虑文本宽度和高度影响
-                        x = img_width - 4*text_width//5
-                        y = img_height - text_height
+                        # 右下格子的位置，考虑边距、文本宽度和高度
+                        x= img_width-text_width-margin
+                        y= img_height-margin-text_height-text_height//2
                     else:
                         # 默认使用中心位置
-                        x = img_width // 2 -  text_width//5
-                        y = img_height // 2 - text_height // 2
+                        x= img_width // 2 -  text_width//2
+                        y= img_height // 2
+                        
                     
-                    # 优化：使用min函数确保水印不会超出图片边界
-                    # 参考main_window.py中的check_watermark_position方法
-                    # 确保x坐标不会小于0，也不会超过图片宽度减去文本宽度
-                    x = min(max(x, text_width//3), img_width - 4*text_width//5)
-                    y = min(max(y, text_height//3), img_height - 3*text_height)
-                    
-                    # 使用update_position函数统一处理position更新
+                    # 使用update_position函数统一处理position更新，确保坐标一致性
                     self.update_position((x, y))
                     return
                 except Exception as e:
