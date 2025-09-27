@@ -1265,8 +1265,15 @@ class WatermarkRenderer:
             # 设置压缩比例，用于水印坐标计算
             self.compression_scale = compression_scale
             
+            # 调整水印字体大小，使其乘以压缩比例
+            adjusted_watermark_settings = watermark_settings.copy()
+            if "font_size" in adjusted_watermark_settings:
+                adjusted_font_size = int(adjusted_watermark_settings["font_size"] * compression_scale)
+                adjusted_watermark_settings["font_size"] = adjusted_font_size
+                print(f"[DEBUG] 调整字体大小: {watermark_settings['font_size']} -> {adjusted_font_size} (乘以压缩比例 {compression_scale:.4f})")
+            
             # 应用水印并打印初始化坐标
-            watermarked_image = self.render_text_watermark(preview_image, watermark_settings)
+            watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
             
             # 重置压缩比例
             self.compression_scale = None

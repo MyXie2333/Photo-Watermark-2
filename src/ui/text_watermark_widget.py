@@ -4,6 +4,7 @@
 文本水印设置组件
 """
 
+from ast import comprehension
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QComboBox, QPushButton, QSlider, 
                              QSpinBox, QGroupBox, QGridLayout, QCheckBox, QColorDialog)
@@ -770,7 +771,7 @@ class TextWatermarkWidget(QWidget):
                         y = grid_height // 2 - text_height // 2
                     elif position_str == "左中":
                         # 左中格子的中心位置
-                        x = grid_width // 2 - text_height // 2
+                        x = grid_width // 2 
                         y = img_height // 2 - text_height // 2
                     elif position_str == "中心":
                         # 中心格子的中心位置

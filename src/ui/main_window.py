@@ -1559,7 +1559,8 @@ class MainWindow(QMainWindow):
             if (left_bound < -safety_margin or 
                 right_bound > original_width + right_safety_margin or 
                 top_bound < -top_safety_margin or 
-                bottom_bound > original_height + safety_margin):
+                bottom_bound > original_height + safety_margin) and \
+                (watermark_x != 0 or watermark_y != 0):
                 self.watermark_warning_label.setVisible(True)
             else:
                 self.watermark_warning_label.setVisible(False)
