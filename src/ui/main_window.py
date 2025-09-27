@@ -60,6 +60,10 @@ class MainWindow(QMainWindow):
         self.drag_start_pos = None
         self.watermark_offset = None
         
+        # 预览更新优化：缓存上一次的预览设置
+        self.last_preview_settings = None
+        self.last_preview_image = None
+        
         self.setup_ui()
         self.setup_connections()
         
@@ -506,56 +510,92 @@ class MainWindow(QMainWindow):
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_current_watermark_settings()
             
-            # 不管是否有水印文本，都统一使用水印预览流程
-            # 如果没有水印文本，水印设置中的text为空，预览图将初始化为原始图片
-            preview_result = self.watermark_renderer.preview_watermark(
-                current_image_path, 
-                current_watermark_settings,
-                preview_size=None  # 使用原始图片尺寸
-            )
+            # 创建当前预览设置的哈希键，用于比较是否需要重新渲染
+            preview_key = {
+                'image_path': current_image_path,
+                'scale': self.current_scale,
+                'watermark_text': current_watermark_settings.get('text', ''),
+                'watermark_font': current_watermark_settings.get('font_family', ''),
+                'watermark_size': current_watermark_settings.get('font_size', 0),
+                'watermark_color': current_watermark_settings.get('color', QColor(255, 255, 255, 255)).name() if isinstance(current_watermark_settings.get('color'), QColor) else current_watermark_settings.get('color', '#ffffff'),
+                'watermark_position': current_watermark_settings.get('position', ''),
+                'watermark_x': current_watermark_settings.get('x', 0),
+                'watermark_y': current_watermark_settings.get('y', 0),
+                'watermark_rotation': current_watermark_settings.get('rotation', 0),
+                'watermark_opacity': current_watermark_settings.get('opacity', 100),
+                'watermark_bold': current_watermark_settings.get('bold', False),
+                'watermark_italic': current_watermark_settings.get('italic', False),
+                'watermark_underline': current_watermark_settings.get('underline', False),
+                'watermark_stroke': current_watermark_settings.get('stroke', False),
+                'watermark_stroke_color': current_watermark_settings.get('stroke_color', QColor(0, 0, 0, 255)).name() if isinstance(current_watermark_settings.get('stroke_color'), QColor) else current_watermark_settings.get('stroke_color', '#000000'),
+                'watermark_stroke_width': current_watermark_settings.get('stroke_width', 1),
+                'watermark_shadow': current_watermark_settings.get('shadow', False),
+                'watermark_shadow_color': current_watermark_settings.get('shadow_color', QColor(0, 0, 0, 128)).name() if isinstance(current_watermark_settings.get('shadow_color'), QColor) else current_watermark_settings.get('shadow_color', '#00000080'),
+                'watermark_shadow_offset_x': current_watermark_settings.get('shadow_offset_x', 2),
+                'watermark_shadow_offset_y': current_watermark_settings.get('shadow_offset_y', 2),
+                'watermark_shadow_blur': current_watermark_settings.get('shadow_blur', 3)
+            }
             
-            # 解析返回结果
-            if isinstance(preview_result, tuple):
-                preview_image, ratio_info = preview_result
-                # 保存比例信息，用于拖拽计算
-                self.preview_ratio_info = ratio_info
-                
-                # 输出原图尺寸、压缩比例和压缩图尺寸
-                if ratio_info:
-                    original_width = ratio_info.get('original_width', 0)
-                    original_height = ratio_info.get('original_height', 0)
-                    compression_scale = ratio_info.get('scale_factor', 1.0)
-                    preview_width = ratio_info.get('preview_width', 0)
-                    preview_height = ratio_info.get('preview_height', 0)
-                    print(f"[DEBUG] 原图尺寸: {original_width}x{original_height}")
-                    # print(f"[DEBUG] 压缩比例: {compression_scale:.4f}")
-                    print(f"[DEBUG] 压缩图尺寸: {preview_width}x{preview_height}")
-                    
-                    # 传递原图尺寸给text_watermark_widget
-                    self.text_watermark_widget.set_original_dimensions(original_width, original_height)
-                    
-                    # 传递压缩比例给text_watermark_widget
-                    self.text_watermark_widget.set_compression_scale(compression_scale)
+            # 检查是否与上一次预览设置相同
+            if self.last_preview_settings == preview_key and self.last_preview_image is not None:
+                print("[DEBUG] 使用缓存的预览图像")
+                pixmap = self.last_preview_image
             else:
-                # 兼容旧版本返回格式
-                preview_image = preview_result
-                self.preview_ratio_info = None
-            
-            # 转换为QPixmap - 使用更可靠的方法
-            # 先将PIL Image转换为RGB模式，然后转换为bytes，再创建QImage
-            if preview_image.mode != 'RGB':
-                preview_image = preview_image.convert('RGB')
-            
-            # 将PIL Image转换为bytes
-            import io
-            img_byte_arr = io.BytesIO()
-            preview_image.save(img_byte_arr, format='PNG')
-            img_byte_arr = img_byte_arr.getvalue()
-            
-            # 从bytes创建QImage，然后转换为QPixmap
-            qimage = QImage()
-            qimage.loadFromData(img_byte_arr)
-            pixmap = QPixmap.fromImage(qimage)
+                print("[DEBUG] 重新生成预览图像")
+                # 不管是否有水印文本，都统一使用水印预览流程
+                # 如果没有水印文本，水印设置中的text为空，预览图将初始化为原始图片
+                preview_result = self.watermark_renderer.preview_watermark(
+                    current_image_path, 
+                    current_watermark_settings,
+                    preview_size=None  # 使用原始图片尺寸
+                )
+                
+                # 解析返回结果
+                if isinstance(preview_result, tuple):
+                    preview_image, ratio_info = preview_result
+                    # 保存比例信息，用于拖拽计算
+                    self.preview_ratio_info = ratio_info
+                    
+                    # 输出原图尺寸、压缩比例和压缩图尺寸
+                    if ratio_info:
+                        original_width = ratio_info.get('original_width', 0)
+                        original_height = ratio_info.get('original_height', 0)
+                        compression_scale = ratio_info.get('scale_factor', 1.0)
+                        preview_width = ratio_info.get('preview_width', 0)
+                        preview_height = ratio_info.get('preview_height', 0)
+                        print(f"[DEBUG] 原图尺寸: {original_width}x{original_height}")
+                        # print(f"[DEBUG] 压缩比例: {compression_scale:.4f}")
+                        print(f"[DEBUG] 压缩图尺寸: {preview_width}x{preview_height}")
+                        
+                        # 传递原图尺寸给text_watermark_widget
+                        self.text_watermark_widget.set_original_dimensions(original_width, original_height)
+                        
+                        # 传递压缩比例给text_watermark_widget
+                        self.text_watermark_widget.set_compression_scale(compression_scale)
+                else:
+                    # 兼容旧版本返回格式
+                    preview_image = preview_result
+                    self.preview_ratio_info = None
+                
+                # 转换为QPixmap - 使用更可靠的方法
+                # 先将PIL Image转换为RGB模式，然后转换为bytes，再创建QImage
+                if preview_image.mode != 'RGB':
+                    preview_image = preview_image.convert('RGB')
+                
+                # 将PIL Image转换为bytes
+                import io
+                img_byte_arr = io.BytesIO()
+                preview_image.save(img_byte_arr, format='PNG')
+                img_byte_arr = img_byte_arr.getvalue()
+                
+                # 从bytes创建QImage，然后转换为QPixmap
+                qimage = QImage()
+                qimage.loadFromData(img_byte_arr)
+                pixmap = QPixmap.fromImage(qimage)
+                
+                # 缓存预览图像和设置
+                self.last_preview_image = pixmap.copy()
+                self.last_preview_settings = preview_key.copy()
             
             # 对水印预览图片应用缩放比例 - 基于原始图片尺寸计算
             if self.current_scale != 1.0:
@@ -583,7 +623,8 @@ class MainWindow(QMainWindow):
             self.update_image_info_display()
             
             # 检查水印位置是否超出边界
-            self.check_watermark_position(current_watermark_settings, original_width, original_height)
+            if 'original_width' in locals() and 'original_height' in locals():
+                self.check_watermark_position(current_watermark_settings, original_width, original_height)
             
         except Exception as e:
             print(f"更新预览失败: {e}")

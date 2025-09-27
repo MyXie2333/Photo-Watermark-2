@@ -15,6 +15,9 @@ class WatermarkRenderer:
     def __init__(self):
         self.font_cache = {}
         self.last_watermark_position = None  # 记录最后一次渲染的水印位置
+        self.last_rendered_image = None  # 缓存最后一次渲染的图片
+        self.last_rendered_settings = None  # 缓存最后一次渲染的设置
+        self.font_path_cache = {}  # 缓存字体文件路径，避免重复文件系统检查
         
     def render_text_watermark(self, image, watermark_settings):
         """
@@ -29,6 +32,13 @@ class WatermarkRenderer:
         """
         if not watermark_settings.get("text"):
             return image
+            
+        # 检查是否可以使用缓存
+        if (self.last_rendered_image is not None and 
+            self.last_rendered_settings is not None and
+            self._settings_equal(watermark_settings, self.last_rendered_settings)):
+            print("[DEBUG] 使用缓存的水印图片")
+            return self.last_rendered_image
             
         # 创建图片副本
         watermarked_image = image.copy()
@@ -253,6 +263,10 @@ class WatermarkRenderer:
             
             # 将最终图像粘贴到主图像上
             watermarked_image.paste(final_img, (x - 10, y - 10), final_img)
+            
+        # 更新缓存
+        self.last_rendered_image = watermarked_image
+        self.last_rendered_settings = watermark_settings.copy()
             
         return watermarked_image
     
@@ -916,21 +930,36 @@ class WatermarkRenderer:
                 for font_path in font_paths:
                     full_path = os.path.join(font_path, font_file)
                     print(f"[DEBUG] 检查字体文件路径: {full_path}")
-                    if os.path.exists(full_path):
-                        print(f"[DEBUG] 字体文件存在，尝试加载: {full_path}")
-                        try:
-                            font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
-                            print(f"[DEBUG] 成功通过文件路径加载字体: {font_name} (变体: {font_file})")
-                            
-                            # 如果请求了粗体或斜体但字体文件没有这些变体，尝试通过PIL的特性模拟
-                            if (bold or italic) and font:
-                                # PIL会自动处理字体的粗体和斜体渲染，即使字体文件本身没有这些变体
-                                print(f"[DEBUG] 已加载字体 {font_name}，将通过PIL特性模拟粗体={bold}, 斜体={italic}")
-                            
-                            return font
-                        except Exception as e:
-                            print(f"[DEBUG] 加载字体文件失败: {e}")
+                    
+                    # 使用缓存检查文件是否存在
+                    cache_key = full_path
+                    if cache_key in self.font_path_cache:
+                        if not self.font_path_cache[cache_key]:
+                            print(f"[DEBUG] 字体文件不存在（缓存）: {full_path}")
                             continue
+                        print(f"[DEBUG] 字体文件存在（缓存）: {full_path}")
+                    else:
+                        # 检查文件是否存在并缓存结果
+                        exists = os.path.exists(full_path)
+                        self.font_path_cache[cache_key] = exists
+                        if not exists:
+                            print(f"[DEBUG] 字体文件不存在: {full_path}")
+                            continue
+                        print(f"[DEBUG] 字体文件存在: {full_path}")
+                    
+                    try:
+                        font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                        print(f"[DEBUG] 成功通过文件路径加载字体: {font_name} (变体: {font_file})")
+                        
+                        # 如果请求了粗体或斜体但字体文件没有这些变体，尝试通过PIL的特性模拟
+                        if (bold or italic) and font:
+                            # PIL会自动处理字体的粗体和斜体渲染，即使字体文件本身没有这些变体
+                            print(f"[DEBUG] 已加载字体 {font_name}，将通过PIL特性模拟粗体={bold}, 斜体={italic}")
+                        
+                        return font
+                    except Exception as e:
+                        print(f"[DEBUG] 加载字体文件失败: {e}")
+                        continue
         else:
             print(f"[DEBUG] 字体 {font_name} 不在字体文件映射中")
         
@@ -1103,13 +1132,25 @@ class WatermarkRenderer:
             for font_file in font_files:
                 for font_path in font_paths:
                     full_path = os.path.join(font_path, font_file)
-                    if os.path.exists(full_path):
-                        try:
-                            font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
-                            if font:
-                                return font
-                        except:
+                    
+                    # 使用缓存检查文件是否存在
+                    cache_key = full_path
+                    if cache_key in self.font_path_cache:
+                        if not self.font_path_cache[cache_key]:
                             continue
+                    else:
+                        # 检查文件是否存在并缓存结果
+                        exists = os.path.exists(full_path)
+                        self.font_path_cache[cache_key] = exists
+                        if not exists:
+                            continue
+                    
+                    try:
+                        font = ImageFont.truetype(full_path, font_size, encoding="utf-8")
+                        if font:
+                            return font
+                    except:
+                        continue
         
         # 如果指定字体加载失败，尝试加载Arial
         if font_family != "Arial":
@@ -1128,6 +1169,23 @@ class WatermarkRenderer:
         
         # 最终回退到默认字体
         return ImageFont.load_default()
+    
+    def _settings_equal(self, settings1, settings2):
+        """比较两个水印设置是否相同"""
+        # 只比较影响渲染的关键设置
+        key_keys = ["text", "font_family", "font_size", "font_bold", "font_italic", 
+                   "color", "opacity", "position", "rotation", "enable_shadow", 
+                   "enable_outline", "outline_color", "outline_width", "outline_offset",
+                   "shadow_color", "shadow_offset", "shadow_blur"]
+        
+        for key in key_keys:
+            if key not in settings1 and key not in settings2:
+                continue
+            if key not in settings1 or key not in settings2:
+                return False
+            if settings1[key] != settings2[key]:
+                return False
+        return True
     
     def _calculate_position(self, position, img_width, img_height, text_width, text_height):
         """计算水印位置"""
