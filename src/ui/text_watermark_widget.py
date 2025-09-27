@@ -729,19 +729,6 @@ class TextWatermarkWidget(QWidget):
                             # 如果获取原图尺寸失败，回退到原来的相对位置处理方式
                             raise Exception("无法访问主窗口的image_manager")
                     
-                    # 计算文本尺寸（估算）
-                    font_size = self.font_size
-                    text = self.watermark_text
-                    # 简单估算文本宽度：每个字符约为font_size的0.6倍
-                    text_width = int(len(text) * font_size * 0.6) if text else font_size * 3
-                    text_height = font_size
-                    
-                    # 获取按钮文本以确定位置
-                    position_str = sender.text()
-                    
-                    # 根据按钮文本直接计算水印在原图上的坐标
-                    margin = 20  # 边距
-                    
                     # 获取按钮文本以确定位置
                     position_str = sender.text()
                     
@@ -753,56 +740,58 @@ class TextWatermarkWidget(QWidget):
                     # 计算文本尺寸（估算）- 用于更精确的定位
                     font_size = self.font_size
                     text = self.watermark_text
-                    # 简单估算文本宽度：每个字符约为font_size的0.6倍
-                    text_width = int(len(text) * font_size * 1.6) if text else font_size * 3
+                    # 简单估算文本宽度：每个字符约为font_size的1倍宽度
+                    text_width = int(len(text) * font_size) if text else font_size * 3
                     text_height = font_size
                     
+                    # 根据九宫格位置计算水印坐标，使水印文本位于对应格子的合适位置
+                    # 优化了文本在格子中的定位，考虑了文本宽度和高度的影响
                     if position_str == "左上":
-                        # 左上格子的中心位置
-                        x = grid_width // 2 
-                        y = grid_height // 2 - text_height // 2
+                        # 左上格子的中心位置，考虑文本宽度影响
+                        x = min(grid_width // 3, text_width // 3)
+                        y = text_height 
                     elif position_str == "上中":
-                        # 上中格子的中心位置
-                        x = img_width // 2 - grid_width // 2
-                        y = grid_height // 2 - text_height // 2
+                        # 上中格子的中心位置，居中对齐
+                        x = img_width // 2 -  text_width//5
+                        y = text_height
                     elif position_str == "右上":
-                        # 右上格子的中心位置
-                        x = img_width - grid_width // 2 - text_width // 2
-                        y = grid_height // 2 - text_height // 2
+                        # 右上格子的中心位置，考虑文本宽度影响
+                        x = img_width - 4*text_width//5
+                        y = text_height
                     elif position_str == "左中":
-                        # 左中格子的中心位置
-                        x = grid_width // 2 
+                        # 左中格子的中心位置，垂直居中
+                        x = min(grid_width // 3, text_width // 3)
                         y = img_height // 2 - text_height // 2
                     elif position_str == "中心":
-                        # 中心格子的中心位置
-                        x = img_width // 2 - grid_width // 2
+                        # 中心格子的中心位置，完全居中
+                        x = img_width // 2 -  text_width//5
                         y = img_height // 2 - text_height // 2
                     elif position_str == "右中":
-                        # 右中格子的中心位置
-                        x = img_width - grid_width // 2 - text_width // 2
+                        # 右中格子的中心位置，垂直居中
+                        x = img_width - 4*text_width//5
                         y = img_height // 2 - text_height // 2
                     elif position_str == "左下":
-                        # 左下格子的中心位置
-                        x = grid_width // 2 
-                        y = img_height - grid_height // 2 - text_height // 2
+                        # 左下格子的中心位置，考虑文本高度影响
+                        x = min(grid_width // 3, text_width // 3)
+                        y = img_height - text_height
                     elif position_str == "下中":
-                        # 下中格子的中心位置
-                        x = img_width // 2 - grid_width // 2
-                        y = img_height - grid_height // 2 - text_height // 2
+                        # 下中格子的中心位置，水平居中
+                        x = img_width // 2 -  text_width//5
+                        y = img_height - text_height
                     elif position_str == "右下":
-                        # 右下格子的中心位置
-                        x = img_width - grid_width // 2 - text_width // 2
-                        y = img_height - grid_height // 2 - text_height // 2
+                        # 右下格子的中心位置，考虑文本宽度和高度影响
+                        x = img_width - 4*text_width//5
+                        y = img_height - text_height
                     else:
                         # 默认使用中心位置
-                        x = img_width // 2 - text_width // 2
+                        x = img_width // 2 -  text_width//5
                         y = img_height // 2 - text_height // 2
                     
                     # 优化：使用min函数确保水印不会超出图片边界
                     # 参考main_window.py中的check_watermark_position方法
                     # 确保x坐标不会小于0，也不会超过图片宽度减去文本宽度
-                    x = min(max(x, 0), img_width - text_width)
-                    y = min(max(y, 0), img_height - text_height)
+                    x = min(max(x, text_width//3), img_width - 4*text_width//5)
+                    y = min(max(y, text_height//3), img_height - 3*text_height)
                     
                     # 使用update_position函数统一处理position更新
                     self.update_position((x, y))
