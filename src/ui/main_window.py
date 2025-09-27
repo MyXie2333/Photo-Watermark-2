@@ -257,7 +257,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(image_info_layout)
         
         # 添加水印位置警告标签
-        self.watermark_warning_label = QLabel("注意：水印可能超出图片边界！")
+        self.watermark_warning_label = QLabel("注意：水印将超出图片边界！")
         self.watermark_warning_label.setStyleSheet("color: red; font-weight: bold; margin: 5px;")
         self.watermark_warning_label.setVisible(False)  # 默认隐藏
         layout.addWidget(self.watermark_warning_label)
@@ -533,6 +533,9 @@ class MainWindow(QMainWindow):
                     
                     # 传递原图尺寸给text_watermark_widget
                     self.text_watermark_widget.set_original_dimensions(original_width, original_height)
+                    
+                    # 传递压缩比例给text_watermark_widget
+                    self.text_watermark_widget.set_compression_scale(compression_scale)
             else:
                 # 兼容旧版本返回格式
                 preview_image = preview_result

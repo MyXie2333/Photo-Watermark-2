@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QSpinBox, QGroupBox, QGridLayout, QCheckBox, QColorDialog)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QFontDatabase
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 
 
 class TextWatermarkWidget(QWidget):
@@ -45,6 +46,11 @@ class TextWatermarkWidget(QWidget):
         self.shadow_color = QColor(0, 0, 0)  # 阴影颜色默认为黑色
         self.shadow_offset = (3, 3)  # 阴影偏移默认为(3,3)
         self.shadow_blur = 3  # 阴影模糊半径默认为3
+        
+        # 原图尺寸和压缩比例
+        self.original_width = 0
+        self.original_height = 0
+        self.compression_scale = 1.0  # 默认压缩比例为1.0（无压缩）
         
         self.setup_ui()
         self.setup_connections()
@@ -168,9 +174,13 @@ class TextWatermarkWidget(QWidget):
         # 旋转角度
         style_layout.addWidget(QLabel("旋转角度:"), 2, 0)
         rotation_layout = QHBoxLayout()
+        self.rotation_slider = QSlider(Qt.Horizontal)
+        self.rotation_slider.setRange(-180, 180)
+        self.rotation_slider.setValue(self.rotation)
         self.rotation_spin = QSpinBox()
         self.rotation_spin.setRange(-180, 180)
         self.rotation_spin.setValue(self.rotation)
+        rotation_layout.addWidget(self.rotation_slider)
         rotation_layout.addWidget(self.rotation_spin)
         rotation_layout.addWidget(QLabel("°"))
         rotation_layout.addStretch()
@@ -480,6 +490,7 @@ class TextWatermarkWidget(QWidget):
         # 样式设置
         self.color_button.clicked.connect(self.on_color_clicked)
         self.opacity_slider.valueChanged.connect(self.on_opacity_changed)
+        self.rotation_slider.valueChanged.connect(self.on_rotation_changed)
         self.rotation_spin.valueChanged.connect(self.on_rotation_changed)
         
         # 位置设置
@@ -688,6 +699,16 @@ class TextWatermarkWidget(QWidget):
     def on_rotation_changed(self, value):
         """旋转角度变化"""
         self.rotation = value
+        
+        # 同步滑块和输入框的值
+        sender = self.sender()
+        if sender == self.rotation_slider:
+            # 如果是滑块触发的，更新输入框的值
+            self.rotation_spin.setValue(value)
+        elif sender == self.rotation_spin:
+            # 如果是输入框触发的，更新滑块的值
+            self.rotation_slider.setValue(value)
+            
         self.watermark_changed.emit()
         
     def on_position_changed(self):
@@ -878,8 +899,12 @@ class TextWatermarkWidget(QWidget):
                         # 默认使用中心位置
                         x= img_width // 2 -  text_width//2
                         y= img_height // 2
-                        
                     
+                
+                    # text_width = text_r-text_l
+                    # text_height = text_b-text_t
+                    # x=x+(text_width*self.compression_scale)//2
+                    # y=y+(text_height*self.compression_scale)//2
                     # 使用update_position函数统一处理position更新，确保坐标一致性
                     self.update_position((x, y))
                     return
@@ -1213,3 +1238,13 @@ class TextWatermarkWidget(QWidget):
         self.original_width = width
         self.original_height = height
         print(f"[DEBUG] TextWatermarkWidget接收到原图尺寸: {width}x{height}")
+    
+    def set_compression_scale(self, scale):
+        """
+        设置压缩比例
+        
+        Args:
+            scale (float): 压缩比例
+        """
+        self.compression_scale = scale
+        print(f"[DEBUG] TextWatermarkWidget接收到压缩比例: {scale:.4f}")
