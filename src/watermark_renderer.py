@@ -1416,8 +1416,25 @@ class WatermarkRenderer:
                 # 应用文本水印
                 watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
             elif watermark_type == "image":
+                # 调整图片水印坐标，使其乘以压缩比例（仅用于预览，不影响原图）
+                if "watermark_x" in adjusted_watermark_settings and "watermark_y" in adjusted_watermark_settings:
+                    adjusted_watermark_x = int(adjusted_watermark_settings["watermark_x"] * compression_scale)
+                    adjusted_watermark_y = int(adjusted_watermark_settings["watermark_y"] * compression_scale)
+                    # 保存原始坐标，以便后续恢复
+                    original_watermark_x = adjusted_watermark_settings["watermark_x"]
+                    original_watermark_y = adjusted_watermark_settings["watermark_y"]
+                    # 更新为调整后的坐标
+                    adjusted_watermark_settings["watermark_x"] = adjusted_watermark_x
+                    adjusted_watermark_settings["watermark_y"] = adjusted_watermark_y
+                    print(f"[DEBUG] 调整图片水印坐标: ({original_watermark_x}, {original_watermark_y}) -> ({adjusted_watermark_x}, {adjusted_watermark_y}) (乘以压缩比例 {compression_scale:.4f})")
+                
                 # 应用图片水印
                 watermarked_image = self.render_image_watermark(preview_image, adjusted_watermark_settings)
+                
+                # 恢复原始坐标，确保不影响原图上的水印坐标
+                if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
+                    adjusted_watermark_settings["watermark_x"] = watermark_settings["watermark_x"]
+                    adjusted_watermark_settings["watermark_y"] = watermark_settings["watermark_y"]
             else:
                 # 默认为文本水印
                 watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
