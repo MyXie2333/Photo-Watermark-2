@@ -1211,10 +1211,8 @@ class WatermarkRenderer:
             else:
                 # 处理绝对坐标（九宫格计算出的原图坐标）
                 # 这些坐标已经是基于原图的绝对坐标，需要转换为相对于文本中心的坐标
-                # x = int(round(position[0] - text_width / 2))
-                # y = int(round(position[1] - text_height / 2))
-                x = int(round(position[0] ))
-                y = int(round(position[1] ))
+                x = int(round(position[0] - text_width / 2))
+                y = int(round(position[1] - text_height / 2))
                 
                 # 如果有压缩比例，应用压缩比例并确保结果为整数
                 if hasattr(self, 'compression_scale') and self.compression_scale is not None:

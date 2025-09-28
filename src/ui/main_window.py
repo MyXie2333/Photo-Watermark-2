@@ -566,6 +566,16 @@ class MainWindow(QMainWindow):
                     print(f"首次预览，适应窗口显示，缩放比例: {fit_scale:.2f}")
                     # 保存适应窗口的比例作为初始值
                     self.image_manager.set_scale_settings(current_image_path, fit_scale)
+                    
+                    # 首次预览非空白图片时，触发中心位置按钮点击
+                    if self.image_watermark_widget and not self.original_pixmap.isNull():
+                        # 查找中心位置按钮并触发点击
+                        for btn in self.image_watermark_widget.position_buttons:
+                            if btn.property("position") == (0.5, 0.5):
+                                # 确保在UI线程中执行
+                                btn.clicked.emit(True)
+                                print("首次预览，自动设置水印位置为中心")
+                                break
             
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_current_watermark_settings()
@@ -579,8 +589,8 @@ class MainWindow(QMainWindow):
                 'watermark_size': current_watermark_settings.get('font_size', 0),
                 'watermark_color': current_watermark_settings.get('color', QColor(255, 255, 255, 255)).name() if isinstance(current_watermark_settings.get('color'), QColor) else current_watermark_settings.get('color', '#ffffff'),
                 'watermark_position': current_watermark_settings.get('position', ''),
-                'watermark_x': current_watermark_settings.get('x', 0),
-                'watermark_y': current_watermark_settings.get('y', 0),
+                'watermark_x': current_watermark_settings.get('watermark_x', 0),
+                'watermark_y': current_watermark_settings.get('watermark_y', 0),
                 'watermark_rotation': current_watermark_settings.get('rotation', 0),
                 'watermark_opacity': current_watermark_settings.get('opacity', 100),
                 'watermark_bold': current_watermark_settings.get('bold', False),

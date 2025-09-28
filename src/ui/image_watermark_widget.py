@@ -216,8 +216,7 @@ class ImageWatermarkWidget(QWidget):
         # 获取触发信号的按钮
         sender = self.sender()
         
-        # 只有当按钮被选中时才执行更新逻辑
-        if sender and sender.isChecked():
+        if sender:
             pos_value = sender.property("position")
             
             # 将元组位置转换为字符串位置
@@ -234,6 +233,8 @@ class ImageWatermarkWidget(QWidget):
             }
             
             if pos_value in position_map:
+                # 手动设置按钮为选中状态
+                sender.setChecked(True)
                 self.watermark_settings["position"] = position_map[pos_value]
                 # 计算水印坐标
                 self.calculate_watermark_coordinates()
