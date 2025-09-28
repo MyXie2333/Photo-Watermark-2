@@ -1342,8 +1342,8 @@ class MainWindow(QMainWindow):
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_current_watermark_settings()
             
-            # 只有当有水印文本时才允许拖拽
-            if current_watermark_settings.get("text"):
+            # 当有文本水印或图片水印时都允许拖拽
+            if current_watermark_settings.get("text") or current_watermark_settings.get("image_path"):
                 self.is_dragging = True
                 self.drag_start_pos = event.pos()
                 
@@ -1819,7 +1819,7 @@ class MainWindow(QMainWindow):
         
         # 更严格的边界检查，特别是右侧和上侧
         # 添加额外的安全边距以确保水印完全可见
-        safety_margin = 5  # 增加像素安全边距到10像素
+        safety_margin = 5  # 像素安全边距
         
         # 特别严格地检查右侧边界，因为用户特别提到了右侧边界检测应该更严格
         right_safety_margin = safety_margin + 2  # 右侧增加额外的安全边距
