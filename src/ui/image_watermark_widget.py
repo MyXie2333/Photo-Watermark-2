@@ -1,0 +1,368 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+图片水印设置组件
+"""
+
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                            QPushButton, QFileDialog, QSlider, QSpinBox,
+                            QGroupBox, QGridLayout, QDoubleSpinBox, QComboBox)
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QPixmap, QImage
+import os
+from PIL import Image as PILImage
+import io
+
+class ImageWatermarkWidget(QWidget):
+    """图片水印设置组件"""
+    watermark_changed = pyqtSignal()  # 水印设置变更信号
+    set_default_watermark = pyqtSignal()  # 设置默认水印信号
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.watermark_path = ""
+        self.original_watermark_size = (0, 0)  # 原始水印尺寸
+        self.compression_scale = 1.0  # 压缩比例，用于预览
+        self.original_width = 0
+        self.original_height = 0
+        
+        # 初始化水印设置
+        self.watermark_settings = {
+            "type": "image",
+            "image_path": "",
+            "scale": 50,  # 缩放百分比
+            "opacity": 80,  # 透明度百分比
+            "position": "center",
+            "watermark_x": 0,
+            "watermark_y": 0,
+            "keep_aspect_ratio": True
+        }
+        
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """设置UI组件"""
+        layout = QVBoxLayout(self)
+        
+        # 选择图片按钮
+        select_layout = QHBoxLayout()
+        select_layout.addWidget(QLabel("水印图片:"))
+        self.select_button = QPushButton("选择图片")
+        self.select_button.clicked.connect(self.select_watermark_image)
+        select_layout.addWidget(self.select_button)
+        self.image_path_label = QLabel("未选择图片")
+        self.image_path_label.setStyleSheet("color: #666; font-size: 12px;")
+        self.image_path_label.setWordWrap(True)
+        select_layout.addWidget(self.image_path_label, 1)
+        layout.addLayout(select_layout)
+        
+        # 预览水印图片
+        self.preview_label = QLabel()
+        self.preview_label.setAlignment(Qt.AlignCenter)
+        self.preview_label.setMinimumHeight(100)
+        self.preview_label.setStyleSheet("border: 1px solid #ddd; background-color: #f9f9f9;")
+        self.preview_label.setText("水印预览")
+        layout.addWidget(self.preview_label)
+        
+        # 水印设置组
+        settings_group = QGroupBox("水印设置")
+        settings_layout = QGridLayout(settings_group)
+        
+        # 缩放设置
+        settings_layout.addWidget(QLabel("缩放比例:"), 0, 0)
+        scale_layout = QHBoxLayout()
+        self.scale_slider = QSlider(Qt.Horizontal)
+        self.scale_slider.setRange(10, 200)
+        self.scale_slider.setValue(50)
+        self.scale_slider.valueChanged.connect(self.on_scale_changed)
+        scale_layout.addWidget(self.scale_slider)
+        self.scale_spinbox = QSpinBox()
+        self.scale_spinbox.setRange(10, 200)
+        self.scale_spinbox.setSuffix("%")
+        self.scale_spinbox.setValue(50)
+        self.scale_spinbox.valueChanged.connect(self.on_scale_spinbox_changed)
+        scale_layout.addWidget(self.scale_spinbox)
+        settings_layout.addLayout(scale_layout, 0, 1)
+        
+        # 透明度设置
+        settings_layout.addWidget(QLabel("透明度:"), 1, 0)
+        opacity_layout = QHBoxLayout()
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(10, 100)
+        self.opacity_slider.setValue(80)
+        self.opacity_slider.valueChanged.connect(self.on_opacity_changed)
+        opacity_layout.addWidget(self.opacity_slider)
+        self.opacity_spinbox = QSpinBox()
+        self.opacity_spinbox.setRange(10, 100)
+        self.opacity_spinbox.setSuffix("%")
+        self.opacity_spinbox.setValue(80)
+        self.opacity_spinbox.valueChanged.connect(self.on_opacity_spinbox_changed)
+        opacity_layout.addWidget(self.opacity_spinbox)
+        settings_layout.addLayout(opacity_layout, 1, 1)
+        
+        # 位置预设
+        settings_layout.addWidget(QLabel("位置预设:"), 2, 0)
+        self.position_combo = QComboBox()
+        self.position_combo.addItems(["左上角", "上中角", "右上角", 
+                                     "左中角", "中心", "右中角", 
+                                     "左下角", "下中角", "右下角"])
+        self.position_combo.currentIndexChanged.connect(self.on_position_changed)
+        settings_layout.addWidget(self.position_combo, 2, 1)
+        
+        # 保持纵横比
+        aspect_ratio_layout = QHBoxLayout()
+        self.aspect_ratio_checkbox = QPushButton("保持纵横比")
+        self.aspect_ratio_checkbox.setCheckable(True)
+        self.aspect_ratio_checkbox.setChecked(True)
+        self.aspect_ratio_checkbox.clicked.connect(self.on_aspect_ratio_changed)
+        aspect_ratio_layout.addWidget(self.aspect_ratio_checkbox)
+        aspect_ratio_layout.addStretch()
+        settings_layout.addLayout(aspect_ratio_layout, 3, 0, 1, 2)
+        
+        layout.addWidget(settings_group)
+        
+        # 操作按钮
+        action_layout = QHBoxLayout()
+        self.set_default_button = QPushButton("设为默认")
+        self.set_default_button.clicked.connect(self.on_set_default)
+        action_layout.addWidget(self.set_default_button)
+        action_layout.addStretch()
+        layout.addLayout(action_layout)
+        
+        layout.addStretch()
+    
+    def select_watermark_image(self):
+        """选择水印图片"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择水印图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)")
+        
+        if file_path:
+            self.watermark_path = file_path
+            self.watermark_settings["image_path"] = file_path
+            
+            # 更新UI显示
+            self.image_path_label.setText(os.path.basename(file_path))
+            
+            # 加载并显示预览
+            try:
+                # 加载原图并获取尺寸
+                with PILImage.open(file_path) as img:
+                    self.original_watermark_size = img.size
+                    
+                # 创建预览图片（缩放到适合的尺寸）
+                preview_size = (150, 100)
+                pixmap = QPixmap(file_path)
+                scaled_pixmap = pixmap.scaled(
+                    preview_size[0], preview_size[1], 
+                    Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+                self.preview_label.setPixmap(scaled_pixmap)
+                self.preview_label.setText("")
+                
+                # 更新水印设置
+                self.update_watermark_settings()
+            except Exception as e:
+                self.preview_label.setText(f"加载失败: {str(e)}")
+    
+
+    
+    def on_opacity_changed(self, value):
+        """透明度滑块变化时的处理"""
+        self.opacity_spinbox.blockSignals(True)
+        self.opacity_spinbox.setValue(value)
+        self.opacity_spinbox.blockSignals(False)
+        self.watermark_settings["opacity"] = value
+        self.update_watermark_settings()
+    
+    def on_opacity_spinbox_changed(self, value):
+        """透明度输入框变化时的处理"""
+        self.opacity_slider.blockSignals(True)
+        self.opacity_slider.setValue(value)
+        self.opacity_slider.blockSignals(False)
+        self.watermark_settings["opacity"] = value
+        self.update_watermark_settings()
+    
+    def on_position_changed(self, index):
+        """位置预设变化时的处理"""
+        position_map = [
+            "top-left", "top-center", "top-right",
+            "middle-left", "center", "middle-right",
+            "bottom-left", "bottom-center", "bottom-right"
+        ]
+        
+        if 0 <= index < len(position_map):
+            self.watermark_settings["position"] = position_map[index]
+            # 计算水印坐标
+            self.calculate_watermark_coordinates()
+            self.update_watermark_settings()
+    
+    def calculate_watermark_coordinates(self):
+        """根据位置预设和图片尺寸计算水印坐标"""
+        if self.original_width <= 0 or self.original_height <= 0:
+            print("[DEBUG] 图片尺寸未设置，无法计算水印坐标")
+            return
+        
+        if not self.watermark_path:
+            print("[DEBUG] 水印图片未选择，无法计算水印坐标")
+            return
+        
+        position = self.watermark_settings["position"]
+        scale = self.watermark_settings["scale"] / 100.0
+        
+        # 计算水印图片的实际尺寸
+        watermark_width = int(self.original_watermark_size[0] * scale)
+        watermark_height = int(self.original_watermark_size[1] * scale)
+        
+        # 根据位置预设计算坐标
+        if position == "top-left":
+            x = 0
+            y = 0
+        elif position == "top-center":
+            x = (self.original_width - watermark_width) // 2
+            y = 0
+        elif position == "top-right":
+            x = self.original_width - watermark_width
+            y = 0
+        elif position == "middle-left":
+            x = 0
+            y = (self.original_height - watermark_height) // 2
+        elif position == "center":
+            x = (self.original_width - watermark_width) // 2
+            y = (self.original_height - watermark_height) // 2
+        elif position == "middle-right":
+            x = self.original_width - watermark_width
+            y = (self.original_height - watermark_height) // 2
+        elif position == "bottom-left":
+            x = 0
+            y = self.original_height - watermark_height
+        elif position == "bottom-center":
+            x = (self.original_width - watermark_width) // 2
+            y = self.original_height - watermark_height
+        elif position == "bottom-right":
+            x = self.original_width - watermark_width
+            y = self.original_height - watermark_height
+        else:
+            x = 0
+            y = 0
+            
+        # 更新水印坐标
+        self.watermark_settings["watermark_x"] = x
+        self.watermark_settings["watermark_y"] = y
+        
+        print(f"[DEBUG] 计算图片水印坐标: position={position}, 图片尺寸={self.original_width}x{self.original_height}, 水印尺寸={watermark_width}x{watermark_height}, 坐标=({x}, {y})")
+    
+    def on_aspect_ratio_changed(self, checked):
+        """保持纵横比选项变化时的处理"""
+        self.watermark_settings["keep_aspect_ratio"] = checked
+        # 重新计算坐标
+        self.calculate_watermark_coordinates()
+        self.update_watermark_settings()
+    
+    def on_scale_changed(self, value):
+        """缩放滑块变化时的处理"""
+        self.scale_spinbox.blockSignals(True)
+        self.scale_spinbox.setValue(value)
+        self.scale_spinbox.blockSignals(False)
+        self.watermark_settings["scale"] = value
+        # 重新计算坐标
+        self.calculate_watermark_coordinates()
+        self.update_watermark_settings()
+    
+    def on_scale_spinbox_changed(self, value):
+        """缩放输入框变化时的处理"""
+        self.scale_slider.blockSignals(True)
+        self.scale_slider.setValue(value)
+        self.scale_slider.blockSignals(False)
+        self.watermark_settings["scale"] = value
+        # 重新计算坐标
+        self.calculate_watermark_coordinates()
+        self.update_watermark_settings()
+    
+    def on_set_default(self):
+        """设置为默认水印"""
+        self.set_default_watermark.emit()
+    
+    def update_watermark_settings(self):
+        """更新水印设置并发出信号"""
+        self.watermark_changed.emit()
+    
+    def get_watermark_settings(self):
+        """获取当前水印设置"""
+        return self.watermark_settings.copy()
+    
+    def set_watermark_settings(self, settings):
+        """设置水印参数"""
+        if not settings:
+            return
+        
+        # 更新内部设置
+        self.watermark_settings.update(settings)
+        
+        # 更新UI控件
+        if "image_path" in settings and settings["image_path"]:
+            self.watermark_path = settings["image_path"]
+            self.image_path_label.setText(os.path.basename(settings["image_path"]))
+            
+            # 更新预览
+            try:
+                # 加载原图并获取尺寸
+                with PILImage.open(settings["image_path"]) as img:
+                    self.original_watermark_size = img.size
+                    
+                # 创建预览图片
+                preview_size = (150, 100)
+                pixmap = QPixmap(settings["image_path"])
+                scaled_pixmap = pixmap.scaled(
+                    preview_size[0], preview_size[1], 
+                    Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+                self.preview_label.setPixmap(scaled_pixmap)
+                self.preview_label.setText("")
+            except:
+                pass
+        
+        if "scale" in settings:
+            self.scale_slider.blockSignals(True)
+            self.scale_spinbox.blockSignals(True)
+            self.scale_slider.setValue(settings["scale"])
+            self.scale_spinbox.setValue(settings["scale"])
+            self.scale_slider.blockSignals(False)
+            self.scale_spinbox.blockSignals(False)
+        
+        if "opacity" in settings:
+            self.opacity_slider.blockSignals(True)
+            self.opacity_spinbox.blockSignals(True)
+            self.opacity_slider.setValue(settings["opacity"])
+            self.opacity_spinbox.setValue(settings["opacity"])
+            self.opacity_slider.blockSignals(False)
+            self.opacity_spinbox.blockSignals(False)
+        
+        if "position" in settings:
+            position_map = [
+                "top-left", "top-center", "top-right",
+                "middle-left", "center", "middle-right",
+                "bottom-left", "bottom-center", "bottom-right"
+            ]
+            if settings["position"] in position_map:
+                self.position_combo.setCurrentIndex(position_map.index(settings["position"]))
+        
+        if "keep_aspect_ratio" in settings:
+            self.aspect_ratio_checkbox.setChecked(settings["keep_aspect_ratio"])
+    
+    def set_original_dimensions(self, width, height):
+        """设置原始图片尺寸，用于位置计算"""
+        self.original_width = width
+        self.original_height = height
+    
+    def set_compression_scale(self, scale):
+        """设置压缩比例，用于预览"""
+        self.compression_scale = scale
+
+if __name__ == "__main__":
+    import sys
+    from PyQt5.QtWidgets import QApplication
+    
+    app = QApplication(sys.argv)
+    window = ImageWatermarkWidget()
+    window.show()
+    sys.exit(app.exec_())

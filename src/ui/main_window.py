@@ -22,6 +22,8 @@ try:
     from ui.image_list_widget import ImageListWidget
     from watermark_renderer import WatermarkRenderer
     from config_manager import ConfigManager
+    from ui.text_watermark_widget import TextWatermarkWidget
+    from ui.image_watermark_widget import ImageWatermarkWidget
 except ImportError as e:
     print(f"导入错误: {e}")
     print("当前Python路径:", sys.path)
@@ -48,6 +50,11 @@ class MainWindow(QMainWindow):
         
         # 初始化缩放相关变量
         self.current_scale = 1.0
+        
+        # 初始化水印类型
+        self.watermark_type = "text"  # 默认文本水印
+        self.text_watermark_widget = None
+        self.image_watermark_widget = None
         self.min_scale = 0.1
         self.max_scale = 5.0
         self.scale_step = 0.1
@@ -285,6 +292,15 @@ class MainWindow(QMainWindow):
         self.text_watermark_button = QPushButton("文本水印")
         self.image_watermark_button = QPushButton("图片水印")
         
+        # 设置默认选中状态
+        self.text_watermark_button.setChecked(True)
+        self.text_watermark_button.setCheckable(True)
+        self.image_watermark_button.setCheckable(True)
+        
+        # 连接信号
+        self.text_watermark_button.clicked.connect(lambda: self.switch_watermark_type("text"))
+        self.image_watermark_button.clicked.connect(lambda: self.switch_watermark_type("image"))
+        
         watermark_type_layout.addWidget(self.text_watermark_button)
         watermark_type_layout.addWidget(self.image_watermark_button)
         watermark_type_layout.addStretch()
@@ -298,16 +314,18 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.font_switch_label)
         
         # 文本水印设置组件
-        from ui.text_watermark_widget import TextWatermarkWidget
         self.text_watermark_widget = TextWatermarkWidget()
         layout.addWidget(self.text_watermark_widget)
         
+        # 图片水印设置组件
+        self.image_watermark_widget = ImageWatermarkWidget()
+        self.image_watermark_widget.hide()  # 默认隐藏
+        layout.addWidget(self.image_watermark_widget)
+        
         # 操作按钮
         action_layout = QHBoxLayout()
-        
-        
-        
         layout.addLayout(action_layout)
+        
         layout.addStretch()
         
         return panel
@@ -406,9 +424,15 @@ class MainWindow(QMainWindow):
         self.text_watermark_widget.set_default_watermark.connect(self.on_set_default_watermark)
         self.text_watermark_widget.font_switch_notification.connect(self.on_font_switch_notification)
         
+        # 图片水印设置信号连接
+        if self.image_watermark_widget:
+            self.image_watermark_widget.watermark_changed.connect(self.on_watermark_changed)
+            self.image_watermark_widget.set_default_watermark.connect(self.on_set_default_watermark)
+        
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
         self.open_folder_action.triggered.connect(self.import_folder)
+        self.export_action.triggered.connect(self.export_image)
         self.exit_action.triggered.connect(self.close)
         self.about_action.triggered.connect(self.show_about)
         
@@ -417,26 +441,62 @@ class MainWindow(QMainWindow):
         self.zoom_out_action.triggered.connect(self.zoom_out)
         self.fit_action.triggered.connect(self.fit_to_window)
         
-    def on_watermark_changed(self):
-        """水印设置发生变化"""
-        # 获取当前水印设置
-        watermark_settings = self.text_watermark_widget.get_watermark_settings()
+    def switch_watermark_type(self, watermark_type):
+        """切换水印类型"""
+        # 更新水印类型和按钮状态
+        self.watermark_type = watermark_type
         
-        # 如果有当前图片，将水印设置应用到当前图片
+        if watermark_type == "text":
+            self.text_watermark_button.setChecked(True)
+            self.image_watermark_button.setChecked(False)
+            self.text_watermark_widget.show()
+            self.image_watermark_widget.hide()
+        else:
+            self.text_watermark_button.setChecked(False)
+            self.image_watermark_button.setChecked(True)
+            self.text_watermark_widget.hide()
+            self.image_watermark_widget.show()
+            
+        # 更新当前水印设置
+        self.update_watermark_settings_from_current_widget()
+        
+        # 更新预览
         current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
-            # 将水印设置保存到当前图片
+            self.update_preview_with_watermark()
+    
+    def update_watermark_settings_from_current_widget(self):
+        """从当前选中的水印组件获取水印设置"""
+        if self.watermark_type == "text" and self.text_watermark_widget:
+            watermark_settings = self.text_watermark_widget.get_watermark_settings()
+            watermark_settings['watermark_type'] = 'text'
+        elif self.watermark_type == "image" and self.image_watermark_widget:
+            watermark_settings = self.image_watermark_widget.get_watermark_settings()
+            watermark_settings['watermark_type'] = 'image'
+        else:
+            watermark_settings = {}
+        
+        self.current_watermark_settings = watermark_settings
+        
+        # 更新全局配置
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
             self.image_manager.set_watermark_settings(current_image_path, watermark_settings)
             
-            # 更新全局水印设置为当前水印设置
             # 需要将QColor对象转换为字符串格式，以便JSON序列化
             config_watermark_settings = watermark_settings.copy()
             if isinstance(config_watermark_settings.get('color'), QColor):
                 config_watermark_settings['color'] = config_watermark_settings['color'].name()
             
             self.config_manager.set_watermark_defaults(config_watermark_settings)
-            
-            # 更新预览
+    
+    def on_watermark_changed(self):
+        """水印设置发生变化"""
+        self.update_watermark_settings_from_current_widget()
+        
+        # 更新预览
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
             self.update_preview_with_watermark()
             
             # 水印坐标显示已在update_preview_with_watermark中更新
@@ -567,11 +627,15 @@ class MainWindow(QMainWindow):
                         # print(f"[DEBUG] 压缩比例: {compression_scale:.4f}")
                         print(f"[DEBUG] 压缩图尺寸: {preview_width}x{preview_height}")
                         
-                        # 传递原图尺寸给text_watermark_widget
+                        # 传递原图尺寸给text_watermark_widget和image_watermark_widget
                         self.text_watermark_widget.set_original_dimensions(original_width, original_height)
+                        if self.image_watermark_widget:
+                            self.image_watermark_widget.set_original_dimensions(original_width, original_height)
                         
-                        # 传递压缩比例给text_watermark_widget
+                        # 传递压缩比例给text_watermark_widget和image_watermark_widget
                         self.text_watermark_widget.set_compression_scale(compression_scale)
+                        if self.image_watermark_widget:
+                            self.image_watermark_widget.set_compression_scale(compression_scale)
                 else:
                     # 兼容旧版本返回格式
                     preview_image = preview_result
@@ -879,6 +943,30 @@ class MainWindow(QMainWindow):
         """图片列表项被选中"""
         self.image_manager.set_current_image(index)
         
+        # 获取当前图片的水印设置并更新对应的水印组件
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
+            # 获取当前图片的水印设置
+            current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
+            
+            if current_watermark_settings:
+                # 根据水印类型更新UI
+                watermark_type = current_watermark_settings.get('watermark_type', 'text')
+                self.switch_watermark_type(watermark_type)
+                
+                # 更新对应的水印组件
+                if watermark_type == 'text' and self.text_watermark_widget:
+                    self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
+                elif watermark_type == 'image' and self.image_watermark_widget:
+                    self.image_watermark_widget.set_watermark_settings(current_watermark_settings)
+            else:
+                # 如果没有水印设置，使用默认的文本水印
+                self.switch_watermark_type('text')
+                global_default_settings = self.config_manager.get_watermark_defaults()
+                if "color" in global_default_settings and isinstance(global_default_settings["color"], str):
+                    global_default_settings["color"] = QColor(global_default_settings["color"])
+                self.text_watermark_widget.set_watermark_settings_with_placeholder_style(global_default_settings)
+        
         # 统一使用带水印的预览方法
         self.update_preview_with_watermark()
         
@@ -903,18 +991,25 @@ class MainWindow(QMainWindow):
         # 更新图片列表选中状态
         self.image_list_widget.set_selected_image(index)
         
-        # 获取当前图片的水印设置并更新文本水印组件
+        # 获取当前图片的水印设置并更新对应的水印组件
         current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
             
-            # 更新文本水印组件显示当前图片的水印设置
             if current_watermark_settings:
-                # 如果当前图片有水印设置，显示该图片特定的水印
-                self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
+                # 根据水印类型更新UI
+                watermark_type = current_watermark_settings.get('watermark_type', 'text')
+                self.switch_watermark_type(watermark_type)
+                
+                # 更新对应的水印组件
+                if watermark_type == 'text' and self.text_watermark_widget:
+                    self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
+                elif watermark_type == 'image' and self.image_watermark_widget:
+                    self.image_watermark_widget.set_watermark_settings(current_watermark_settings)
             else:
-                # 如果当前图片没有水印设置，显示灰色的全局默认水印
+                # 如果当前图片没有水印设置，使用默认的文本水印
+                self.switch_watermark_type('text')
                 global_default_settings = self.config_manager.get_watermark_defaults()
                 # 将颜色字符串转换为QColor对象
                 if "color" in global_default_settings and isinstance(global_default_settings["color"], str):
@@ -1379,7 +1474,35 @@ class MainWindow(QMainWindow):
             # 获取当前图片的水印设置
             current_watermark_settings = self.image_manager.get_current_watermark_settings()
             
+            # 文本水印处理
             if current_watermark_settings.get("text"):
+                # 优先使用watermark_x和watermark_y
+                if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
+                    watermark_x = int(current_watermark_settings["watermark_x"])
+                    watermark_y = int(current_watermark_settings["watermark_y"])
+                    self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                # 如果没有watermark_x和watermark_y，则使用position
+                elif "position" in current_watermark_settings:
+                    position = current_watermark_settings["position"]
+                    if isinstance(position, tuple) and len(position) == 2:
+                        # 确保水印坐标是基于原图坐标系的整数
+                        watermark_x = int(position[0])
+                        watermark_y = int(position[1])
+                        # 更新watermark_x和watermark_y，以便下次可以直接使用
+                        current_watermark_settings["watermark_x"] = watermark_x
+                        current_watermark_settings["watermark_y"] = watermark_y
+                        # 保存更新后的水印设置
+                        current_image_path = self.image_manager.get_current_image_path()
+                        if current_image_path:
+                            self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+                        # 水印位置已经是基于原图坐标系的整数，直接显示
+                        self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                    else:
+                        self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+                else:
+                    self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+            # 图片水印处理
+            elif current_watermark_settings.get("image_path"):
                 # 优先使用watermark_x和watermark_y
                 if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
                     watermark_x = int(current_watermark_settings["watermark_x"])
@@ -1718,6 +1841,54 @@ class MainWindow(QMainWindow):
             if '\u4e00' <= char <= '\u9fff':
                 return True
         return False
+    
+    def export_image(self):
+        """导出当前图片，应用水印效果"""
+        # 获取当前图片路径
+        current_image_path = self.image_manager.get_current_image_path()
+        if not current_image_path:
+            QMessageBox.warning(self, "警告", "请先选择要导出的图片")
+            return
+        
+        # 获取当前图片的水印设置
+        watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
+        
+        # 打开文件保存对话框
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "导出图片", 
+            os.path.join(os.path.dirname(current_image_path), 
+                        f"{os.path.splitext(os.path.basename(current_image_path))[0]}_watermark{os.path.splitext(current_image_path)[1]}"),
+            "图片文件 (*.jpg *.jpeg *.png *.bmp);;所有文件 (*)"
+        )
+        
+        if not file_name:
+            return  # 用户取消了保存
+        
+        try:
+            # 加载原始图片
+            original_image = Image.open(current_image_path)
+            
+            # 根据水印类型选择渲染方法
+            watermark_type = watermark_settings.get('watermark_type', 'text')
+            if watermark_type == 'text':
+                # 渲染文本水印
+                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+            elif watermark_type == 'image':
+                # 渲染图片水印
+                watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings)
+            else:
+                # 默认使用文本水印
+                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+            
+            # 保存渲染后的图片
+            watermarked_image.save(file_name)
+            
+            # 显示导出成功提示
+            QMessageBox.information(self, "成功", f"图片已成功导出到:\n{file_name}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"导出图片时出错:\n{str(e)}")
+            logging.error(f"导出图片失败: {str(e)}")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 import os
 from PyQt5.QtGui import QColor
+import io
 
 
 class WatermarkRenderer:
@@ -1257,6 +1258,81 @@ class WatermarkRenderer:
             
         return x, y
     
+    def render_image_watermark(self, image, watermark_settings):
+        """
+        渲染图片水印到图片上
+        
+        Args:
+            image: PIL Image对象
+            watermark_settings: 水印设置字典
+            
+        Returns:
+            PIL Image对象（带水印的图片）
+        """
+        if not watermark_settings.get("image_path"):
+            return image
+        
+        # 创建图片副本
+        watermarked_image = image.copy()
+        
+        try:
+            # 获取水印设置
+            image_path = watermark_settings["image_path"]
+            scale = watermark_settings.get("scale", 50) / 100.0  # 转换为比例
+            opacity = watermark_settings.get("opacity", 80) / 100.0  # 转换为比例
+            position = watermark_settings.get("position", "center")
+            keep_aspect_ratio = watermark_settings.get("keep_aspect_ratio", True)
+            
+            # 加载水印图片
+            watermark_img = Image.open(image_path).convert("RGBA")
+            
+            # 调整水印图片大小
+            original_width, original_height = watermark_img.size
+            new_width = int(original_width * scale)
+            new_height = int(original_height * scale)
+            
+            # 如果需要保持纵横比，使用缩放比例
+            if keep_aspect_ratio:
+                watermark_img = watermark_img.resize((new_width, new_height), Image.LANCZOS)
+            else:
+                # 如果有单独指定的宽高，使用指定的宽高
+                if "watermark_width" in watermark_settings and "watermark_height" in watermark_settings:
+                    new_width = watermark_settings["watermark_width"]
+                    new_height = watermark_settings["watermark_height"]
+                    watermark_img = watermark_img.resize((new_width, new_height), Image.LANCZOS)
+            
+            # 调整透明度
+            if opacity < 1.0:
+                # 创建一个带有透明度的新图像
+                r, g, b, a = watermark_img.split()
+                a = a.point(lambda p: int(p * opacity))
+                watermark_img = Image.merge('RGBA', (r, g, b, a))
+            
+            # 计算水印位置
+            img_width, img_height = watermarked_image.size
+            watermark_width, watermark_height = watermark_img.size
+            x, y = self._calculate_position(position, img_width, img_height, watermark_width, watermark_height)
+            
+            # 记录水印位置
+            self.last_watermark_position = (x, y)
+            print(f"图片水印初始化坐标: x={x}, y={y}")
+            
+            # 如果有手动指定的坐标，使用手动指定的坐标
+            if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
+                x = watermark_settings["watermark_x"]
+                y = watermark_settings["watermark_y"]
+                self.last_watermark_position = (x, y)
+            
+            # 将水印粘贴到主图片上
+            watermarked_image.paste(watermark_img, (x, y), watermark_img)
+            
+        except Exception as e:
+            print(f"Render image watermark failed: {e}")
+            # 出错时返回原图的副本
+            pass
+        
+        return watermarked_image
+    
     def preview_watermark(self, image_path, watermark_settings, preview_size=None):
         """
         预览水印效果
@@ -1325,15 +1401,26 @@ class WatermarkRenderer:
             # 设置压缩比例，用于水印坐标计算
             self.compression_scale = compression_scale
             
-            # 调整水印字体大小，使其乘以压缩比例
+            # 复制水印设置并根据水印类型进行调整
             adjusted_watermark_settings = watermark_settings.copy()
-            if "font_size" in adjusted_watermark_settings:
-                adjusted_font_size = int(adjusted_watermark_settings["font_size"] * compression_scale)
-                adjusted_watermark_settings["font_size"] = adjusted_font_size
-                print(f"[DEBUG] 调整字体大小: {watermark_settings['font_size']} -> {adjusted_font_size} (乘以压缩比例 {compression_scale:.4f})")
+            watermark_type = watermark_settings.get("type", "text")
             
-            # 应用水印并打印初始化坐标
-            watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
+            # 根据水印类型选择不同的渲染方法
+            if watermark_type == "text":
+                # 调整水印字体大小，使其乘以压缩比例
+                if "font_size" in adjusted_watermark_settings:
+                    adjusted_font_size = int(adjusted_watermark_settings["font_size"] * compression_scale)
+                    adjusted_watermark_settings["font_size"] = adjusted_font_size
+                    print(f"[DEBUG] 调整字体大小: {watermark_settings['font_size']} -> {adjusted_font_size} (乘以压缩比例 {compression_scale:.4f})")
+                
+                # 应用文本水印
+                watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
+            elif watermark_type == "image":
+                # 应用图片水印
+                watermarked_image = self.render_image_watermark(preview_image, adjusted_watermark_settings)
+            else:
+                # 默认为文本水印
+                watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
             
             # 重置压缩比例
             self.compression_scale = None
