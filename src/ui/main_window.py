@@ -225,7 +225,7 @@ class MainWindow(QMainWindow):
         
         coord_layout.addSpacing(20)
         
-        self.watermark_coord_label = QLabel("水印中心坐标: (0, 0)")
+        self.watermark_coord_label = QLabel("水印坐标: (0, 0)")
         self.watermark_coord_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
         coord_layout.addWidget(self.watermark_coord_label)
         
@@ -1419,9 +1419,69 @@ class MainWindow(QMainWindow):
                 new_x = int(round(self.watermark_offset[0] + delta_x))
                 new_y = int(round(self.watermark_offset[1] + delta_y))
             
-            # 确保水印不会超出图片边界
-            new_x = max(0, min(new_x, original_width))
-            new_y = max(0, min(new_y, original_height))
+            # 获取水印尺寸，用于计算允许的边界范围
+            watermark_width = 0
+            watermark_height = 0
+            
+            # 检查是否为图片水印并获取水印尺寸
+            if self.watermark_type == "image" and self.image_watermark_widget:
+                watermark_settings = self.image_watermark_widget.get_watermark_settings()
+                if hasattr(self.image_watermark_widget, 'original_watermark_size') and self.image_watermark_widget.original_watermark_size != (0, 0):
+                    scale = watermark_settings.get("scale", 100) / 100.0
+                    watermark_width = int(self.image_watermark_widget.original_watermark_size[0] * scale)
+                    watermark_height = int(self.image_watermark_widget.original_watermark_size[1] * scale)
+            
+            # 检查是否为文本水印并估算文本尺寸
+            elif self.watermark_type == "text" and self.text_watermark_widget:
+                text_watermark_settings = self.text_watermark_widget.get_watermark_settings()
+                text = text_watermark_settings.get("text", "")
+                font_size = text_watermark_settings.get("font_size", 24)
+                font_bold = text_watermark_settings.get("font_bold", False)
+                font_italic = text_watermark_settings.get("font_italic", False)
+                rotation = text_watermark_settings.get("rotation", 0)
+                
+                # 估算文本宽度和高度
+                char_count = len(text)
+                if self._contains_chinese(text):
+                    # 中文文本使用更保守的估算
+                    text_width = char_count * font_size * 1.5
+                else:
+                    # 英文文本使用更紧凑的估算
+                    text_width = char_count * font_size
+                
+                text_height = font_size * 2  # 增加行间距的估算
+                
+                # 考虑粗体和斜体对尺寸的影响
+                if font_bold:
+                    text_width *= 1.05
+                    text_height *= 1.05
+                
+                if font_italic:
+                    text_width *= 1.05
+                
+                # 考虑旋转对边界的影响
+                if rotation != 0:
+                    import math
+                    angle_rad = math.radians(abs(rotation))
+                    rotated_width = abs(text_width * math.cos(angle_rad)) + abs(text_height * math.sin(angle_rad))
+                    rotated_height = abs(text_width * math.sin(angle_rad)) + abs(text_height * math.cos(angle_rad))
+                    text_width, text_height = rotated_width, rotated_height
+                
+                watermark_width = int(text_width)
+                watermark_height = int(text_height)
+            
+            # 允许水印超出边界一个水印的长度/宽度
+            min_x = -watermark_width
+            min_y = -watermark_height
+            max_x = original_width + watermark_width
+            max_y = original_height + watermark_height
+            
+            # 确保水印不会超出允许的边界范围
+            new_x = max(min_x, min(new_x, max_x))
+            new_y = max(min_y, min(new_y, max_y))
+            
+            # 打印调试信息，验证边界检查逻辑
+            print(f"[DEBUG] 水印边界检查: 水印类型={self.watermark_type}, 水印尺寸={watermark_width}x{watermark_height}, 允许范围=({min_x},{min_y})到({max_x},{max_y}), 调整后坐标=({new_x},{new_y})")
             
             # 打印水印坐标
             print(f"[DEBUG] 水印坐标: x={new_x}, y={new_y}")
@@ -1495,7 +1555,7 @@ class MainWindow(QMainWindow):
                 if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
                     watermark_x = int(current_watermark_settings["watermark_x"])
                     watermark_y = int(current_watermark_settings["watermark_y"])
-                    self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
                 # 如果没有watermark_x和watermark_y，则使用position
                 elif "position" in current_watermark_settings:
                     position = current_watermark_settings["position"]
@@ -1511,18 +1571,18 @@ class MainWindow(QMainWindow):
                         if current_image_path:
                             self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
                         # 水印位置已经是基于原图坐标系的整数，直接显示
-                        self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
                     else:
-                        self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+                        self.watermark_coord_label.setText("水印坐标: (0, 0)")
                 else:
-                    self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+                    self.watermark_coord_label.setText("水印坐标: (0, 0)")
             # 图片水印处理
             elif current_watermark_settings.get("image_path"):
                 # 优先使用watermark_x和watermark_y
                 if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
                     watermark_x = int(current_watermark_settings["watermark_x"])
                     watermark_y = int(current_watermark_settings["watermark_y"])
-                    self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
                 # 如果没有watermark_x和watermark_y，则使用position
                 elif "position" in current_watermark_settings:
                     position = current_watermark_settings["position"]
@@ -1538,15 +1598,15 @@ class MainWindow(QMainWindow):
                         if current_image_path:
                             self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
                         # 水印位置已经是基于原图坐标系的整数，直接显示
-                        self.watermark_coord_label.setText(f"水印中心坐标: ({watermark_x}, {watermark_y})")
+                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
                     else:
-                        self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+                        self.watermark_coord_label.setText("水印坐标: (0, 0)")
                 else:
-                    self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+                    self.watermark_coord_label.setText("水印坐标: (0, 0)")
             else:
-                self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+                self.watermark_coord_label.setText("水印坐标: (0, 0)")
         else:
-            self.watermark_coord_label.setText("水印中心坐标: (0, 0)")
+            self.watermark_coord_label.setText("水印坐标: (0, 0)")
     
     def update_position(self, new_position, current_watermark_settings=None):
         """
