@@ -190,6 +190,20 @@ class ImageWatermarkWidget(QWidget):
                 
                 # 更新水印设置
                 self.update_watermark_settings()
+                
+                # 自动设置中心位置
+                for btn in self.position_buttons:
+                    if btn.property("position") == (0.5, 0.5):
+                        btn.setChecked(True)
+                        # 直接设置位置并计算坐标，不通过sender()
+                        self.watermark_settings["position"] = "center"
+                        self.calculate_watermark_coordinates()
+                        self.update_watermark_settings()
+                        # 取消其他按钮的选中状态
+                        for other_btn in self.position_buttons:
+                            if other_btn != btn:
+                                other_btn.setChecked(False)
+                        break
             except Exception as e:
                 self.preview_label.setText(f"加载失败: {str(e)}")
     

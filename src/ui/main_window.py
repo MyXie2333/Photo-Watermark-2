@@ -572,9 +572,14 @@ class MainWindow(QMainWindow):
                         # 查找中心位置按钮并触发点击
                         for btn in self.image_watermark_widget.position_buttons:
                             if btn.property("position") == (0.5, 0.5):
-                                # 确保在UI线程中执行
+                                # 确保在UI线程中执行，连续发送两次点击信号
                                 btn.clicked.emit(True)
-                                print("首次预览，自动设置水印位置为中心")
+                                print("首次预览，自动设置水印位置为中心 - 第一次点击")
+                                # 短暂延迟后再次发送点击信号
+                                QTimer.singleShot(10, lambda: btn.clicked.emit(True))
+                                print("首次预览，自动设置水印位置为中心 - 第二次点击")
+                                # 重置缓存标志，确保强制重新生成预览
+                                self.last_preview_settings = None
                                 break
             
             # 获取当前图片的水印设置
