@@ -100,14 +100,43 @@ class ImageWatermarkWidget(QWidget):
         opacity_layout.addWidget(self.opacity_spinbox)
         settings_layout.addLayout(opacity_layout, 1, 1)
         
-        # 位置预设
-        settings_layout.addWidget(QLabel("位置预设:"), 2, 0)
-        self.position_combo = QComboBox()
-        self.position_combo.addItems(["左上角", "上中角", "右上角", 
-                                     "左中角", "中心", "右中角", 
-                                     "左下角", "下中角", "右下角"])
-        self.position_combo.currentIndexChanged.connect(self.on_position_changed)
-        settings_layout.addWidget(self.position_combo, 2, 1)
+        # 九宫格位置设置
+        position_group = QGroupBox("位置设置")
+        position_layout = QGridLayout(position_group)
+        
+        # 九宫格位置定义 - 使用元组形式表示相对位置
+        positions = [
+            ("左上", (0.1, 0.1)),     # 左上角
+            ("上中", (0.5, 0.1)),     # 上中
+            ("右上", (0.9, 0.1)),     # 右上角
+            ("左中", (0.1, 0.5)),     # 左中
+            ("中心", (0.5, 0.5)),     # 中心
+            ("右中", (0.9, 0.5)),     # 右中
+            ("左下", (0.1, 0.9)),     # 左下角
+            ("下中", (0.5, 0.9)),     # 下中
+            ("右下", (0.9, 0.9))      # 右下角
+        ]
+        
+        self.position_buttons = []
+        
+        for i, (label, pos_value) in enumerate(positions):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setProperty("position", pos_value)
+            # 默认选择中心位置
+            if pos_value == (0.5, 0.5):
+                btn.setChecked(True)
+                self.watermark_settings["position"] = "center"
+            
+            # 添加到网格布局
+            row = i // 3
+            col = i % 3
+            position_layout.addWidget(btn, row, col)
+            self.position_buttons.append(btn)
+            # 按钮点击事件
+            btn.clicked.connect(self.on_position_changed)
+        
+        layout.addWidget(position_group)
         
         # 保持纵横比
         aspect_ratio_layout = QHBoxLayout()
@@ -182,19 +211,37 @@ class ImageWatermarkWidget(QWidget):
         self.watermark_settings["opacity"] = value
         self.update_watermark_settings()
     
-    def on_position_changed(self, index):
-        """位置预设变化时的处理"""
-        position_map = [
-            "top-left", "top-center", "top-right",
-            "middle-left", "center", "middle-right",
-            "bottom-left", "bottom-center", "bottom-right"
-        ]
+    def on_position_changed(self):
+        """位置按钮点击时的处理"""
+        # 获取触发信号的按钮
+        sender = self.sender()
         
-        if 0 <= index < len(position_map):
-            self.watermark_settings["position"] = position_map[index]
-            # 计算水印坐标
-            self.calculate_watermark_coordinates()
-            self.update_watermark_settings()
+        # 只有当按钮被选中时才执行更新逻辑
+        if sender and sender.isChecked():
+            pos_value = sender.property("position")
+            
+            # 将元组位置转换为字符串位置
+            position_map = {
+                (0.1, 0.1): "top-left",
+                (0.5, 0.1): "top-center",
+                (0.9, 0.1): "top-right",
+                (0.1, 0.5): "middle-left",
+                (0.5, 0.5): "center",
+                (0.9, 0.5): "middle-right",
+                (0.1, 0.9): "bottom-left",
+                (0.5, 0.9): "bottom-center",
+                (0.9, 0.9): "bottom-right"
+            }
+            
+            if pos_value in position_map:
+                self.watermark_settings["position"] = position_map[pos_value]
+                # 计算水印坐标
+                self.calculate_watermark_coordinates()
+                self.update_watermark_settings()
+                # 取消其他按钮的选中状态
+                for other_btn in self.position_buttons:
+                    if other_btn != sender:
+                        other_btn.setChecked(False)
     
     def calculate_watermark_coordinates(self):
         """根据位置预设和图片尺寸计算水印坐标"""
@@ -338,13 +385,26 @@ class ImageWatermarkWidget(QWidget):
             self.opacity_spinbox.blockSignals(False)
         
         if "position" in settings:
-            position_map = [
-                "top-left", "top-center", "top-right",
-                "middle-left", "center", "middle-right",
-                "bottom-left", "bottom-center", "bottom-right"
-            ]
+            # 将字符串位置转换为元组位置
+            position_map = {
+                "top-left": (0.1, 0.1),
+                "top-center": (0.5, 0.1),
+                "top-right": (0.9, 0.1),
+                "middle-left": (0.1, 0.5),
+                "center": (0.5, 0.5),
+                "middle-right": (0.9, 0.5),
+                "bottom-left": (0.1, 0.9),
+                "bottom-center": (0.5, 0.9),
+                "bottom-right": (0.9, 0.9)
+            }
+            
             if settings["position"] in position_map:
-                self.position_combo.setCurrentIndex(position_map.index(settings["position"]))
+                target_pos = position_map[settings["position"]]
+                # 找到对应的按钮并选中
+                for btn in self.position_buttons:
+                    if btn.property("position") == target_pos:
+                        btn.setChecked(True)
+                        break
         
         if "keep_aspect_ratio" in settings:
             self.aspect_ratio_checkbox.setChecked(settings["keep_aspect_ratio"])
