@@ -296,6 +296,10 @@ class ImageManager(QObject):
         if current_path:
             return self.get_watermark_position_initialized(current_path)
         return False
+    
+    def get_all_image_paths(self):
+        """获取所有图片路径"""
+        return self.images.copy()
 
 
 if __name__ == "__main__":

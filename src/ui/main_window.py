@@ -359,9 +359,13 @@ class MainWindow(QMainWindow):
         
         file_menu.addSeparator()
         
-        self.export_action = QAction("导出图片", self)
-        self.export_action.setShortcut("Ctrl+E")
-        file_menu.addAction(self.export_action)
+        self.export_current_action = QAction("导出此图片", self)
+        self.export_current_action.setShortcut("Ctrl+E")
+        file_menu.addAction(self.export_current_action)
+        
+        self.export_all_action = QAction("全部导出", self)
+        self.export_all_action.setShortcut("Ctrl+Shift+E")
+        file_menu.addAction(self.export_all_action)
         
         file_menu.addSeparator()
         
@@ -447,7 +451,8 @@ class MainWindow(QMainWindow):
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
         self.open_folder_action.triggered.connect(self.import_folder)
-        self.export_action.triggered.connect(self.export_image)
+        self.export_current_action.triggered.connect(self.export_image)
+        self.export_all_action.triggered.connect(self.export_all_images)
         self.exit_action.triggered.connect(self.close)
         self.about_action.triggered.connect(self.show_about)
         
@@ -1828,16 +1833,239 @@ class MainWindow(QMainWindow):
         # 获取当前图片的水印设置
         watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
         
-        # 打开文件保存对话框
+        # 获取当前图片所在目录
+        current_dir = os.path.dirname(current_image_path)
+        
+        # 获取用户文档目录作为默认导出目录
+        import pathlib
+        documents_dir = str(pathlib.Path.home() / "Documents")
+        
+        # 构建默认文件名
+        base_name = os.path.splitext(os.path.basename(current_image_path))[0]
+        extension = os.path.splitext(current_image_path)[1]
+        default_file_name = f"{base_name}_watermark{extension}"
+        
+        # 打开文件夹选择对话框，让用户选择输出文件夹
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "选择输出文件夹", documents_dir,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        
+        if not output_dir:
+            return  # 用户取消了选择
+        
+        # 检查用户选择的文件夹是否是原图片所在文件夹
+        if os.path.normpath(output_dir) == os.path.normpath(current_dir):
+            # 创建自定义按钮的对话框
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("为防止覆盖原图，默认禁止导出到原文件夹。")
+            msg_box.setInformativeText("请选择您要执行的操作：")
+            
+            # 添加自定义按钮
+            retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
+            continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
+            
+            # 设置默认按钮
+            msg_box.setDefaultButton(retry_button)
+            
+            # 显示对话框
+            msg_box.exec_()
+            
+            if msg_box.clickedButton() == retry_button:
+                # 用户选择重新选择文件夹
+                output_dir = QFileDialog.getExistingDirectory(
+                    self, "选择输出文件夹", documents_dir,
+                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                )
+                
+                if not output_dir:
+                    return  # 用户取消了选择
+                
+                # 再次检查是否是原文件夹
+                if os.path.normpath(output_dir) == os.path.normpath(current_dir):
+                    # 创建自定义按钮的对话框
+                    msg_box = QMessageBox(self)
+                    msg_box.setIcon(QMessageBox.Warning)
+                    msg_box.setWindowTitle("再次确认")
+                    msg_box.setText("您仍然选择了原文件夹。")
+                    msg_box.setInformativeText("确定要导出到原文件夹吗？这可能会覆盖原图。")
+                    
+                    # 添加自定义按钮
+                    retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
+                    continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
+                    
+                    # 设置默认按钮
+                    msg_box.setDefaultButton(retry_button)
+                    
+                    # 显示对话框
+                    msg_box.exec_()
+                    
+                    if msg_box.clickedButton() == retry_button:
+                        # 用户选择重新选择文件夹
+                        output_dir = QFileDialog.getExistingDirectory(
+                            self, "选择输出文件夹", documents_dir,
+                            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                        )
+                        
+                        if not output_dir:
+                            return  # 用户取消了选择
+                        
+                        # 再次检查是否是原文件夹
+                        if os.path.normpath(output_dir) == os.path.normpath(current_dir):
+                            # 第三次确认
+                            reply = QMessageBox.question(
+                                self, 
+                                "最终确认", 
+                                "您再次选择了原文件夹。确定要导出到原文件夹吗？这可能会覆盖原图。",
+                                QMessageBox.Yes | QMessageBox.No,
+                                QMessageBox.No
+                            )
+                            
+                            if reply == QMessageBox.No:
+                                return  # 用户取消导出
+                    else:
+                        # 用户选择继续使用原文件夹
+                        pass  # 继续执行导出
+            else:
+                # 用户选择继续使用原文件夹，需要二次确认
+                reply = QMessageBox.question(
+                    self, 
+                    "确认覆盖", 
+                    "您确定要导出到原文件夹吗？这可能会覆盖原图。",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.No:
+                    return  # 用户取消导出
+        
+        # 构建完整的输出文件路径
+        output_path = os.path.join(output_dir, default_file_name)
+        
+        # 打开文件保存对话框，让用户确认文件名
         file_name, _ = QFileDialog.getSaveFileName(
             self, "导出图片", 
-            os.path.join(os.path.dirname(current_image_path), 
-                        f"{os.path.splitext(os.path.basename(current_image_path))[0]}_watermark{os.path.splitext(current_image_path)[1]}"),
+            output_path,
             "图片文件 (*.jpg *.jpeg *.png *.bmp);;所有文件 (*)"
         )
         
         if not file_name:
             return  # 用户取消了保存
+        
+        # 再次检查最终选择的路径是否在原文件夹中
+        if os.path.normpath(os.path.dirname(file_name)) == os.path.normpath(current_dir):
+            # 创建自定义按钮的对话框
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("为防止覆盖原图，默认禁止导出到原文件夹。")
+            msg_box.setInformativeText("请选择您要执行的操作：")
+            
+            # 添加自定义按钮
+            retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
+            continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
+            
+            # 设置默认按钮
+            msg_box.setDefaultButton(retry_button)
+            
+            # 显示对话框
+            msg_box.exec_()
+            
+            if msg_box.clickedButton() == retry_button:
+                # 用户选择重新选择文件夹
+                new_dir = QFileDialog.getExistingDirectory(
+                    self, "选择输出文件夹", documents_dir,
+                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                )
+                
+                if not new_dir:
+                    return  # 用户取消了选择
+                
+                # 构建新的输出文件路径
+                new_file_name = os.path.join(new_dir, os.path.basename(file_name))
+                
+                # 再次打开文件保存对话框，让用户确认文件名
+                file_name, _ = QFileDialog.getSaveFileName(
+                    self, "导出图片", 
+                    new_file_name,
+                    "图片文件 (*.jpg *.jpeg *.png *.bmp);;所有文件 (*)"
+                )
+                
+                if not file_name:
+                    return  # 用户取消了保存
+                
+                # 再次检查最终选择的路径是否在原文件夹中
+                if os.path.normpath(os.path.dirname(file_name)) == os.path.normpath(current_dir):
+                    # 创建自定义按钮的对话框
+                    msg_box = QMessageBox(self)
+                    msg_box.setIcon(QMessageBox.Warning)
+                    msg_box.setWindowTitle("再次确认")
+                    msg_box.setText("您仍然选择了原文件夹。")
+                    msg_box.setInformativeText("确定要导出到原文件夹吗？这可能会覆盖原图。")
+                    
+                    # 添加自定义按钮
+                    retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
+                    continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
+                    
+                    # 设置默认按钮
+                    msg_box.setDefaultButton(retry_button)
+                    
+                    # 显示对话框
+                    msg_box.exec_()
+                    
+                    if msg_box.clickedButton() == retry_button:
+                        # 用户选择重新选择文件夹
+                        new_dir = QFileDialog.getExistingDirectory(
+                            self, "选择输出文件夹", documents_dir,
+                            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                        )
+                        
+                        if not new_dir:
+                            return  # 用户取消了选择
+                        
+                        # 构建新的输出文件路径
+                        new_file_name = os.path.join(new_dir, os.path.basename(file_name))
+                        
+                        # 再次打开文件保存对话框，让用户确认文件名
+                        file_name, _ = QFileDialog.getSaveFileName(
+                            self, "导出图片", 
+                            new_file_name,
+                            "图片文件 (*.jpg *.jpeg *.png *.bmp);;所有文件 (*)"
+                        )
+                        
+                        if not file_name:
+                            return  # 用户取消了保存
+                        
+                        # 再次检查最终选择的路径是否在原文件夹中
+                        if os.path.normpath(os.path.dirname(file_name)) == os.path.normpath(current_dir):
+                            # 第三次确认
+                            reply = QMessageBox.question(
+                                self, 
+                                "最终确认", 
+                                "您再次选择了原文件夹。确定要导出到原文件夹吗？这可能会覆盖原图。",
+                                QMessageBox.Yes | QMessageBox.No,
+                                QMessageBox.No
+                            )
+                            
+                            if reply == QMessageBox.No:
+                                return  # 用户取消导出
+                    else:
+                        # 用户选择继续使用原文件夹
+                        pass  # 继续执行导出
+            else:
+                # 用户选择继续使用原文件夹，需要二次确认
+                reply = QMessageBox.question(
+                    self, 
+                    "确认覆盖", 
+                    "您确定要导出到原文件夹吗？这可能会覆盖原图。",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.No:
+                    return  # 用户取消导出
         
         try:
             # 加载原始图片
@@ -1864,6 +2092,180 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"导出图片时出错:\n{str(e)}")
             logging.error(f"导出图片失败: {str(e)}")
+    
+    def export_all_images(self):
+        """批量导出所有图片，应用水印效果"""
+        # 获取所有图片路径
+        all_image_paths = self.image_manager.get_all_image_paths()
+        if not all_image_paths:
+            QMessageBox.warning(self, "警告", "没有可导出的图片")
+            return
+        
+        # 获取用户文档目录作为默认导出目录
+        import pathlib
+        documents_dir = str(pathlib.Path.home() / "Documents")
+        
+        # 打开文件夹选择对话框，让用户选择输出文件夹
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "选择输出文件夹", documents_dir,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        
+        if not output_dir:
+            return  # 用户取消了选择
+        
+        # 检查是否有图片的原文件夹与输出文件夹相同
+        original_dirs = set(os.path.dirname(path) for path in all_image_paths)
+        if os.path.normpath(output_dir) in [os.path.normpath(dir) for dir in original_dirs]:
+            # 创建自定义按钮的对话框
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("为防止覆盖原图，默认禁止导出到原文件夹。")
+            msg_box.setInformativeText("请选择您要执行的操作：")
+            
+            # 添加自定义按钮
+            retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
+            continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
+            
+            # 设置默认按钮
+            msg_box.setDefaultButton(retry_button)
+            
+            # 显示对话框
+            msg_box.exec_()
+            
+            if msg_box.clickedButton() == retry_button:
+                # 用户选择重新选择文件夹
+                output_dir = QFileDialog.getExistingDirectory(
+                    self, "选择输出文件夹", documents_dir,
+                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                )
+                
+                if not output_dir:
+                    return  # 用户取消了选择
+                
+                # 再次检查是否是原文件夹
+                if os.path.normpath(output_dir) in [os.path.normpath(dir) for dir in original_dirs]:
+                    # 创建自定义按钮的对话框
+                    msg_box = QMessageBox(self)
+                    msg_box.setIcon(QMessageBox.Warning)
+                    msg_box.setWindowTitle("再次确认")
+                    msg_box.setText("您仍然选择了原文件夹。")
+                    msg_box.setInformativeText("确定要导出到原文件夹吗？这可能会覆盖原图。")
+                    
+                    # 添加自定义按钮
+                    retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
+                    continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
+                    
+                    # 设置默认按钮
+                    msg_box.setDefaultButton(retry_button)
+                    
+                    # 显示对话框
+                    msg_box.exec_()
+                    
+                    if msg_box.clickedButton() == retry_button:
+                        # 用户选择重新选择文件夹
+                        output_dir = QFileDialog.getExistingDirectory(
+                            self, "选择输出文件夹", documents_dir,
+                            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                        )
+                        
+                        if not output_dir:
+                            return  # 用户取消了选择
+                        
+                        # 再次检查是否是原文件夹
+                        if os.path.normpath(output_dir) in [os.path.normpath(dir) for dir in original_dirs]:
+                            # 第三次确认
+                            reply = QMessageBox.question(
+                                self, 
+                                "最终确认", 
+                                "您再次选择了原文件夹。确定要导出到原文件夹吗？这可能会覆盖原图。",
+                                QMessageBox.Yes | QMessageBox.No,
+                                QMessageBox.No
+                            )
+                            
+                            if reply == QMessageBox.No:
+                                return  # 用户取消导出
+                    else:
+                        # 用户选择继续使用原文件夹
+                        pass  # 继续执行导出
+            else:
+                # 用户选择继续使用原文件夹，需要二次确认
+                reply = QMessageBox.question(
+                    self, 
+                    "确认覆盖", 
+                    "您确定要导出到原文件夹吗？这可能会覆盖原图。",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.No:
+                    return  # 用户取消导出
+        
+        # 创建进度对话框
+        progress_dialog = QProgressDialog("正在导出图片...", "取消", 0, len(all_image_paths), self)
+        progress_dialog.setWindowTitle("导出进度")
+        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.show()
+        
+        # 成功导出的图片计数
+        success_count = 0
+        failed_images = []
+        
+        # 逐个导出图片
+        for i, image_path in enumerate(all_image_paths):
+            # 更新进度对话框
+            progress_dialog.setValue(i)
+            progress_dialog.setLabelText(f"正在导出: {os.path.basename(image_path)}")
+            
+            # 检查是否用户取消了操作
+            if progress_dialog.wasCanceled():
+                break
+            
+            # 获取当前图片的水印设置
+            watermark_settings = self.image_manager.get_watermark_settings(image_path)
+            
+            # 构建输出文件名
+            base_name = os.path.splitext(os.path.basename(image_path))[0]
+            extension = os.path.splitext(image_path)[1]
+            output_file_name = f"{base_name}_watermark{extension}"
+            output_path = os.path.join(output_dir, output_file_name)
+            
+            try:
+                # 加载原始图片
+                original_image = PILImage.open(image_path)
+                
+                # 根据水印类型选择渲染方法
+                watermark_type = watermark_settings.get('watermark_type', 'text')
+                if watermark_type == 'text':
+                    # 渲染文本水印
+                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+                elif watermark_type == 'image':
+                    # 渲染图片水印
+                    watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings, is_preview=False)
+                else:
+                    # 默认使用文本水印
+                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+                
+                # 保存渲染后的图片
+                watermarked_image.save(output_path)
+                success_count += 1
+                
+            except Exception as e:
+                failed_images.append(os.path.basename(image_path))
+                logging.error(f"导出图片 {image_path} 失败: {str(e)}")
+        
+        # 关闭进度对话框
+        progress_dialog.close()
+        
+        # 显示导出结果
+        if failed_images:
+            result_msg = f"成功导出 {success_count} 张图片。\n失败 {len(failed_images)} 张图片:\n" + "\n".join(failed_images[:5])
+            if len(failed_images) > 5:
+                result_msg += f"\n...以及其他 {len(failed_images) - 5} 张图片"
+            QMessageBox.warning(self, "导出完成", result_msg)
+        else:
+            QMessageBox.information(self, "导出完成", f"所有图片已成功导出到:\n{output_dir}")
 
 
 if __name__ == "__main__":
