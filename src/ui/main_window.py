@@ -26,6 +26,7 @@ try:
     from ui.image_watermark_widget import ImageWatermarkWidget
     from watermark_drag_manager import WatermarkDragManager
     from ui.template_manager_dialog import TemplateManagerDialog, StartupSettingsDialog
+    from ui.export_dialog import ExportDialog, BatchExportDialog
 except ImportError as e:
     print(f"导入错误: {e}")
     print("当前Python路径:", sys.path)
@@ -1822,17 +1823,40 @@ class MainWindow(QMainWindow):
         # 获取当前图片的水印设置
         watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
         
+        # 显示导出对话框
+        export_dialog = ExportDialog(current_image_path, self)
+        
+        # 连接导出确认信号
+        export_dialog.export_confirmed.connect(lambda settings: self._process_export_image(
+            current_image_path, watermark_settings, settings))
+        
+        # 显示对话框
+        export_dialog.exec_()
+    
+    def _process_export_image(self, image_path, watermark_settings, export_settings):
+        """处理图片导出
+        
+        Args:
+            image_path (str): 原始图片路径
+            watermark_settings (dict): 水印设置
+            export_settings (dict): 导出设置
+        """
         # 获取当前图片所在目录
-        current_dir = os.path.dirname(current_image_path)
+        current_dir = os.path.dirname(image_path)
         
         # 获取用户文档目录作为默认导出目录
         import pathlib
         documents_dir = str(pathlib.Path.home() / "Documents")
         
-        # 构建默认文件名
-        base_name = os.path.splitext(os.path.basename(current_image_path))[0]
-        extension = os.path.splitext(current_image_path)[1]
-        default_file_name = f"{base_name}_watermark{extension}"
+        # 获取输出文件名
+        export_dialog = self.findChild(ExportDialog)
+        if export_dialog:
+            output_filename = export_dialog.get_output_filename()
+        else:
+            # 如果找不到对话框，使用默认命名
+            base_name = os.path.splitext(os.path.basename(image_path))[0]
+            extension = os.path.splitext(image_path)[1]
+            output_filename = f"{base_name}_watermark{extension}"
         
         # 打开文件夹选择对话框，让用户选择输出文件夹
         output_dir = QFileDialog.getExistingDirectory(
@@ -1938,7 +1962,7 @@ class MainWindow(QMainWindow):
                     return  # 用户取消导出
         
         # 构建完整的输出文件路径
-        output_path = os.path.join(output_dir, default_file_name)
+        output_path = os.path.join(output_dir, output_filename)
         
         # 打开文件保存对话框，让用户确认文件名
         file_name, _ = QFileDialog.getSaveFileName(
@@ -2072,7 +2096,27 @@ class MainWindow(QMainWindow):
         
         try:
             # 加载原始图片
-            original_image = PILImage.open(current_image_path)
+            original_image = PILImage.open(image_path)
+            
+            # 根据导出设置调整图片尺寸
+            resize_option = export_settings.get('resize_option', 0)
+            if resize_option == 1:  # 按宽度调整
+                new_width = export_settings.get('resize_value', 800)
+                # 计算保持宽高比的高度
+                width_percent = (new_width / float(original_image.size[0]))
+                new_height = int(float(original_image.size[1]) * float(width_percent))
+                original_image = original_image.resize((new_width, new_height), PILImage.LANCZOS)
+            elif resize_option == 2:  # 按高度调整
+                new_height = export_settings.get('resize_value', 600)
+                # 计算保持宽高比的宽度
+                height_percent = (new_height / float(original_image.size[1]))
+                new_width = int(float(original_image.size[0]) * float(height_percent))
+                original_image = original_image.resize((new_width, new_height), PILImage.LANCZOS)
+            elif resize_option == 3:  # 按百分比调整
+                percent = export_settings.get('percent_value', 100) / 100.0
+                new_width = int(original_image.size[0] * percent)
+                new_height = int(original_image.size[1] * percent)
+                original_image = original_image.resize((new_width, new_height), PILImage.LANCZOS)
             
             # 根据水印类型选择渲染方法
             watermark_type = watermark_settings.get('watermark_type', 'text')
@@ -2086,8 +2130,19 @@ class MainWindow(QMainWindow):
                 # 默认使用文本水印
                 watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
             
+            # 准备保存参数
+            save_params = {}
+            file_ext = os.path.splitext(file_name)[1].lower()
+            
+            # 如果是JPEG格式，添加质量设置
+            if file_ext in ['.jpg', '.jpeg'] and 'quality' in export_settings:
+                save_params['quality'] = export_settings['quality']
+                save_params['optimize'] = True
+            elif file_ext == '.png':
+                save_params['optimize'] = True
+            
             # 保存渲染后的图片
-            watermarked_image.save(file_name)
+            watermarked_image.save(file_name, **save_params)
             
             # 显示导出成功提示
             QMessageBox.information(self, "成功", f"图片已成功导出到:\n{file_name}")
@@ -2104,6 +2159,23 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "没有可导出的图片")
             return
         
+        # 显示批量导出对话框
+        batch_export_dialog = BatchExportDialog(all_image_paths, self)
+        
+        # 连接导出确认信号
+        batch_export_dialog.export_confirmed.connect(lambda settings: self._process_batch_export(
+            all_image_paths, settings))
+        
+        # 显示对话框
+        batch_export_dialog.exec_()
+    
+    def _process_batch_export(self, all_image_paths, export_settings):
+        """处理批量图片导出
+        
+        Args:
+            all_image_paths (list): 所有图片路径列表
+            export_settings (dict): 导出设置
+        """
         # 获取用户文档目录作为默认导出目录
         import pathlib
         documents_dir = str(pathlib.Path.home() / "Documents")
@@ -2238,12 +2310,43 @@ class MainWindow(QMainWindow):
             # 构建输出文件名
             base_name = os.path.splitext(os.path.basename(image_path))[0]
             extension = os.path.splitext(image_path)[1]
-            output_file_name = f"{base_name}_watermark{extension}"
+            
+            # 根据导出设置生成文件名
+            naming_option = export_settings.get('naming_option', 0)
+            if naming_option == 0:  # 保留原文件名
+                output_file_name = f"{base_name}{extension}"
+            elif naming_option == 1:  # 添加自定义前缀
+                prefix = export_settings.get('prefix', 'wm_')
+                output_file_name = f"{prefix}{base_name}{extension}"
+            elif naming_option == 2:  # 添加自定义后缀
+                suffix = export_settings.get('suffix', '_watermarked')
+                output_file_name = f"{base_name}{suffix}{extension}"
+            
             output_path = os.path.join(output_dir, output_file_name)
             
             try:
                 # 加载原始图片
                 original_image = PILImage.open(image_path)
+                
+                # 根据导出设置调整图片尺寸
+                resize_option = export_settings.get('resize_option', 0)
+                if resize_option == 1:  # 按宽度调整
+                    new_width = export_settings.get('resize_value', 800)
+                    # 计算保持宽高比的高度
+                    width_percent = (new_width / float(original_image.size[0]))
+                    new_height = int(float(original_image.size[1]) * float(width_percent))
+                    original_image = original_image.resize((new_width, new_height), PILImage.LANCZOS)
+                elif resize_option == 2:  # 按高度调整
+                    new_height = export_settings.get('resize_value', 600)
+                    # 计算保持宽高比的宽度
+                    height_percent = (new_height / float(original_image.size[1]))
+                    new_width = int(float(original_image.size[0]) * float(height_percent))
+                    original_image = original_image.resize((new_width, new_height), PILImage.LANCZOS)
+                elif resize_option == 3:  # 按百分比调整
+                    percent = export_settings.get('percent_value', 100) / 100.0
+                    new_width = int(original_image.size[0] * percent)
+                    new_height = int(original_image.size[1] * percent)
+                    original_image = original_image.resize((new_width, new_height), PILImage.LANCZOS)
                 
                 # 根据水印类型选择渲染方法
                 watermark_type = watermark_settings.get('watermark_type', 'text')
@@ -2257,8 +2360,19 @@ class MainWindow(QMainWindow):
                     # 默认使用文本水印
                     watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
                 
+                # 准备保存参数
+                save_params = {}
+                file_ext = os.path.splitext(output_path)[1].lower()
+                
+                # 如果是JPEG格式，添加质量设置
+                if file_ext in ['.jpg', '.jpeg'] and 'quality' in export_settings:
+                    save_params['quality'] = export_settings['quality']
+                    save_params['optimize'] = True
+                elif file_ext == '.png':
+                    save_params['optimize'] = True
+                
                 # 保存渲染后的图片
-                watermarked_image.save(output_path)
+                watermarked_image.save(output_path, **save_params)
                 success_count += 1
                 
             except Exception as e:
