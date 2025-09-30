@@ -359,8 +359,8 @@ class ImageWatermarkWidget(QWidget):
                 watermark_height = int(self.original_watermark_size[1] * scale)
                 
                 # 计算绝对位置，直接转换为整数
-                x = int(round(img_width * x_ratio - watermark_width / 2))
-                y = int(round(img_height * y_ratio - watermark_height / 2))
+                x = int(round(img_width * x_ratio ))
+                y = int(round(img_height * y_ratio ))
                 print(f"[DEBUG] ImageWatermarkWidget.update_position: 计算绝对位置为 ({x}, {y})")
                 
                 # 如果有压缩比例，应用压缩比例并确保结果为整数
@@ -456,25 +456,36 @@ class ImageWatermarkWidget(QWidget):
                 print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 使用默认中心位置")
                 self.update_position((0.5, 0.5))
         else:
-            # 如果是元组位置，转换为相对位置（0-1之间的值）再调用update_position
-            # 这样可以确保使用相同的坐标计算逻辑
+            # 如果是元组位置，检查坐标类型
             if isinstance(position, tuple) and len(position) == 2:
                 x, y = position
                 
                 # 检查是否是绝对坐标（大于1的值）
                 if x > 1 or y > 1:
-                    # 将绝对坐标转换为相对坐标
-                    x_ratio = x / self.original_width if self.original_width > 0 else 0.5
-                    y_ratio = y / self.original_height if self.original_height > 0 else 0.5
-                    print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 将绝对坐标({x}, {y})转换为相对位置({x_ratio}, {y_ratio})")
-                    self.update_position((x_ratio, y_ratio))
-                else:
-                    # 已经是相对位置，直接调用update_position
+                    # 绝对坐标保持不动，直接调用update_position
+                    print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 检测到绝对坐标({x}, {y})，保持不动")
                     self.update_position(position)
+                else:
+                    # 相对坐标（0-1之间的值），转换为绝对坐标
+                    # 获取图片尺寸
+                    img_width = self.original_width
+                    img_height = self.original_height
+                    
+                    # 计算图片水印尺寸
+                    scale = self.watermark_settings["scale"] / 100.0
+                    watermark_width = int(self.original_watermark_size[0] * scale)
+                    watermark_height = int(self.original_watermark_size[1] * scale)
+                    
+                    # 计算绝对位置，直接转换为整数
+                    abs_x = int(round(img_width * x - watermark_width / 2))
+                    abs_y = int(round(img_height * y - watermark_height / 2))
+                    
+                    print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 将相对坐标({x}, {y})转换为绝对坐标({abs_x}, {abs_y})")
+                    self.update_position((abs_x, abs_y))
             else:
                 # 默认使用中心位置
                 print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 使用默认中心位置")
-                self.update_position((0.5, 0.5))
+                self.update_position((int(img_width*0.5), int(img_height*0.5)))
     
     def set_compression_scale(self, scale):
         """设置压缩比例，用于预览
@@ -496,13 +507,26 @@ class ImageWatermarkWidget(QWidget):
     
     def on_scale_changed(self, value):
         """缩放滑块变化时的处理"""
+        # print(f"[DEBUG] ImageWatermarkWidget.on_scale_changed: 缩放比例设置为{value}%")
         self.scale_spinbox.blockSignals(True)
         self.scale_spinbox.setValue(value)
         self.scale_spinbox.blockSignals(False)
         self.watermark_settings["scale"] = value
-        # 重新计算坐标
-        self.calculate_watermark_coordinates()
+        # # 重新计算坐标
+        # self.calculate_watermark_coordinates()
         self.update_watermark_settings()
+        # 调用WatermarkRenderer.render_image_watermark更新水印渲染
+        # if hasattr(self, 'parent') and self.parent():
+        #     main_window = self.parent()
+        #     if hasattr(main_window, 'watermark_renderer') and hasattr(main_window, 'image_manager'):
+        #         current_image_path = main_window.image_manager.get_current_image_path()
+        #         if current_image_path:
+        #             try:
+        #                 from PIL import Image
+        #                 original_image = Image.open(current_image_path)
+        #                 main_window.watermark_renderer.render_image_watermark(original_image, self.watermark_settings, is_preview=True)
+        #             except Exception as e:
+        #                 print(f"[DEBUG] ImageWatermarkWidget.on_scale_changed: 调用render_image_watermark失败: {e}")
     
     def on_scale_spinbox_changed(self, value):
         """缩放输入框变化时的处理"""
@@ -511,7 +535,7 @@ class ImageWatermarkWidget(QWidget):
         self.scale_slider.blockSignals(False)
         self.watermark_settings["scale"] = value
         # 重新计算坐标
-        self.calculate_watermark_coordinates()
+        # self.calculate_watermark_coordinates()
         self.update_watermark_settings()
     
     def on_set_default(self):

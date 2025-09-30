@@ -512,6 +512,10 @@ class MainWindow(QMainWindow):
         """水印设置发生变化"""
         self.update_watermark_settings_from_current_widget()
         
+        # 重置缓存，确保强制重新生成预览
+        self.last_preview_settings = None
+        self.last_preview_image = None
+        
         # 更新预览
         current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
