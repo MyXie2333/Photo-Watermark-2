@@ -7,6 +7,7 @@
 import os
 import json
 import logging
+import shutil
 from pathlib import Path
 from PyQt5.QtGui import QColor
 
@@ -31,6 +32,13 @@ class ConfigManager:
         
         # 确保配置文件目录存在
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 设置模板目录
+        app_dir = Path(__file__).parent.parent
+        self.template_dir = app_dir / "template"
+        
+        # 确保模板目录存在
+        self.template_dir.mkdir(parents=True, exist_ok=True)
         
         # 默认配置
         self.default_config = {
@@ -405,18 +413,204 @@ class ConfigManager:
             bool: 是否加载上一次关闭时的设置
         """
         return self.config.get("load_last_settings", True)
-
-
-# 全局配置管理器实例
-_config_manager = None
-
-
-def get_config_manager(config_file=None):
-    """获取全局配置管理器实例"""
-    global _config_manager
-    if _config_manager is None:
-        _config_manager = ConfigManager(config_file)
-    return _config_manager
+    
+    def set_template_directory(self, directory):
+        """
+        设置模板目录
+        
+        Args:
+            directory: 新的模板目录路径
+            
+        Returns:
+            bool: 是否设置成功
+        """
+        try:
+            new_dir = Path(directory)
+            if not new_dir.exists():
+                new_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 如果目录更改，需要将现有模板复制到新目录
+            if new_dir != self.template_dir:
+                # 复制所有模板文件到新目录
+                for template_type in ["text", "image"]:
+                    type_dir = self.template_dir / template_type
+                    if type_dir.exists():
+                        new_type_dir = new_dir / template_type
+                        new_type_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # 复制所有模板文件
+                        for template_file in type_dir.glob("*.json"):
+                            shutil.copy2(template_file, new_type_dir)
+            
+            self.template_dir = new_dir
+            return True
+        except Exception as e:
+            logging.error(f"设置模板目录失败: {e}")
+            return False
+    
+    def get_template_directory(self):
+        """
+        获取模板目录
+        
+        Returns:
+            str: 模板目录路径
+        """
+        return str(self.template_dir)
+    
+    def save_watermark_template_to_file(self, template_type, template_name, template_settings):
+        """
+        将水印模板保存到文件
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            template_name: 模板名称
+            template_settings: 模板设置
+            
+        Returns:
+            bool: 是否保存成功
+        """
+        if template_type not in ["text", "image"]:
+            return False
+        
+        try:
+            # 创建类型子目录
+            type_dir = self.template_dir / template_type
+            type_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 需要将QColor对象转换为字符串格式，以便JSON序列化
+            if template_settings and isinstance(template_settings.get('color'), QColor):
+                # 创建副本以避免修改原始设置
+                settings_copy = template_settings.copy()
+                settings_copy['color'] = settings_copy['color'].name()
+                template_settings = settings_copy
+            
+            # 保存到文件
+            template_file = type_dir / f"{template_name}.json"
+            with open(template_file, 'w', encoding='utf-8') as f:
+                json.dump(template_settings, f, indent=2, ensure_ascii=False)
+            
+            # 同时保存到配置文件中（为了兼容性）
+            self.save_watermark_template(template_type, template_name, template_settings)
+            
+            return True
+        except Exception as e:
+            logging.error(f"保存模板文件失败: {e}")
+            return False
+    
+    def load_watermark_template_from_file(self, template_type, template_name):
+        """
+        从文件加载水印模板
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            template_name: 模板名称
+            
+        Returns:
+            dict: 模板设置，如果不存在则返回None
+        """
+        if template_type not in ["text", "image"]:
+            return None
+        
+        try:
+            # 从文件加载
+            type_dir = self.template_dir / template_type
+            template_file = type_dir / f"{template_name}.json"
+            
+            if template_file.exists():
+                with open(template_file, 'r', encoding='utf-8') as f:
+                    template_settings = json.load(f)
+                
+                # 如果颜色是字符串，转换为QColor对象
+                if template_settings and isinstance(template_settings.get('color'), str):
+                    template_settings['color'] = QColor(template_settings['color'])
+                
+                return template_settings
+            return None
+        except Exception as e:
+            logging.error(f"加载模板文件失败: {e}")
+            return None
+    
+    def delete_watermark_template_file(self, template_type, template_name):
+        """
+        删除水印模板文件
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            template_name: 模板名称
+            
+        Returns:
+            bool: 是否删除成功
+        """
+        if template_type not in ["text", "image"]:
+            return False
+        
+        try:
+            # 删除文件
+            type_dir = self.template_dir / template_type
+            template_file = type_dir / f"{template_name}.json"
+            
+            if template_file.exists():
+                template_file.unlink()
+            
+            # 同时从配置文件中删除（为了兼容性）
+            self.delete_watermark_template(template_type, template_name)
+            
+            return True
+        except Exception as e:
+            logging.error(f"删除模板文件失败: {e}")
+            return False
+    
+    def get_all_template_files(self, template_type):
+        """
+        获取指定类型的所有模板文件
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            
+        Returns:
+            list: 模板名称列表
+        """
+        if template_type not in ["text", "image"]:
+            return []
+        
+        try:
+            type_dir = self.template_dir / template_type
+            if not type_dir.exists():
+                return []
+            
+            # 获取所有.json文件，去除扩展名
+            template_files = []
+            for template_file in type_dir.glob("*.json"):
+                template_files.append(template_file.stem)
+            
+            return template_files
+        except Exception as e:
+            logging.error(f"获取模板文件列表失败: {e}")
+            return []
+    
+    def migrate_templates_to_files(self):
+        """
+        将配置文件中的模板迁移到文件系统中
+        
+        Returns:
+            bool: 是否迁移成功
+        """
+        try:
+            # 获取配置文件中的所有模板
+            all_templates = self.get_all_watermark_templates()
+            
+            # 迁移文字水印模板
+            for template_name, template_settings in all_templates.get("text", {}).items():
+                self.save_watermark_template_to_file("text", template_name, template_settings)
+            
+            # 迁移图片水印模板
+            for template_name, template_settings in all_templates.get("image", {}).items():
+                self.save_watermark_template_to_file("image", template_name, template_settings)
+            
+            return True
+        except Exception as e:
+            logging.error(f"迁移模板到文件失败: {e}")
+            return False
 
 
 # 全局配置管理器实例

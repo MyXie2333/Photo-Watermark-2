@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                             QTabWidget, QListWidget, QListWidgetItem, QMessageBox, 
                             QInputDialog, QWidget, QRadioButton, QButtonGroup, QSpacerItem,
-                            QSizePolicy, QFrame)
+                            QSizePolicy, QFrame, QFileDialog)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from config_manager import get_config_manager
@@ -67,6 +67,19 @@ class TemplateManagerDialog(QDialog):
         template_group = QFrame()
         template_group.setFrameShape(QFrame.StyledPanel)
         template_layout = QVBoxLayout(template_group)
+        
+        # 模板目录信息
+        template_dir_layout = QHBoxLayout()
+        template_dir_label = QLabel("模板目录:")
+        self.template_dir_path_label = QLabel(self.config_manager.get_template_directory())
+        self.template_dir_path_label.setWordWrap(True)
+        self.change_template_dir_btn = QPushButton("更改目录")
+        
+        template_dir_layout.addWidget(template_dir_label)
+        template_dir_layout.addWidget(self.template_dir_path_label, 1)  # 1表示拉伸因子
+        template_dir_layout.addWidget(self.change_template_dir_btn)
+        
+        template_layout.addLayout(template_dir_layout)
         
         # 标签页
         self.tab_widget = QTabWidget()
@@ -132,6 +145,7 @@ class TemplateManagerDialog(QDialog):
         
         # 连接信号
         self.load_last_radio.toggled.connect(self.on_startup_option_changed)
+        self.change_template_dir_btn.clicked.connect(self.change_template_directory)
         self.save_text_btn.clicked.connect(self.save_text_template)
         self.load_text_btn.clicked.connect(self.load_text_template)
         self.delete_text_btn.clicked.connect(self.delete_text_template)
@@ -146,9 +160,12 @@ class TemplateManagerDialog(QDialog):
     
     def load_templates(self):
         """加载模板列表"""
+        # 首先尝试从配置文件迁移模板到文件系统
+        self.config_manager.migrate_templates_to_files()
+        
         # 加载文字水印模板
         self.text_template_list.clear()
-        text_templates = self.config_manager.get_template_names("text")
+        text_templates = self.config_manager.get_all_template_files("text")
         for template_name in text_templates:
             item = QListWidgetItem(template_name)
             # 检查是否是默认模板
@@ -162,7 +179,7 @@ class TemplateManagerDialog(QDialog):
         
         # 加载图片水印模板
         self.image_template_list.clear()
-        image_templates = self.config_manager.get_template_names("image")
+        image_templates = self.config_manager.get_all_template_files("image")
         for template_name in image_templates:
             item = QListWidgetItem(template_name)
             # 检查是否是默认模板
@@ -195,7 +212,7 @@ class TemplateManagerDialog(QDialog):
             if isinstance(template_settings.get('color'), QColor):
                 template_settings['color'] = template_settings['color'].name()
             
-            success = self.config_manager.save_watermark_template(
+            success = self.config_manager.save_watermark_template_to_file(
                 "text", template_name, template_settings
             )
             
@@ -221,7 +238,7 @@ class TemplateManagerDialog(QDialog):
             if isinstance(template_settings.get('color'), QColor):
                 template_settings['color'] = template_settings['color'].name()
             
-            success = self.config_manager.save_watermark_template(
+            success = self.config_manager.save_watermark_template_to_file(
                 "image", template_name, template_settings
             )
             
@@ -239,7 +256,7 @@ class TemplateManagerDialog(QDialog):
             return
         
         template_name = current_item.text().replace(" (默认)", "")
-        template_settings = self.config_manager.load_watermark_template("text", template_name)
+        template_settings = self.config_manager.load_watermark_template_from_file("text", template_name)
         
         if template_settings:
             # 发送信号给父窗口，让它加载模板
@@ -257,7 +274,7 @@ class TemplateManagerDialog(QDialog):
             return
         
         template_name = current_item.text().replace(" (默认)", "")
-        template_settings = self.config_manager.load_watermark_template("image", template_name)
+        template_settings = self.config_manager.load_watermark_template_from_file("image", template_name)
         
         if template_settings:
             # 发送信号给父窗口，让它加载模板
@@ -282,7 +299,7 @@ class TemplateManagerDialog(QDialog):
         )
         
         if reply == QMessageBox.Yes:
-            success = self.config_manager.delete_watermark_template("text", template_name)
+            success = self.config_manager.delete_watermark_template_file("text", template_name)
             
             if success:
                 QMessageBox.information(self, "成功", "模板删除成功")
@@ -305,7 +322,7 @@ class TemplateManagerDialog(QDialog):
         )
         
         if reply == QMessageBox.Yes:
-            success = self.config_manager.delete_watermark_template("image", template_name)
+            success = self.config_manager.delete_watermark_template_file("image", template_name)
             
             if success:
                 QMessageBox.information(self, "成功", "模板删除成功")
@@ -321,6 +338,7 @@ class TemplateManagerDialog(QDialog):
             return
         
         template_name = current_item.text().replace(" (默认)", "")
+        
         success = self.config_manager.set_default_template("text", template_name)
         
         if success:
@@ -337,6 +355,7 @@ class TemplateManagerDialog(QDialog):
             return
         
         template_name = current_item.text().replace(" (默认)", "")
+        
         success = self.config_manager.set_default_template("image", template_name)
         
         if success:
@@ -344,6 +363,30 @@ class TemplateManagerDialog(QDialog):
             self.load_templates()
         else:
             QMessageBox.critical(self, "错误", "默认模板设置失败")
+
+    def change_template_directory(self):
+        """更改模板目录"""
+        current_dir = self.config_manager.get_template_directory()
+        
+        # 使用文件对话框选择新的模板目录
+        new_dir = QFileDialog.getExistingDirectory(
+            self, "选择模板目录", str(current_dir),
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        
+        if new_dir and new_dir != str(current_dir):
+            # 更新模板目录
+            success = self.config_manager.set_template_directory(new_dir)
+            
+            if success:
+                # 更新UI显示
+                self.template_dir_path_label.setText(new_dir)
+                QMessageBox.information(self, "成功", "模板目录已更新")
+                
+                # 重新加载模板列表
+                self.load_templates()
+            else:
+                QMessageBox.critical(self, "错误", "模板目录更新失败")
 
 
 class StartupSettingsDialog(QDialog):
@@ -371,7 +414,7 @@ class StartupSettingsDialog(QDialog):
         
         self.load_last_radio = QRadioButton("继续上次的设置")
         self.load_default_radio = QRadioButton("加载默认模板")
-        self.template_manager_radio = QRadioButton("模板管理")
+        self.template_manager_radio = QRadioButton("进入模板管理选择其它模板选项")
         
         self.button_group.addButton(self.load_last_radio)
         self.button_group.addButton(self.load_default_radio)
