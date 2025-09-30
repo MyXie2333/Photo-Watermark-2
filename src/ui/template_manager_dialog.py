@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                             QTabWidget, QListWidget, QListWidgetItem, QMessageBox, 
                             QInputDialog, QWidget, QRadioButton, QButtonGroup, QSpacerItem,
-                            QSizePolicy, QFrame, QFileDialog)
+                            QSizePolicy, QFrame, QFileDialog, QComboBox, QDialogButtonBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from config_manager import get_config_manager
@@ -319,34 +319,119 @@ class TemplateManagerDialog(QDialog):
         )
         
         if reply == QMessageBox.Yes:
-            success = self.config_manager.delete_watermark_template_file("text", template_name)
+            # 使用新的删除方法
+            result = self.config_manager.delete_watermark_template_file("text", template_name)
             
-            if success:
+            if result["success"]:
                 QMessageBox.information(self, "成功", "模板删除成功")
-                self.load_templates()
+                
+                # 检查是否需要选择新的默认模板
+                if result.get("need_select_default", False):
+                    remaining_templates = result.get("remaining_templates", [])
+                    template_type = result.get("template_type", "text")
+                    
+                    if remaining_templates:
+                        # 创建选择对话框
+                        dialog = QDialog(self)
+                        dialog.setWindowTitle("选择默认模板")
+                        dialog.setMinimumWidth(300)
+                        
+                        layout = QVBoxLayout()
+                        
+                        # 添加提示标签
+                        label = QLabel("默认模板已被删除，请选择新的默认模板：")
+                        layout.addWidget(label)
+                        
+                        # 添加模板列表
+                        template_combo = QComboBox()
+                        template_combo.addItems(remaining_templates)
+                        layout.addWidget(template_combo)
+                        
+                        # 添加按钮
+                        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+                        button_box.accepted.connect(dialog.accept)
+                        button_box.rejected.connect(dialog.reject)
+                        layout.addWidget(button_box)
+                        
+                        dialog.setLayout(layout)
+                        
+                        # 显示对话框
+                        if dialog.exec_() == QDialog.Accepted:
+                            # 用户选择了新模板
+                            selected_template = template_combo.currentText()
+                            self.config_manager.set_default_template(template_type, selected_template)
+                            QMessageBox.information(self, "成功", f"已将 '{selected_template}' 设置为默认模板")
+                        else:
+                            # 用户未选择，设置第一个模板为默认
+                            first_template = remaining_templates[0]
+                            self.config_manager.set_default_template(template_type, first_template)
+                            QMessageBox.information(self, "提示", f"已自动将 '{first_template}' 设置为默认模板")
+                
+                self.load_templates()  # 重新加载模板列表
             else:
                 QMessageBox.critical(self, "错误", "模板删除失败")
     
     def delete_image_template(self):
-        """删除图片水印模板"""
-        current_item = self.image_template_list.currentItem()
-        if not current_item:
-            QMessageBox.warning(self, "警告", "请先选择一个模板")
+        """删除选中的图片模板"""
+        selected_items = self.image_template_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "警告", "请先选择要删除的模板")
             return
         
-        template_name = current_item.text().replace(" (默认)", "")
-        
-        reply = QMessageBox.question(
-            self, "确认删除", f"确定要删除模板 '{template_name}' 吗?",
-            QMessageBox.Yes | QMessageBox.No
-        )
+        template_name = selected_items[0].text().replace(" (默认)", "")
+        reply = QMessageBox.question(self, "确认", f"确定要删除图片模板 '{template_name}' 吗？",
+                                    QMessageBox.Yes | QMessageBox.No)
         
         if reply == QMessageBox.Yes:
-            success = self.config_manager.delete_watermark_template_file("image", template_name)
+            # 使用新的删除方法
+            result = self.config_manager.delete_watermark_template_file("image", template_name)
             
-            if success:
+            if result["success"]:
                 QMessageBox.information(self, "成功", "模板删除成功")
-                self.load_templates()
+                
+                # 检查是否需要选择新的默认模板
+                if result.get("need_select_default", False):
+                    remaining_templates = result.get("remaining_templates", [])
+                    template_type = result.get("template_type", "image")
+                    
+                    if remaining_templates:
+                        # 创建选择对话框
+                        dialog = QDialog(self)
+                        dialog.setWindowTitle("选择默认模板")
+                        dialog.setMinimumWidth(300)
+                        
+                        layout = QVBoxLayout()
+                        
+                        # 添加提示标签
+                        label = QLabel("默认模板已被删除，请选择新的默认模板：")
+                        layout.addWidget(label)
+                        
+                        # 添加模板列表
+                        template_combo = QComboBox()
+                        template_combo.addItems(remaining_templates)
+                        layout.addWidget(template_combo)
+                        
+                        # 添加按钮
+                        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+                        button_box.accepted.connect(dialog.accept)
+                        button_box.rejected.connect(dialog.reject)
+                        layout.addWidget(button_box)
+                        
+                        dialog.setLayout(layout)
+                        
+                        # 显示对话框
+                        if dialog.exec_() == QDialog.Accepted:
+                            # 用户选择了新模板
+                            selected_template = template_combo.currentText()
+                            self.config_manager.set_default_template(template_type, selected_template)
+                            QMessageBox.information(self, "成功", f"已将 '{selected_template}' 设置为默认模板")
+                        else:
+                            # 用户未选择，设置第一个模板为默认
+                            first_template = remaining_templates[0]
+                            self.config_manager.set_default_template(template_type, first_template)
+                            QMessageBox.information(self, "提示", f"已自动将 '{first_template}' 设置为默认模板")
+                
+                self.load_templates()  # 重新加载模板列表
             else:
                 QMessageBox.critical(self, "错误", "模板删除失败")
     

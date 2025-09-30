@@ -259,8 +259,16 @@ class ConfigManager:
         # 保存模板
         self.config["watermark_templates"][template_type][template_name] = template_settings
         
+        # 获取当前模板总数
+        text_templates = self.config["watermark_templates"]["text"]
+        image_templates = self.config["watermark_templates"]["image"]
+        total_templates = len(text_templates) + len(image_templates)
+        
         # 如果这是第一个模板，自动设置为默认模板
         if self.config["default_template"] is None:
+            self.config["default_template"] = {"type": template_type, "name": template_name}
+        # 如果只有一个模板，且没有默认模板，自动设置为默认模板
+        elif total_templates == 1 and self.config["default_template"] is None:
             self.config["default_template"] = {"type": template_type, "name": template_name}
         
         return self.save_config()
@@ -644,12 +652,17 @@ class ConfigManager:
             template_name: 模板名称
             
         Returns:
-            bool: 是否删除成功
+            dict: 删除结果，包含成功状态和是否需要选择新默认模板的信息
         """
         if template_type not in ["text", "image"]:
-            return False
+            return {"success": False, "need_select_default": False}
         
         try:
+            # 检查是否是默认模板
+            is_default_template = (self.config["default_template"] and 
+                                  self.config["default_template"]["type"] == template_type and 
+                                  self.config["default_template"]["name"] == template_name)
+            
             # 删除文件
             type_dir = self.template_dir / template_type
             template_file = type_dir / f"{template_name}.json"
@@ -660,10 +673,42 @@ class ConfigManager:
             # 同时从配置文件中删除（为了兼容性）
             self.delete_watermark_template(template_type, template_name)
             
-            return True
+            # 获取删除后的模板列表
+            remaining_templates = self.get_all_template_files(template_type)
+            
+            # 如果删除的是默认模板，需要处理默认模板设置
+            result = {"success": True, "need_select_default": False}
+            
+            if is_default_template:
+                # 如果删除的是默认模板
+                if len(remaining_templates) == 0:
+                    # 没有剩余模板，清除默认模板设置
+                    self.config["default_template"] = None
+                    result["need_select_default"] = False
+                elif len(remaining_templates) == 1:
+                    # 只有一个剩余模板，自动设置为默认模板
+                    self.config["default_template"] = {"type": template_type, "name": remaining_templates[0]}
+                    result["need_select_default"] = False
+                else:
+                    # 有多个剩余模板，需要用户选择
+                    self.config["default_template"] = None
+                    result["need_select_default"] = True
+                    result["remaining_templates"] = remaining_templates
+                    result["template_type"] = template_type
+                
+                # 保存配置
+                self.save_config()
+            else:
+                # 如果删除的不是默认模板，检查是否只剩下一个模板
+                if len(remaining_templates) == 1 and self.config["default_template"] is None:
+                    # 只有一个模板且没有默认模板，自动设置为默认模板
+                    self.config["default_template"] = {"type": template_type, "name": remaining_templates[0]}
+                    self.save_config()
+            
+            return result
         except Exception as e:
             logging.error(f"删除模板文件失败: {e}")
-            return False
+            return {"success": False, "need_select_default": False}
     
     def get_all_template_files(self, template_type):
         """
