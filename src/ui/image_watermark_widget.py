@@ -250,6 +250,9 @@ class ImageWatermarkWidget(QWidget):
         
         Args:
             new_position: 新的位置，可以是元组(x, y)或相对位置字符串
+            
+        注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+        关系：watermark_x = x * self.compression_scale（取整）
         """
         print(f"[DEBUG] ImageWatermarkWidget.update_position: 修改position为 {new_position}")
         
@@ -281,6 +284,8 @@ class ImageWatermarkWidget(QWidget):
                 
                 # 更新position为绝对坐标
                 self.watermark_settings["position"] = (x, y)
+                # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+                # 关系：watermark_x = x * self.compression_scale（取整）
                 self.watermark_settings["watermark_x"] = int(x * self.compression_scale)
                 self.watermark_settings["watermark_y"] = int(y * self.compression_scale)
                 print(f"[DEBUG] ImageWatermarkWidget.update_position: 更新position和坐标: position={self.watermark_settings['position']}, watermark_x={self.watermark_settings['watermark_x']}, watermark_y={self.watermark_settings['watermark_y']}")
@@ -296,6 +301,8 @@ class ImageWatermarkWidget(QWidget):
                     print(f"[DEBUG] ImageWatermarkWidget.update_position: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
                 
                 # 更新position和坐标
+                # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+                # 关系：watermark_x = x * self.compression_scale（取整）
                 self.watermark_settings["position"] = (x, y)
                 self.watermark_settings["watermark_x"] = x * self.compression_scale
                 self.watermark_settings["watermark_y"] = y * self.compression_scale
@@ -382,7 +389,14 @@ class ImageWatermarkWidget(QWidget):
                 self.update_position((0.5, 0.5))
     
     def set_compression_scale(self, scale):
-        """设置压缩比例，用于预览"""
+        """设置压缩比例，用于预览
+        
+        Args:
+            scale: 压缩比例，用于将原图坐标转换为预览图坐标
+            
+        注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+        关系：watermark_x = x * self.compression_scale（取整）
+        """
         self.compression_scale = scale
 
     def on_aspect_ratio_changed(self, checked):

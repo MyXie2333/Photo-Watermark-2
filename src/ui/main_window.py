@@ -1542,6 +1542,9 @@ class MainWindow(QMainWindow):
         if isinstance(new_position, tuple) and len(new_position) == 2:
             # 注意：这里new_position已经是应用了压缩比例的坐标，不需要再次应用
             current_watermark_settings["position"] = new_position
+            
+            # 注意：position是水印在原图上的坐标，而watermark_x是水印在压缩图上的坐标
+            # 两者的数学关系为：watermark_x = x * self.compression_scale（取整）
             current_watermark_settings["watermark_x"] = int(new_position[0]*self.compression_scale)
             current_watermark_settings["watermark_y"] = int(new_position[1]*self.compression_scale)
             print(f"[DEBUG] MainWindow.update_position: 更新position和坐标: position={new_position}, watermark_x={current_watermark_settings['watermark_x']}, watermark_y={current_watermark_settings['watermark_y']}, compression_scale={self.compression_scale}")

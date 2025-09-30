@@ -1506,6 +1506,8 @@ class WatermarkRenderer:
                     print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 计算出position为 ({x}, {y})")
             
             # 如果是预览模式且有压缩比例，应用压缩比例并确保结果为整数
+            # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+            # 关系：watermark_x = x * self.compression_scale（取整）
             if is_preview and hasattr(self, 'compression_scale') and self.compression_scale is not None:
                 x = int(round(x * self.compression_scale))
                 y = int(round(y * self.compression_scale))
@@ -1518,6 +1520,9 @@ class WatermarkRenderer:
             print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 图片水印初始化坐标: x={x}, y={y}")
             
             # 根据模式选择坐标来源
+            # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+            # 预览模式使用watermark_settings["watermark_x"]（压缩图上的坐标）
+            # 导出模式使用position（原图上的坐标）
             if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
                 if is_preview:
                     # 预览模式使用手动指定的坐标
@@ -1530,18 +1535,23 @@ class WatermarkRenderer:
                 self.last_watermark_position = (x, y)
             
             # 如果有current_watermark_settings，更新watermark_x和watermark_y
+            # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+            # 关系：watermark_x = x * self.compression_scale（取整）
             if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
                     # 如果是预览模式，需要将坐标转换回原始坐标（去除压缩比例）
                     if is_preview and hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale != 0:
                         # 如果是使用手动指定坐标，直接保存
+                        # 注意：watermark_settings["watermark_x"]已经是压缩图上的坐标，无需转换
                         if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
                             current_watermark_settings["watermark_x"] = int(round(x))
                             current_watermark_settings["watermark_y"] = int(round(y))
                             print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，直接保存手动指定坐标({x}, {y})")
                         else:
                             # 如果是使用position计算坐标，需要转换回原始坐标
+                            # 注意：position是原图上的坐标，预览时应用了压缩比例，现在需要去除压缩比例
+                            # 关系：original_x = x / self.compression_scale
                             original_x = int(round(x / self.compression_scale))
                             original_y = int(round(y / self.compression_scale))
                             print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，将position计算坐标({x}, {y})转换回原始坐标({original_x}, {original_y})")
@@ -1550,6 +1560,7 @@ class WatermarkRenderer:
                             current_watermark_settings["watermark_y"] = original_y
                     else:
                         # 导出模式直接使用当前坐标
+                        # 注意：导出模式使用position（原图上的坐标），不应用压缩比例
                         current_watermark_settings["watermark_x"] = int(round(x))
                         current_watermark_settings["watermark_y"] = int(round(y))
                         print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，直接使用当前坐标更新watermark_x为 {x}, watermark_y为 {y}")
@@ -1628,6 +1639,8 @@ class WatermarkRenderer:
                 preview_image = preview_image.resize((preview_width, preview_height), Image.LANCZOS)
             
             # 计算压缩比例
+            # 注意：压缩比例用于将原图坐标转换为预览图坐标
+            # 关系：预览图坐标 = 原图坐标 * compression_scale
             compression_scale = preview_width / original_width
             print(f"[DEBUG] 计算压缩比例: {compression_scale:.4f}")
             

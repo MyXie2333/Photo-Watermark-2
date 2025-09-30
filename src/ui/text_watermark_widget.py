@@ -1016,6 +1016,9 @@ class TextWatermarkWidget(QWidget):
                 
                 # 更新position为绝对坐标
                 self.position = (x, y)
+                
+                # 注意：position是水印在原图上的坐标，而watermark_x是水印在压缩图上的坐标
+                # 两者的数学关系为：watermark_x = x * self.compression_scale（取整）
                 self.watermark_x = int(x*self.compression_scale)
                 self.watermark_y = int(y*self.compression_scale)
                 print(f"[DEBUG] TextWatermarkWidget.update_position: 更新position和坐标: position={self.position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
@@ -1034,8 +1037,11 @@ class TextWatermarkWidget(QWidget):
                 
                 # 更新position和坐标
                 self.position = (x, y)
-                self.watermark_x = x*self.compression_scale
-                self.watermark_y = y*self.compression_scale
+                
+                # 注意：position是水印在原图上的坐标，而watermark_x是水印在压缩图上的坐标
+                # 两者的数学关系为：watermark_x = x * self.compression_scale（取整）
+                self.watermark_x = int(x*self.compression_scale)
+                self.watermark_y = int(y*self.compression_scale)
                 print(f"[DEBUG] TextWatermarkWidget.update_position: 更新position和坐标: position={self.position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
         else:
             # 处理预定义的位置字符串
@@ -1353,7 +1359,11 @@ class TextWatermarkWidget(QWidget):
         设置压缩比例
         
         Args:
-            scale (float): 压缩比例
+            scale (float): 压缩比例，用于将原图坐标转换为预览图坐标
+            
+        Note:
+            position是水印在原图上的坐标，而watermark_x是水印在压缩图上的坐标
+            两者的数学关系为：watermark_x = x * self.compression_scale（取整）
         """
         self.compression_scale = scale
         print(f"[DEBUG] TextWatermarkWidget接收到压缩比例: {scale:.4f}")
