@@ -1189,7 +1189,7 @@ class TextWatermarkWidget(QWidget):
             "font_size": self.font_size,
             "font_bold": self.font_bold,
             "font_italic": self.font_italic,
-            "color": self.font_color,
+            "color": (self.font_color.red(), self.font_color.green(), self.font_color.blue()),
             "opacity": self.opacity,
             "position": self.position,
             "watermark_x": self.watermark_x,
@@ -1252,7 +1252,15 @@ class TextWatermarkWidget(QWidget):
             
             # 更新颜色和透明度
             if "color" in settings:
-                self.font_color = settings["color"]
+                if isinstance(settings["color"], tuple) and len(settings["color"]) == 3:
+                    # 如果是RGB元组，转换为QColor
+                    self.font_color = QColor(settings["color"][0], settings["color"][1], settings["color"][2])
+                elif isinstance(settings["color"], str):
+                    # 如果是字符串，尝试从字符串创建QColor
+                    self.font_color = QColor(settings["color"])
+                else:
+                    # 其他情况，直接使用
+                    self.font_color = settings["color"]
                 self.update_color_button()
             
             if "opacity" in settings:
@@ -1370,7 +1378,15 @@ class TextWatermarkWidget(QWidget):
             
             # 更新颜色和透明度
             if "color" in settings:
-                self.font_color = settings["color"]
+                if isinstance(settings["color"], tuple) and len(settings["color"]) == 3:
+                    # 如果是RGB元组，转换为QColor
+                    self.font_color = QColor(settings["color"][0], settings["color"][1], settings["color"][2])
+                elif isinstance(settings["color"], str):
+                    # 如果是字符串，尝试从字符串创建QColor
+                    self.font_color = QColor(settings["color"])
+                else:
+                    # 其他情况，直接使用
+                    self.font_color = settings["color"]
                 self.update_color_button()
             
             if "opacity" in settings:

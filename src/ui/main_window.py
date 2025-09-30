@@ -7,7 +7,7 @@
 import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
-                             QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea)
+                             QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea, QDialog)
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage, QColor, QPainter, QPen, QFont
 from PIL import Image as PILImage
@@ -21,10 +21,11 @@ try:
     from image_manager import ImageManager
     from ui.image_list_widget import ImageListWidget
     from watermark_renderer import WatermarkRenderer
-    from config_manager import ConfigManager
+    from config_manager import get_config_manager
     from ui.text_watermark_widget import TextWatermarkWidget
     from ui.image_watermark_widget import ImageWatermarkWidget
     from watermark_drag_manager import WatermarkDragManager
+    from ui.template_manager_dialog import TemplateManagerDialog, StartupSettingsDialog
 except ImportError as e:
     print(f"导入错误: {e}")
     print("当前Python路径:", sys.path)
@@ -41,7 +42,7 @@ class MainWindow(QMainWindow):
         self.image_manager = ImageManager()
         
         # 初始化配置管理器
-        self.config_manager = ConfigManager()
+        self.config_manager = get_config_manager()
         
         # 初始化水印渲染器
         self.watermark_renderer = WatermarkRenderer(self)
@@ -78,6 +79,9 @@ class MainWindow(QMainWindow):
         self.drag_manager.set_watermark_settings_callback(self._get_current_watermark_settings)
         
         self.setup_connections()
+        
+        # 显示启动设置对话框
+        self.show_startup_settings()
         
     def _get_current_watermark_settings(self):
         """
@@ -149,6 +153,11 @@ class MainWindow(QMainWindow):
         self.import_folder_button = QPushButton("导入文件夹")
         self.import_folder_button.setMinimumHeight(35)
         layout.addWidget(self.import_folder_button)
+        
+        # 模板按钮
+        self.template_button = QPushButton("模板")
+        self.template_button.setMinimumHeight(35)
+        layout.addWidget(self.template_button)
         
         # 图片列表区域
         self.image_list_widget = ImageListWidget()
@@ -357,6 +366,13 @@ class MainWindow(QMainWindow):
         self.export_all_action.setShortcut("Ctrl+Shift+E")
         export_menu.addAction(self.export_all_action)
         
+        # 模板菜单
+        template_menu = menu_bar.addMenu("模板")
+        
+        self.template_manager_action = QAction("模板管理", self)
+        self.template_manager_action.setShortcut("Ctrl+T")
+        template_menu.addAction(self.template_manager_action)
+        
     def setup_status_bar(self):
         """设置状态栏"""
         status_bar = QStatusBar()
@@ -375,6 +391,7 @@ class MainWindow(QMainWindow):
         # 导入按钮
         self.import_button.clicked.connect(self.import_images)
         self.import_folder_button.clicked.connect(self.import_folder)
+        self.template_button.clicked.connect(self.show_template_manager)
         
         # 预览控制按钮
         self.prev_button.clicked.connect(self.prev_image)
@@ -409,6 +426,7 @@ class MainWindow(QMainWindow):
         # 菜单动作
         self.export_current_action.triggered.connect(self.export_image)
         self.export_all_action.triggered.connect(self.export_all_images)
+        self.template_manager_action.triggered.connect(self.show_template_manager)
         
     def switch_watermark_type(self, watermark_type):
         """切换水印类型"""
@@ -514,6 +532,16 @@ class MainWindow(QMainWindow):
                 self.update_preview_with_watermark()
                 
                 print(f"为图片设置默认水印: {current_image_path}")
+            else:
+                # 如果当前图片已有水印设置，将其设置为默认水印
+                # 需要将QColor对象转换为字符串格式，以便JSON序列化
+                config_watermark_settings = current_watermark_settings.copy()
+                if isinstance(config_watermark_settings.get('color'), QColor):
+                    config_watermark_settings['color'] = config_watermark_settings['color'].name()
+                
+                # 设置为默认水印
+                self.config_manager.set_watermark_defaults(config_watermark_settings)
+                print(f"将当前图片的水印设置为默认水印: {current_image_path}")
                 
     def on_font_switch_notification(self, message):
         """处理字体切换提示信号"""
@@ -2236,6 +2264,93 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "导出完成", result_msg)
         else:
             QMessageBox.information(self, "导出完成", f"所有图片已成功导出到:\n{output_dir}")
+
+    def show_startup_settings(self):
+        """显示启动设置对话框"""
+        # 检查是否需要显示启动设置对话框
+        if self.config_manager.get_load_last_settings():
+            # 加载上一次的水印设置
+            last_settings = self.config_manager.get_last_watermark_settings()
+            if last_settings:
+                self.load_watermark_template(last_settings.get('type', 'text'), last_settings)
+        else:
+            # 加载默认模板
+            default_template = self.config_manager.get_default_template()
+            if default_template:
+                template_settings = self.config_manager.load_watermark_template(
+                    default_template['type'], default_template['name']
+                )
+                if template_settings:
+                    self.load_watermark_template(default_template['type'], template_settings)
+        
+        # 显示启动设置对话框
+        startup_dialog = StartupSettingsDialog(self.config_manager, self)
+        if startup_dialog.exec_() == QDialog.Accepted:
+            selected_option = startup_dialog.get_selected_option()
+            if selected_option == "load_last":
+                # 加载上一次的水印设置
+                last_settings = self.config_manager.get_last_watermark_settings()
+                if last_settings:
+                    self.load_watermark_template(last_settings.get('type', 'text'), last_settings)
+            elif selected_option == "load_default":
+                # 加载默认模板
+                default_template = self.config_manager.get_default_template()
+                if default_template:
+                    template_settings = self.config_manager.load_watermark_template(
+                        default_template['type'], default_template['name']
+                    )
+                    if template_settings:
+                        self.load_watermark_template(default_template['type'], template_settings)
+
+    def show_template_manager(self):
+        """显示模板管理对话框"""
+        # 获取当前水印设置
+        current_watermark_settings = self.get_current_watermark_settings_for_template()
+        
+        # 创建模板管理对话框
+        template_dialog = TemplateManagerDialog(
+            self.config_manager,
+            self, 
+            self.watermark_type, 
+            current_watermark_settings
+        )
+        template_dialog.exec_()
+
+    def get_current_watermark_settings_for_template(self):
+        """获取当前水印设置，用于保存模板"""
+        if self.watermark_type == "text" and self.text_watermark_widget:
+            watermark_settings = self.text_watermark_widget.get_watermark_settings()
+            watermark_settings['watermark_type'] = 'text'
+        elif self.watermark_type == "image" and self.image_watermark_widget:
+            watermark_settings = self.image_watermark_widget.get_watermark_settings()
+            watermark_settings['watermark_type'] = 'image'
+        else:
+            watermark_settings = {}
+        
+        # 需要将QColor对象转换为字符串格式，以便JSON序列化
+        if isinstance(watermark_settings.get('color'), QColor):
+            watermark_settings['color'] = watermark_settings['color'].name()
+        
+        return watermark_settings
+
+    def load_watermark_template(self, template_type, template_settings):
+        """加载水印模板"""
+        # 切换到对应的水印类型
+        self.switch_watermark_type(template_type)
+        
+        # 应用模板设置
+        if template_type == "text" and self.text_watermark_widget:
+            self.text_watermark_widget.set_watermark_settings(template_settings)
+        elif template_type == "image" and self.image_watermark_widget:
+            self.image_watermark_widget.set_watermark_settings(template_settings)
+        
+        # 更新预览
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
+            self.update_preview_with_watermark()
+        
+        # 保存当前水印设置
+        self.config_manager.set_last_watermark_settings(template_settings)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ import os
 import json
 import logging
 from pathlib import Path
+from PyQt5.QtGui import QColor
 
 
 class ConfigManager:
@@ -43,7 +44,14 @@ class ConfigManager:
                 "font_size": 32,
                 "color": "#0000FF",
                 "opacity": 80
-            }
+            },
+            "watermark_templates": {     # 水印模板
+                "text": {},              # 文字水印模板
+                "image": {}              # 图片水印模板
+            },
+            "last_watermark_settings": None,  # 上一次关闭时的水印设置
+            "default_template": None,    # 默认模板 (格式: {"type": "text|image", "name": "模板名"})
+            "load_last_settings": True   # 是否加载上一次关闭时的设置
         }
         
         self.config = self.default_config.copy()
@@ -180,8 +188,235 @@ class ConfigManager:
     
     def set_watermark_defaults(self, defaults):
         """设置水印默认设置"""
-        self.config["watermark_defaults"] = defaults
+        # 需要将QColor对象转换为字符串格式，以便JSON序列化
+        if defaults and isinstance(defaults.get('color'), QColor):
+            # 创建副本以避免修改原始设置
+            defaults_copy = defaults.copy()
+            defaults_copy['color'] = defaults_copy['color'].name()
+            self.config["watermark_defaults"] = defaults_copy
+        else:
+            self.config["watermark_defaults"] = defaults
+        
         return self.save_config()
+    
+    def save_watermark_template(self, template_type, template_name, template_settings):
+        """
+        保存水印模板
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            template_name: 模板名称
+            template_settings: 模板设置
+            
+        Returns:
+            bool: 是否保存成功
+        """
+        if template_type not in ["text", "image"]:
+            return False
+        
+        # 需要将QColor对象转换为字符串格式，以便JSON序列化
+        if template_settings and isinstance(template_settings.get('color'), QColor):
+            # 创建副本以避免修改原始设置
+            settings_copy = template_settings.copy()
+            settings_copy['color'] = settings_copy['color'].name()
+            template_settings = settings_copy
+        
+        # 确保模板字典存在
+        if "watermark_templates" not in self.config:
+            self.config["watermark_templates"] = {"text": {}, "image": {}}
+        
+        # 保存模板
+        self.config["watermark_templates"][template_type][template_name] = template_settings
+        
+        # 如果这是第一个模板，自动设置为默认模板
+        if self.config["default_template"] is None:
+            self.config["default_template"] = {"type": template_type, "name": template_name}
+        
+        return self.save_config()
+    
+    def load_watermark_template(self, template_type, template_name):
+        """
+        加载水印模板
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            template_name: 模板名称
+            
+        Returns:
+            dict: 模板设置，如果不存在则返回None
+        """
+        if template_type not in ["text", "image"]:
+            return None
+        
+        try:
+            return self.config["watermark_templates"][template_type].get(template_name)
+        except KeyError:
+            return None
+    
+    def delete_watermark_template(self, template_type, template_name):
+        """
+        删除水印模板
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            template_name: 模板名称
+            
+        Returns:
+            bool: 是否删除成功
+        """
+        if template_type not in ["text", "image"]:
+            return False
+        
+        try:
+            if template_name in self.config["watermark_templates"][template_type]:
+                del self.config["watermark_templates"][template_type][template_name]
+                
+                # 如果删除的是默认模板，清除默认模板设置
+                if (self.config["default_template"] and 
+                    self.config["default_template"]["type"] == template_type and 
+                    self.config["default_template"]["name"] == template_name):
+                    self.config["default_template"] = None
+                
+                return self.save_config()
+            return False
+        except KeyError:
+            return False
+    
+    def get_all_watermark_templates(self):
+        """
+        获取所有水印模板
+        
+        Returns:
+            dict: 所有水印模板，格式为 {"text": {...}, "image": {...}}
+        """
+        return self.config.get("watermark_templates", {"text": {}, "image": {}})
+    
+    def get_template_names(self, template_type):
+        """
+        获取指定类型的所有模板名称
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            
+        Returns:
+            list: 模板名称列表
+        """
+        if template_type not in ["text", "image"]:
+            return []
+        
+        try:
+            return list(self.config["watermark_templates"][template_type].keys())
+        except KeyError:
+            return []
+    
+    def set_default_template(self, template_type, template_name):
+        """
+        设置默认模板
+        
+        Args:
+            template_type: 模板类型，"text"或"image"
+            template_name: 模板名称
+            
+        Returns:
+            bool: 是否设置成功
+        """
+        if template_type not in ["text", "image"]:
+            return False
+        
+        try:
+            if template_name in self.config["watermark_templates"][template_type]:
+                self.config["default_template"] = {"type": template_type, "name": template_name}
+                return self.save_config()
+            return False
+        except KeyError:
+            return False
+    
+    def get_default_template(self):
+        """
+        获取默认模板
+        
+        Returns:
+            dict: 默认模板信息，格式为 {"type": "text|image", "name": "模板名", "settings": {...}}
+                 如果没有默认模板则返回None
+        """
+        if not self.config["default_template"]:
+            return None
+        
+        template_type = self.config["default_template"]["type"]
+        template_name = self.config["default_template"]["name"]
+        
+        template_settings = self.load_watermark_template(template_type, template_name)
+        if template_settings:
+            return {
+                "type": template_type,
+                "name": template_name,
+                "settings": template_settings
+            }
+        return None
+    
+    def set_last_watermark_settings(self, watermark_settings):
+        """
+        设置上一次关闭时的水印设置
+        
+        Args:
+            watermark_settings: 水印设置
+            
+        Returns:
+            bool: 是否保存成功
+        """
+        # 需要将QColor对象转换为字符串格式，以便JSON序列化
+        if watermark_settings and isinstance(watermark_settings.get('color'), QColor):
+            # 创建副本以避免修改原始设置
+            settings_copy = watermark_settings.copy()
+            settings_copy['color'] = settings_copy['color'].name()
+            self.config["last_watermark_settings"] = settings_copy
+        else:
+            self.config["last_watermark_settings"] = watermark_settings
+        
+        return self.save_config()
+    
+    def get_last_watermark_settings(self):
+        """
+        获取上一次关闭时的水印设置
+        
+        Returns:
+            dict: 上一次关闭时的水印设置，如果不存在则返回None
+        """
+        return self.config.get("last_watermark_settings")
+    
+    def set_load_last_settings(self, load_last):
+        """
+        设置是否加载上一次关闭时的设置
+        
+        Args:
+            load_last: 是否加载上一次关闭时的设置
+            
+        Returns:
+            bool: 是否保存成功
+        """
+        self.config["load_last_settings"] = load_last
+        return self.save_config()
+    
+    def get_load_last_settings(self):
+        """
+        获取是否加载上一次关闭时的设置
+        
+        Returns:
+            bool: 是否加载上一次关闭时的设置
+        """
+        return self.config.get("load_last_settings", True)
+
+
+# 全局配置管理器实例
+_config_manager = None
+
+
+def get_config_manager(config_file=None):
+    """获取全局配置管理器实例"""
+    global _config_manager
+    if _config_manager is None:
+        _config_manager = ConfigManager(config_file)
+    return _config_manager
 
 
 # 全局配置管理器实例

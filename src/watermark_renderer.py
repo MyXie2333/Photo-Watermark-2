@@ -22,6 +22,27 @@ class WatermarkRenderer:
         self.compression_scale = 1.0  # 原图到压缩图的压缩比例，默认为1.0
         self.parent = parent  # 设置parent属性
         
+    def _get_color_rgb(self, color):
+        """
+        获取颜色的RGB值，支持QColor对象、字符串和元组
+        
+        Args:
+            color: 颜色值，可以是QColor对象、字符串或元组
+            
+        Returns:
+            tuple: RGB元组 (r, g, b)
+        """
+        if isinstance(color, QColor):
+            return (color.red(), color.green(), color.blue())
+        elif isinstance(color, str):
+            qcolor = QColor(color)
+            return (qcolor.red(), qcolor.green(), qcolor.blue())
+        elif isinstance(color, tuple) and len(color) >= 3:
+            return (color[0], color[1], color[2])
+        else:
+            # 默认返回白色
+            return (255, 255, 255)
+        
     def set_compression_scale(self, scale):
         """
         设置压缩比例
@@ -199,7 +220,8 @@ class WatermarkRenderer:
                 temp_text_draw = ImageDraw.Draw(temp_text_img)
                 
                 # 正常绘制文本（添加向上的位移以避免斜体时汉字下半部分被截断）
-                temp_text_draw.text((20, 20), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                color_rgb = self._get_color_rgb(color)
+                temp_text_draw.text((20, 20), text, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
                 
                 # 使用仿射变换实现斜体效果
                 import numpy as np
@@ -244,13 +266,16 @@ class WatermarkRenderer:
                                 line_y = y_offset + i * line_height
                                 # 根据行号计算水平偏移量（模拟斜体倾斜效果）
                                 offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                                text_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                                color_rgb = self._get_color_rgb(color)
+                                text_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
                         else:
-                            text_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                            color_rgb = self._get_color_rgb(color)
+                            text_draw.text((x_offset, y_offset), text, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
         else:
             # 正常绘制文本
             # 添加向上的位移以避免汉字下半部分被截断
-            text_draw.text((20, 15), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+            color_rgb = self._get_color_rgb(color)
+            text_draw.text((20, 15), text, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
         
         # 应用阴影和描边效果
         final_img = self._apply_text_effects(text_img, text_width, text_height, 0, 
@@ -346,8 +371,9 @@ class WatermarkRenderer:
                 if diagonal > 0:
                     # 绘制斜体描边
                     for dx, dy in directions:
+                        outline_rgb = self._get_color_rgb(outline_color)
                         outline_temp_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
-                                              fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                                              fill=(outline_rgb[0], outline_rgb[1], outline_rgb[2], int(255 * outline_opacity)))
                     
                     # 对描边应用斜体变换
                     import numpy as np
@@ -369,8 +395,9 @@ class WatermarkRenderer:
                     if self._contains_chinese(text):
                         # 中文斜体描边
                         for dx, dy in directions:
+                            outline_rgb = self._get_color_rgb(outline_color)
                             outline_temp_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
-                                              fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                                              fill=(outline_rgb[0], outline_rgb[1], outline_rgb[2], int(255 * outline_opacity)))
                         
                         # 对描边应用斜体变换
                         shear_factor = 0.15  # 与主文本相同的倾斜系数
@@ -397,19 +424,21 @@ class WatermarkRenderer:
                             
                             # 绘制倾斜的描边
                             for dx, dy in directions:
+                                outline_rgb = self._get_color_rgb(outline_color)
                                 result_draw.text((text_x + dx + offset_x + outline_offset[0], line_y + dy + outline_offset[1]), line, font=font, 
-                                                fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                                                fill=(outline_rgb[0], outline_rgb[1], outline_rgb[2], int(255 * outline_opacity)))
             else:
                 # 非斜体文本的传统8方向描边
                 for dx, dy in directions:
+                    outline_rgb = self._get_color_rgb(outline_color)
                     if diagonal > 0:
                         # 使用指定的描边颜色
                         result_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
-                                        fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                                        fill=(outline_rgb[0], outline_rgb[1], outline_rgb[2], int(255 * outline_opacity)))
                     else:
                         # 对于非旋转情况，我们只处理单行文本
                         result_draw.text((text_x + dx + outline_offset[0], text_y + dy + outline_offset[1]), text, font=font, 
-                                        fill=(outline_color[0], outline_color[1], outline_color[2], int(255 * outline_opacity)))
+                                        fill=(outline_rgb[0], outline_rgb[1], outline_rgb[2], int(255 * outline_opacity)))
         
         # 然后将原图像粘贴到结果图像上（如果有描边，这会覆盖描边内部）
         if diagonal > 0:
@@ -449,8 +478,9 @@ class WatermarkRenderer:
                     # 绘制斜体阴影
                     text_x = (diagonal - text_width) // 2 + shadow_offset[0]
                     text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]
+                    shadow_rgb = self._get_color_rgb(shadow_color)
                     shadow_temp_draw.text((text_x, text_y), text, font=font, 
-                                        fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                                        fill=(shadow_rgb[0], shadow_rgb[1], shadow_rgb[2], int(255 * shadow_opacity)))
                     
                     # 对阴影应用斜体变换
                     import numpy as np
@@ -472,8 +502,9 @@ class WatermarkRenderer:
                     # 绘制偏移的阴影
                     text_x = (diagonal - text_width) // 2 + shadow_offset[0]
                     text_y = (diagonal - text_height) // 2 - 5 + shadow_offset[1]
+                    shadow_rgb = self._get_color_rgb(shadow_color)
                     shadow_draw.text((text_x, text_y), text, font=font, 
-                                    fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                                    fill=(shadow_rgb[0], shadow_rgb[1], shadow_rgb[2], int(255 * shadow_opacity)))
                 
                 # 如果需要阴影模糊效果且PIL支持ImageFilter
                 if shadow_blur > 0:
@@ -501,8 +532,9 @@ class WatermarkRenderer:
                     shadow_temp_draw = ImageDraw.Draw(shadow_temp_img)
                     
                     # 绘制斜体阴影
+                    shadow_rgb = self._get_color_rgb(shadow_color)
                     shadow_temp_draw.text((20 + shadow_offset[0], 15 + shadow_offset[1]), text, font=font, 
-                                        fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                                        fill=(shadow_rgb[0], shadow_rgb[1], shadow_rgb[2], int(255 * shadow_opacity)))
                     
                     # 对阴影应用斜体变换
                     shear_factor = 0.15  # 与主文本相同的倾斜系数
@@ -520,8 +552,9 @@ class WatermarkRenderer:
                 else:
                     # 非斜体文本的阴影
                     # 绘制偏移的阴影
+                    shadow_rgb = self._get_color_rgb(shadow_color)
                     shadow_draw.text((20 + shadow_offset[0], 15 + shadow_offset[1]), text, font=font, 
-                                    fill=(shadow_color[0], shadow_color[1], shadow_color[2], int(255 * shadow_opacity)))
+                                    fill=(shadow_rgb[0], shadow_rgb[1], shadow_rgb[2], int(255 * shadow_opacity)))
                 
                 # 如果需要阴影模糊效果且PIL支持ImageFilter
                 if shadow_blur > 0:

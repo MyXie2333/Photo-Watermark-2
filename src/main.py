@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from ui.main_window import MainWindow
+    from config_manager import get_config_manager
 except ImportError as e:
     print(f"导入错误: {e}")
     print("当前Python路径:", sys.path)
@@ -27,6 +28,9 @@ class PhotoWatermarkApp:
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.main_window = None
+        
+        # 初始化配置管理器
+        self.config_manager = get_config_manager()
         
         # 设置应用程序属性
         self.app.setApplicationName("Photo Watermark 2")
