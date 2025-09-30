@@ -35,7 +35,8 @@ class ImageWatermarkWidget(QWidget):
             "position": (0.5, 0.5),  # 使用二元组表示中心位置
             "watermark_x": 0,
             "watermark_y": 0,
-            "keep_aspect_ratio": True
+            "keep_aspect_ratio": True,
+            "rotation": 0  # 旋转角度
         }
         
         self.setup_ui()
@@ -102,6 +103,23 @@ class ImageWatermarkWidget(QWidget):
         self.opacity_spinbox.valueChanged.connect(self.on_opacity_spinbox_changed)
         opacity_layout.addWidget(self.opacity_spinbox)
         settings_layout.addLayout(opacity_layout, 1, 1)
+        
+        # 旋转角度设置
+        settings_layout.addWidget(QLabel("旋转角度:"), 2, 0)
+        rotation_layout = QHBoxLayout()
+        self.rotation_slider = QSlider(Qt.Horizontal)
+        self.rotation_slider.setRange(-180, 180)
+        self.rotation_slider.setValue(0)
+        self.rotation_slider.valueChanged.connect(self.on_rotation_changed)
+        rotation_layout.addWidget(self.rotation_slider)
+        self.rotation_spinbox = QSpinBox()
+        self.rotation_spinbox.setRange(-180, 180)
+        self.rotation_spinbox.setValue(0)
+        self.rotation_spinbox.valueChanged.connect(self.on_rotation_spinbox_changed)
+        rotation_layout.addWidget(self.rotation_spinbox)
+        rotation_layout.addWidget(QLabel("°"))
+        rotation_layout.addStretch()
+        settings_layout.addLayout(rotation_layout, 2, 1)
         
         # 九宫格位置设置
         position_group = QGroupBox("位置设置")
@@ -174,7 +192,7 @@ class ImageWatermarkWidget(QWidget):
         self.aspect_ratio_checkbox.clicked.connect(self.on_aspect_ratio_changed)
         aspect_ratio_layout.addWidget(self.aspect_ratio_checkbox)
         aspect_ratio_layout.addStretch()
-        settings_layout.addLayout(aspect_ratio_layout, 3, 0, 1, 2)
+        settings_layout.addLayout(aspect_ratio_layout, 4, 0, 1, 2)
         
         layout.addWidget(settings_group)
         
@@ -250,6 +268,22 @@ class ImageWatermarkWidget(QWidget):
         self.opacity_slider.setValue(value)
         self.opacity_slider.blockSignals(False)
         self.watermark_settings["opacity"] = value
+        self.update_watermark_settings()
+    
+    def on_rotation_changed(self, value):
+        """旋转角度滑块变化时的处理"""
+        self.rotation_spinbox.blockSignals(True)
+        self.rotation_spinbox.setValue(value)
+        self.rotation_spinbox.blockSignals(False)
+        self.watermark_settings["rotation"] = value
+        self.update_watermark_settings()
+    
+    def on_rotation_spinbox_changed(self, value):
+        """旋转角度输入框变化时的处理"""
+        self.rotation_slider.blockSignals(True)
+        self.rotation_slider.setValue(value)
+        self.rotation_slider.blockSignals(False)
+        self.watermark_settings["rotation"] = value
         self.update_watermark_settings()
     
     def on_position_changed(self):
@@ -596,6 +630,14 @@ class ImageWatermarkWidget(QWidget):
             self.opacity_spinbox.setValue(settings["opacity"])
             self.opacity_slider.blockSignals(False)
             self.opacity_spinbox.blockSignals(False)
+        
+        if "rotation" in settings:
+            self.rotation_slider.blockSignals(True)
+            self.rotation_spinbox.blockSignals(True)
+            self.rotation_slider.setValue(settings["rotation"])
+            self.rotation_spinbox.setValue(settings["rotation"])
+            self.rotation_slider.blockSignals(False)
+            self.rotation_spinbox.blockSignals(False)
         
         if "position" in settings:
             # 将字符串位置转换为元组位置

@@ -1435,6 +1435,7 @@ class WatermarkRenderer:
             opacity = watermark_settings.get("opacity", 80) / 100.0  # 转换为比例
             position = watermark_settings.get("position", (0.5, 0.5))  # 使用二元组表示中心位置
             keep_aspect_ratio = watermark_settings.get("keep_aspect_ratio", True)
+            rotation = watermark_settings.get("rotation", 0)  # 旋转角度
             
             # 加载水印图片
             watermark_img = Image.open(image_path).convert("RGBA")
@@ -1518,6 +1519,21 @@ class WatermarkRenderer:
             # 记录水印位置
             self.last_watermark_position = (x, y)
             print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 图片水印初始化坐标: x={x}, y={y}")
+            
+            # 如果需要旋转，应用旋转
+            if rotation != 0:
+                # 保存原始尺寸
+                original_width, original_height = watermark_img.size
+                
+                # 应用旋转
+                watermark_img = watermark_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
+                
+                # 旋转后重新计算位置，确保水印中心点不变
+                rotated_width, rotated_height = watermark_img.size
+                x = x - (rotated_width - original_width) // 2
+                y = y - (rotated_height - original_height) // 2
+                
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 应用旋转{rotation}度，旋转后尺寸: {rotated_width}x{rotated_height}，调整后坐标: x={x}, y={y}")
             
             # 根据模式选择坐标来源
             # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
