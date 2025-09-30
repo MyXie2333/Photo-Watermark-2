@@ -1811,7 +1811,7 @@ class MainWindow(QMainWindow):
         
         try:
             # 加载原始图片
-            original_image = Image.open(current_image_path)
+            original_image = PILImage.open(current_image_path)
             
             # 根据水印类型选择渲染方法
             watermark_type = watermark_settings.get('watermark_type', 'text')
