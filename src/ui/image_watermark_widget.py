@@ -39,6 +39,9 @@ class ImageWatermarkWidget(QWidget):
         }
         
         self.setup_ui()
+        
+        # 初始化坐标输入框的值
+        self.update_coordinate_inputs()
     
     def setup_ui(self):
         """设置UI组件"""
@@ -137,6 +140,31 @@ class ImageWatermarkWidget(QWidget):
             btn.clicked.connect(self.on_position_changed)
         
         layout.addWidget(position_group)
+        
+        # 手动坐标输入
+        coord_group = QGroupBox("手动坐标输入")
+        coord_layout = QGridLayout(coord_group)
+        
+        # X坐标输入
+        coord_layout.addWidget(QLabel("X坐标:"), 0, 0)
+        self.x_coord_input = QSpinBox()
+        self.x_coord_input.setRange(0, 9999)
+        self.x_coord_input.setValue(0)
+        coord_layout.addWidget(self.x_coord_input, 0, 1)
+        
+        # Y坐标输入
+        coord_layout.addWidget(QLabel("Y坐标:"), 1, 0)
+        self.y_coord_input = QSpinBox()
+        self.y_coord_input.setRange(0, 9999)
+        self.y_coord_input.setValue(0)
+        coord_layout.addWidget(self.y_coord_input, 1, 1)
+        
+        # 应用按钮
+        self.apply_coord_button = QPushButton("应用坐标")
+        self.apply_coord_button.clicked.connect(self.on_apply_coord_clicked)
+        coord_layout.addWidget(self.apply_coord_button, 2, 0, 1, 2)
+        
+        layout.addWidget(coord_group)
         
         # 保持纵横比
         aspect_ratio_layout = QHBoxLayout()
@@ -243,6 +271,63 @@ class ImageWatermarkWidget(QWidget):
                 if other_btn != sender:
                     other_btn.setChecked(False)
     
+    def on_apply_coord_clicked(self):
+        """手动坐标输入应用按钮点击时的处理"""
+        # 获取输入的坐标值
+        x = self.x_coord_input.value()
+        y = self.y_coord_input.value()
+        
+        print(f"[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: 应用手动坐标 ({x}, {y})")
+        
+        # 更新position为绝对坐标
+        self.watermark_settings["position"] = (x, y)
+        
+        # 计算并设置watermark_x和watermark_y（压缩图坐标）
+        if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+            print(f"[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+            self.watermark_settings["watermark_x"] = int(x * self.compression_scale)
+            self.watermark_settings["watermark_y"] = int(y * self.compression_scale)
+        else:
+            self.watermark_settings["watermark_x"] = x
+            self.watermark_settings["watermark_y"] = y
+        
+        print(f"[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: 更新position和坐标: position={self.watermark_settings['position']}, watermark_x={self.watermark_settings['watermark_x']}, watermark_y={self.watermark_settings['watermark_y']}")
+        
+        # 取消所有位置按钮的选中状态
+        for btn in self.position_buttons:
+            btn.setChecked(False)
+        
+        # 更新UI状态
+        self.update_position((x, y))
+        
+        # 触发水印变化信号，更新预览
+        self.watermark_changed.emit()
+        
+        # 调用render方法立即更新水印渲染
+        if hasattr(self, 'parent') and self.parent():
+            main_window = self.parent()
+            if hasattr(main_window, 'update_preview_with_watermark'):
+                print(f"[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: 调用render方法更新水印渲染")
+                main_window.update_preview_with_watermark()
+        
+        # 更新水印设置中的watermark_x和watermark_y
+        if hasattr(self, 'parent') and self.parent() and hasattr(self.parent(), 'image_manager'):
+            current_image_path = self.parent().image_manager.get_current_image_path()
+            if current_image_path:
+                current_watermark_settings = self.parent().image_manager.get_watermark_settings(current_image_path)
+                if current_watermark_settings is not None:
+                    current_watermark_settings["position"] = self.watermark_settings["position"]
+                    current_watermark_settings["watermark_x"] = self.watermark_settings["watermark_x"]
+                    current_watermark_settings["watermark_y"] = self.watermark_settings["watermark_y"]
+                    self.parent().image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+                    print(f"[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: 更新current_watermark_settings中的坐标: position={current_watermark_settings['position']}, watermark_x={current_watermark_settings['watermark_x']}, watermark_y={current_watermark_settings['watermark_y']}")
+                else:
+                    print("[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: current_watermark_settings为None，无法更新坐标")
+            else:
+                print("[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: 没有当前图片路径，无法更新坐标")
+        else:
+            print("[DEBUG] ImageWatermarkWidget.on_apply_coord_clicked: 无法访问image_manager，无法更新坐标")
+    
     def update_position(self, new_position):
         """
         统一更新position的函数，确保每次position变化时都更新watermark_x和watermark_y
@@ -304,8 +389,8 @@ class ImageWatermarkWidget(QWidget):
                 # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
                 # 关系：watermark_x = x * self.compression_scale（取整）
                 self.watermark_settings["position"] = (x, y)
-                self.watermark_settings["watermark_x"] = x * self.compression_scale
-                self.watermark_settings["watermark_y"] = y * self.compression_scale
+                self.watermark_settings["watermark_x"] = int(x * self.compression_scale)
+                self.watermark_settings["watermark_y"] = int(y * self.compression_scale)
                 print(f"[DEBUG] ImageWatermarkWidget.update_position: 更新position和坐标: position={self.watermark_settings['position']}, watermark_x={self.watermark_settings['watermark_x']}, watermark_y={self.watermark_settings['watermark_y']}")
         else:
             # 处理预定义的位置字符串
@@ -329,6 +414,9 @@ class ImageWatermarkWidget(QWidget):
         # 触发水印变化信号，这将更新预览和坐标显示
         print(f"[DEBUG] ImageWatermarkWidget.update_position: 调用函数: self.watermark_changed.emit")
         self.watermark_changed.emit()
+        
+        # 更新坐标输入框的值
+        self.update_coordinate_inputs()
 
     def calculate_watermark_coordinates(self):
         """
@@ -514,6 +602,25 @@ class ImageWatermarkWidget(QWidget):
         """设置原始图片尺寸，用于位置计算"""
         self.original_width = width
         self.original_height = height
+    
+    def update_coordinate_inputs(self):
+        """更新坐标输入框的值，使其与当前水印位置同步"""
+        position = self.watermark_settings.get("position", (0, 0))
+        
+        # 检查position是否为绝对坐标元组
+        if isinstance(position, tuple) and len(position) == 2:
+            x, y = position
+            
+            # 检查是否是绝对坐标（大于1的值）
+            if x > 1 or y > 1:
+                # 更新坐标输入框的值
+                self.x_coord_input.blockSignals(True)
+                self.y_coord_input.blockSignals(True)
+                self.x_coord_input.setValue(int(x))
+                self.y_coord_input.setValue(int(y))
+                self.x_coord_input.blockSignals(False)
+                self.y_coord_input.blockSignals(False)
+                print(f"[DEBUG] ImageWatermarkWidget.update_coordinate_inputs: 更新坐标输入框为 ({int(x)}, {int(y)})")
 
 if __name__ == "__main__":
     import sys

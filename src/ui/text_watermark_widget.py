@@ -55,6 +55,9 @@ class TextWatermarkWidget(QWidget):
         self.setup_ui()
         self.setup_connections()
         
+        # 初始化坐标输入框的值
+        self.update_coordinate_inputs()
+        
     def setup_ui(self):
         """设置用户界面"""
         layout = QVBoxLayout(self)
@@ -221,6 +224,34 @@ class TextWatermarkWidget(QWidget):
             setattr(self, f"pos_{pos_value[0]}_{pos_value[1]}_btn", btn)
             # 按钮点击事件
             btn.clicked.connect(self.on_position_changed)
+        
+        # 添加手动坐标输入
+        coord_input_layout = QHBoxLayout()
+        coord_input_layout.addWidget(QLabel("手动坐标:"))
+        
+        # X坐标输入
+        coord_input_layout.addWidget(QLabel("X:"))
+        self.coord_x_spin = QSpinBox()
+        self.coord_x_spin.setRange(0, 9999)
+        self.coord_x_spin.setValue(0)
+        coord_input_layout.addWidget(self.coord_x_spin)
+        
+        # Y坐标输入
+        coord_input_layout.addWidget(QLabel("Y:"))
+        self.coord_y_spin = QSpinBox()
+        self.coord_y_spin.setRange(0, 9999)
+        self.coord_y_spin.setValue(0)
+        coord_input_layout.addWidget(self.coord_y_spin)
+        
+        # 应用坐标按钮
+        self.apply_coord_button = QPushButton("应用坐标")
+        self.apply_coord_button.setToolTip("输入坐标后点击应用水印位置")
+        coord_input_layout.addWidget(self.apply_coord_button)
+        
+        coord_input_layout.addStretch()
+        
+        # 将坐标输入布局添加到位置设置组的第4行（九宫格下方）
+        position_layout.addLayout(coord_input_layout, 4, 0, 1, 3)
         
         layout.addWidget(position_group)
         
@@ -495,6 +526,8 @@ class TextWatermarkWidget(QWidget):
         
         # 位置设置
         # 位置按钮的点击事件已在创建按钮时连接
+        # 手动坐标输入应用按钮
+        self.apply_coord_button.clicked.connect(self.on_apply_coord_clicked)
         
         # 效果设置
         self.shadow_checkbox.stateChanged.connect(self.on_shadow_changed)
@@ -1052,6 +1085,47 @@ class TextWatermarkWidget(QWidget):
         # 触发水印变化信号，这将更新预览和坐标显示
         print(f"[DEBUG] TextWatermarkWidget.update_position: 调用函数: self.watermark_changed.emit")
         self.watermark_changed.emit()
+        
+        # 更新坐标输入框的值
+        self.update_coordinate_inputs()
+    
+    def update_coordinate_inputs(self):
+        """更新坐标输入框的值，使其与当前水印位置保持同步"""
+        # 如果position是元组格式（绝对坐标），则更新输入框的值
+        if isinstance(self.position, tuple) and len(self.position) == 2:
+            x, y = self.position
+            # 检查是否是绝对坐标（非相对位置）
+            if not (0 <= x <= 1 and 0 <= y <= 1):
+                self.coord_x_spin.setValue(int(x))
+                self.coord_y_spin.setValue(int(y))
+    
+    def on_apply_coord_clicked(self):
+        """处理手动坐标输入应用按钮点击事件"""
+        # 获取输入的坐标值
+        x = self.coord_x_spin.value()
+        y = self.coord_y_spin.value()
+        
+        # 更新position为绝对坐标
+        self.position = (x, y)
+        
+        # 更新watermark_x和watermark_y为压缩图坐标
+        # position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
+        # 关系: watermark_x = x * self.compression_scale (取整)
+        self.watermark_x = int(x * self.compression_scale)
+        self.watermark_y = int(y * self.compression_scale)
+        
+        # 更新UI状态
+        self.update_position((x, y))
+        
+        # 触发水印变化信号，更新预览
+        self.watermark_changed.emit()
+        
+        # 调用render方法立即更新水印渲染
+        if hasattr(self, 'parent') and self.parent():
+            main_window = self.parent()
+            if hasattr(main_window, 'update_preview_with_watermark'):
+                print(f"[DEBUG] TextWatermarkWidget.on_apply_coord_clicked: 调用render方法更新水印渲染")
+                main_window.update_preview_with_watermark()
     
     def on_shadow_changed(self, state):
         """阴影效果变化"""
