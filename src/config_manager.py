@@ -40,8 +40,8 @@ class ConfigManager:
             "watermark_defaults": {      # 水印默认设置
                 "text": "",  # 空字符串，不显示默认水印文本
                 "font_family": "Microsoft YaHei",  # 使用支持中文的字体
-                "font_size": 24,
-                "color": "#FFFFFF",
+                "font_size": 32,
+                "color": "#0000FF",
                 "opacity": 80
             }
         }

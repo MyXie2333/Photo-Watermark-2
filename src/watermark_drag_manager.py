@@ -146,6 +146,31 @@ class WatermarkDragManager:
     def on_mouse_move(self, event):
         """处理鼠标移动事件"""
         if self.is_dragging and self.drag_start_pos and self.watermark_offset:
+            # 获取当前水印设置，确保watermark_offset初始化为水印原来的位置
+            current_watermark_settings = self._get_current_watermark_settings()
+            if current_watermark_settings:
+                # 获取水印位置
+                if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
+                    original_position = (
+                        int(current_watermark_settings["watermark_x"]), 
+                        int(current_watermark_settings["watermark_y"])
+                    )
+                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 分支1 - 使用watermark_x和watermark_y作为原始位置: {original_position}")
+                elif "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
+                    original_position = current_watermark_settings["position"]
+                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 分支2 - 使用position元组作为原始位置: {original_position}")
+                else:
+                    # 默认位置（图片中心）
+                    original_position = (
+                        self.original_pixmap.width() // 2, 
+                        self.original_pixmap.height() // 2
+                    )
+                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 分支3 - 使用默认位置（图片中心）作为原始位置: {original_position}")
+                
+                # 更新水印偏移量为原始位置
+                self.watermark_offset = original_position
+                print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 初始化watermark_offset为水印原始位置: {original_position}")
+            
             # 计算鼠标移动距离
             delta_x = event.pos().x() - self.drag_start_pos.x()
             delta_y = event.pos().y() - self.drag_start_pos.y()
@@ -180,17 +205,19 @@ class WatermarkDragManager:
             watermark_width, watermark_height = self._calculate_watermark_size()
             
             # 允许水印超出边界一个水印的长度/宽度
-            min_x = -watermark_width
-            min_y = -watermark_height
-            max_x = original_width + watermark_width
-            max_y = original_height + watermark_height
+            # min_x = -watermark_width
+            # min_y = -watermark_height
+            # max_x = original_width + watermark_width
+            # max_y = original_height + watermark_height
             
-            # 确保水印不会超出允许的边界范围
-            new_x = max(min_x, min(new_x, max_x))
-            new_y = max(min_y, min(new_y, max_y))
+            # # 确保水印不会超出允许的边界范围
+            # new_x = max(min_x, min(new_x, max_x))
+            # new_y = max(min_y, min(new_y, max_y))
             
             # 调用位置变化回调
             if self.position_changed_callback:
+                print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 调用位置变化回调，新位置=({new_x}, {new_y})")
+                print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 调用函数: self.position_changed_callback")
                 self.position_changed_callback(new_x, new_y)
             
             # 更新拖拽起始位置和水印偏移量

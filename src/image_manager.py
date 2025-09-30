@@ -209,6 +209,58 @@ class ImageManager(QObject):
             return self.get_watermark_settings(current_path)
         return None
     
+    def ensure_watermark_settings_initialized(self, default_settings=None):
+        """
+        确保当前图片的水印设置已初始化
+        
+        Args:
+            default_settings: 默认水印设置，如果为None则使用默认值
+            
+        Returns:
+            初始化后的水印设置
+        """
+        current_path = self.get_current_image_path()
+        if not current_path:
+            print(f"[DEBUG] ImageManager.ensure_watermark_settings_initialized: 当前图片路径为空，无法初始化水印设置")
+            return None
+            
+        # 获取当前水印设置
+        settings = self.get_watermark_settings(current_path)
+        
+        # 如果设置不存在或为空，则使用默认设置初始化
+        if not settings:
+            if default_settings is None:
+                # 设置默认水印设置
+                default_settings = {
+                    "type": "text",
+                    "text": "Watermark",
+                    "font_family": "Arial",
+                    "font_size": 64,
+                    "color": "#0000ff",
+                    "position": "center",
+                    "watermark_x": 0,
+                    "watermark_y": 0,
+                    "rotation": 0,
+                    "opacity": 100,
+                    "bold": False,
+                    "italic": False,
+                    "underline": False,
+                    "stroke": False,
+                    "stroke_color": "#000000",
+                    "stroke_width": 1,
+                    "shadow": False,
+                    "shadow_color": "#00000080",
+                    "shadow_offset_x": 2,
+                    "shadow_offset_y": 2,
+                    "shadow_blur": 3
+                }
+            
+            # 设置水印设置
+            self.set_watermark_settings(current_path, default_settings)
+            settings = default_settings
+            
+        return settings
+    
     def set_scale_settings(self, image_path, scale):
         """设置指定图片的缩放比例"""
         if image_path:

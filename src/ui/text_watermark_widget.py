@@ -28,10 +28,10 @@ class TextWatermarkWidget(QWidget):
         # 默认水印设置
         self.watermark_text = ""  # 空字符串，不显示默认水印文本
         self.font_family = "Microsoft YaHei"  # 使用支持中文的字体
-        self.font_size = 24
+        self.font_size = 64 
         self.font_bold = False  # 粗体
         self.font_italic = False  # 斜体
-        self.font_color = QColor(255, 255, 255)  # 白色
+        self.font_color = QColor(0, 0, 255)  # 白色
         self.opacity = 80  # 透明度百分比
         self.position = (0.5, 0.5)  # 位置
         self.watermark_x = 0  # 水印X坐标
@@ -927,6 +927,7 @@ class TextWatermarkWidget(QWidget):
         Args:
             new_position: 新的位置，可以是元组(x, y)或相对位置字符串
         """
+        print(f"[DEBUG] TextWatermarkWidget.update_position: 修改position为 {new_position}")
         # 更新position
         self.position = new_position
         
@@ -934,9 +935,10 @@ class TextWatermarkWidget(QWidget):
         if isinstance(new_position, tuple) and len(new_position) == 2:
             self.watermark_x = int(new_position[0])
             self.watermark_y = int(new_position[1])
-            print(f"[DEBUG] 更新position和坐标: position={new_position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
+            print(f"[DEBUG] TextWatermarkWidget.update_position: 更新position和坐标: position={new_position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
         
         # 触发水印变化信号，这将更新预览和坐标显示
+        print(f"[DEBUG] TextWatermarkWidget.update_position: 调用函数: self.watermark_changed.emit")
         self.watermark_changed.emit()
     
     def on_shadow_changed(self, state):
@@ -1080,6 +1082,7 @@ class TextWatermarkWidget(QWidget):
             # 更新位置
             if "position" in settings:
                 # 使用update_position函数统一处理position更新
+                print(f"[DEBUG] TextWatermarkWidget.set_watermark_settings: 调用函数: self.update_position")
                 self.update_position(settings["position"])
                 # 更新位置按钮状态
                 for attr_name in dir(self):

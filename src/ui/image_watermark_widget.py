@@ -197,7 +197,10 @@ class ImageWatermarkWidget(QWidget):
                         btn.setChecked(True)
                         # 直接设置位置并计算坐标，不通过sender()
                         self.watermark_settings["position"] = "center"
+                        print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 选择水印图片后，修改position为 'center'")
+                        print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 调用函数: self.calculate_watermark_coordinates")
                         self.calculate_watermark_coordinates()
+                        print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 调用函数: self.update_watermark_settings")
                         self.update_watermark_settings()
                         # 取消其他按钮的选中状态
                         for other_btn in self.position_buttons:
@@ -232,6 +235,7 @@ class ImageWatermarkWidget(QWidget):
         
         if sender:
             pos_value = sender.property("position")
+            print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 修改position为 {pos_value}")
             
             # 将元组位置转换为字符串位置
             position_map = {
@@ -251,7 +255,9 @@ class ImageWatermarkWidget(QWidget):
                 sender.setChecked(True)
                 self.watermark_settings["position"] = position_map[pos_value]
                 # 计算水印坐标
+                print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 调用函数: self.calculate_watermark_coordinates")
                 self.calculate_watermark_coordinates()
+                print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 调用函数: self.update_watermark_settings")
                 self.update_watermark_settings()
                 # 取消其他按钮的选中状态
                 for other_btn in self.position_buttons:
@@ -311,7 +317,20 @@ class ImageWatermarkWidget(QWidget):
         self.watermark_settings["watermark_x"] = x
         self.watermark_settings["watermark_y"] = y
         
-        print(f"[DEBUG] 计算图片水印坐标: position={position}, 图片尺寸={self.original_width}x{self.original_height}, 水印尺寸={watermark_width}x{watermark_height}, 坐标=({x}, {y})")
+        # 如果有父窗口（主窗口），则更新主窗口中的current_watermark_settings
+        if hasattr(self, 'parent') and self.parent():
+            main_window = self.parent()
+            if hasattr(main_window, 'image_manager'):
+                current_image_path = main_window.image_manager.get_current_image_path()
+                if current_image_path:
+                    current_watermark_settings = main_window.image_manager.get_watermark_settings(current_image_path)
+                    if current_watermark_settings:
+                        current_watermark_settings["watermark_x"] = x
+                        current_watermark_settings["watermark_y"] = y
+                        main_window.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
+        
+        print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 计算图片水印坐标: position={position}, 图片尺寸={self.original_width}x{self.original_height}, 水印尺寸={watermark_width}x{watermark_height}, 坐标=({x}, {y})")
+        print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 修改watermark_x为 {x}, watermark_y为 {y}")
     
     def on_aspect_ratio_changed(self, checked):
         """保持纵横比选项变化时的处理"""

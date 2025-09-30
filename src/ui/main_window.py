@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
         self.config_manager = ConfigManager()
         
         # 初始化水印渲染器
-        self.watermark_renderer = WatermarkRenderer()
+        self.watermark_renderer = WatermarkRenderer(self)
         
         # 当前水印设置（用于UI显示和临时预览）
         self.current_watermark_settings = {}
@@ -518,6 +518,7 @@ class MainWindow(QMainWindow):
             
     def on_watermark_position_changed(self, x, y):
         """处理水印位置变化信号"""
+        print(f"[DEBUG] MainWindow.on_watermark_position_changed: 接收到位置变化回调，坐标=({x}, {y})")
         # 获取当前图片路径
         current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
@@ -525,6 +526,7 @@ class MainWindow(QMainWindow):
             current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
             
             # 使用update_position函数统一处理position更新
+            print(f"[DEBUG] MainWindow.on_watermark_position_changed: 调用函数: self.update_position")
             self.update_position((x, y), current_watermark_settings)
             
     def on_set_default_watermark(self):
@@ -936,7 +938,7 @@ class MainWindow(QMainWindow):
                     if "font_family" not in global_default_settings:
                         global_default_settings["font_family"] = "Microsoft YaHei"
                     if "font_size" not in global_default_settings:
-                        global_default_settings["font_size"] = 24
+                        global_default_settings["font_size"] = 64
                     if "font_bold" not in global_default_settings:
                         global_default_settings["font_bold"] = False
                     if "font_italic" not in global_default_settings:
@@ -1496,6 +1498,7 @@ class MainWindow(QMainWindow):
             new_position: 新的位置，可以是元组(x, y)或相对位置字符串
             current_watermark_settings: 当前水印设置，如果为None则从image_manager获取
         """
+        print(f"[DEBUG] MainWindow.update_position: 修改position为 {new_position}")
         # 获取当前图片路径
         current_image_path = self.image_manager.get_current_image_path()
         if not current_image_path:
@@ -1534,15 +1537,17 @@ class MainWindow(QMainWindow):
         if isinstance(new_position, tuple) and len(new_position) == 2:
             current_watermark_settings["watermark_x"] = int(new_position[0])
             current_watermark_settings["watermark_y"] = int(new_position[1])
-            print(f"[DEBUG] 更新position和坐标: position={new_position}, watermark_x={current_watermark_settings['watermark_x']}, watermark_y={current_watermark_settings['watermark_y']}")
+            print(f"[DEBUG] MainWindow.update_position: 更新position和坐标: position={new_position}, watermark_x={current_watermark_settings['watermark_x']}, watermark_y={current_watermark_settings['watermark_y']}")
         
         # 保存更新后的水印设置
         self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
         
         # 更新文本水印组件
+        print(f"[DEBUG] MainWindow.update_position: 调用函数: self.text_watermark_widget.set_watermark_settings")
         self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
         
         # 更新预览（这会自动调用update_watermark_coordinates）
+        print(f"[DEBUG] MainWindow.update_position: 调用函数: self.update_preview_with_watermark")
         self.update_preview_with_watermark()
         
         return current_watermark_settings

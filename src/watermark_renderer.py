@@ -13,13 +13,14 @@ import io
 class WatermarkRenderer:
     """水印渲染器"""
     
-    def __init__(self):
+    def __init__(self, parent=None):
         self.font_cache = {}
         self.last_watermark_position = None  # 记录最后一次渲染的水印位置
         self.last_rendered_image = None  # 缓存最后一次渲染的图片
         self.last_rendered_settings = None  # 缓存最后一次渲染的设置
         self.font_path_cache = {}  # 缓存字体文件路径，避免重复文件系统检查
         self.compression_scale = 1.0  # 原图到压缩图的压缩比例，默认为1.0
+        self.parent = parent  # 设置parent属性
         
     def set_compression_scale(self, scale):
         """
@@ -32,7 +33,7 @@ class WatermarkRenderer:
         
     def render_text_watermark(self, image, watermark_settings):
         """
-        渲染文本水印到图片上
+        渲染文本水印到图片上（使用图片水印渲染接口，但保留原有的位置计算逻辑）
         
         Args:
             image: PIL Image对象
@@ -50,9 +51,6 @@ class WatermarkRenderer:
             self._settings_equal(watermark_settings, self.last_rendered_settings)):
             print("[DEBUG] 使用缓存的水印图片")
             return self.last_rendered_image
-            
-        # 创建图片副本
-        watermarked_image = image.copy()
         
         # 获取水印设置
         text = watermark_settings["text"]
@@ -73,213 +71,178 @@ class WatermarkRenderer:
         shadow_offset = watermark_settings.get("shadow_offset", None)
         shadow_blur = watermark_settings.get("shadow_blur", None)
         
-        # 创建绘图对象
-        draw = ImageDraw.Draw(watermarked_image, 'RGBA')
+        # 创建图片副本
+        watermarked_image = image.copy()
         
-        # 获取字体（传递文本内容用于智能字体选择）
-        font = self._get_font(font_family, font_size, text, font_bold, font_italic)
+        # 将文本转换为图片
+        text_image = self._text_to_image(
+            text, font_family, font_size, font_bold, font_italic, color, opacity,
+            enable_shadow, enable_outline, outline_color, outline_width, outline_offset,
+            shadow_color, shadow_offset, shadow_blur
+        )
         
-        # 计算文本尺寸
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
+        # 获取文本图片尺寸
+        text_width, text_height = text_image.size
         
-        # 计算水印位置
+        # 计算水印位置（使用原有的位置计算逻辑）
         img_width, img_height = watermarked_image.size
+        print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 使用position={position}计算水印位置")
         x, y = self._calculate_position(position, img_width, img_height, text_width, text_height)
+        
+        # 更新current_watermark_settings中的坐标
+        if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+            current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+            if current_watermark_settings is not None:
+                # 更新watermark_x和watermark_y
+                current_watermark_settings["watermark_x"] = x
+                current_watermark_settings["watermark_y"] = y
+                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新current_watermark_settings中的坐标: watermark_x={x}, watermark_y={y}")
+            else:
+                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: current_watermark_settings为None，无法更新坐标")
         
         # 记录水印位置
         self.last_watermark_position = (x, y)
-        print(f"水印初始化坐标: x={x}, y={y}")
+        print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 水印初始化坐标: x={x}, y={y}")
         
-        # 应用旋转
+        # 如果需要旋转，应用旋转
         if rotation != 0:
-            # 创建一个足够大的透明图像来容纳旋转后的文本
-            diagonal = int((text_width**2 + text_height**2)**0.5)
-            rotated_text_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
-            rotated_draw = ImageDraw.Draw(rotated_text_img)
-            
-            # 在透明图像上绘制文本
-            # 处理粗体和斜体效果
-            # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
-            is_chinese_text = self._contains_chinese(text)
-            
-            # 创建临时图像来处理文本效果
-            temp_img = Image.new('RGBA', (diagonal, diagonal), (0, 0, 0, 0))
-            temp_draw = ImageDraw.Draw(temp_img)
-            
-            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
-                print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
-                # 如果是中文字体且需要斜体效果
-                if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
-                    # 创建一个单独的图像来绘制文本，然后应用斜体变换
-                    text_img = Image.new('RGBA', (text_width + 20, text_height + 20), (0, 0, 0, 0))
-                    text_draw = ImageDraw.Draw(text_img)
-                    
-                    # 正常绘制文本
-                    text_draw.text((10, 10), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-                    
-                    # 使用仿射变换实现斜体效果
-                    import numpy as np
-                    # 定义斜体变换矩阵（降低倾斜系数）
-                    shear_factor = 0.15  # 降低的倾斜系数
-                    matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
-                    # 应用变换
-                    skewed_img = text_img.transform(
-                        (int(text_img.width + text_img.height * shear_factor), text_img.height),
-                        Image.AFFINE,
-                        matrix,
-                        resample=Image.BICUBIC
-                    )
-                    
-                    # 如果还需要粗体效果，则多次绘制斜体图像
-                    if font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text):
-                        for dx in range(2):
-                            for dy in range(2):
-                                x_offset = (diagonal - text_width) // 2 + dx
-                                y_offset = (diagonal - text_height) // 2 + dy
-                                temp_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
-                    else:
-                        # 仅斜体效果
-                        temp_img.paste(skewed_img, ((diagonal - text_width) // 2, (diagonal - text_height) // 2), skewed_img)
-                # 对于英文字体或不需要斜体的字体
-                else:
-                    # 通过多次绘制文本实现粗体效果
-                    for dx in range(2):
-                        for dy in range(2):
-                            x_offset = (diagonal - text_width) // 2 + dx
-                            y_offset = (diagonal - text_height) // 2 + dy
-                            # 如果需要斜体效果（英文字体）
-                            if font_italic and not self._is_font_file_italic(font_family):
-                                # 对于英文字体，使用逐行偏移方法
-                                lines = text.split('\n')
-                                line_height = font_size  # 估算行高
-                                for i, line in enumerate(lines):
-                                    # 计算当前行的y坐标
-                                    line_y = y_offset + i * line_height
-                                    # 根据行号计算水平偏移量（模拟斜体倾斜效果）
-                                    offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                                    temp_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-                            else:
-                                temp_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            else:
-                # 正常绘制文本 - 添加向上的位移以避免汉字下半部分被截断
-                text_x = (diagonal - text_width) // 2
-                text_y = (diagonal - text_height) // 2 - 5  # 向上移动5个像素
-                temp_draw.text((text_x, text_y), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            
-            # 应用阴影和描边效果
-            rotated_text_img = self._apply_text_effects(temp_img, text_width, text_height, diagonal, 
-                                                       enable_shadow, enable_outline, color, opacity, font, text, 
-                                                       outline_color=outline_color, outline_width=outline_width, 
-                                                       outline_offset=outline_offset,
-                                                       shadow_color=shadow_color, shadow_offset=shadow_offset, 
-                                                       shadow_blur=shadow_blur, italic=font_italic)
-            
-            # 旋转文本图像
-            rotated_text_img = rotated_text_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
-            
-            # 应用阴影和描边效果
-            final_rotated_img = self._apply_text_effects(rotated_text_img, text_width, text_height, diagonal, 
-                                                       enable_shadow, enable_outline, color, opacity, font, text, 
-                                                       outline_color=outline_color, outline_width=outline_width, 
-                                                       outline_offset=outline_offset,
-                                                       shadow_color=shadow_color, shadow_offset=shadow_offset, 
-                                                       shadow_blur=shadow_blur, italic=font_italic)
-            
-            # 将应用效果后的旋转图像粘贴到主图像上
-            paste_x = x - (final_rotated_img.width - text_width) // 2
-            paste_y = y - (final_rotated_img.height - text_height) // 2
-            watermarked_image.paste(final_rotated_img, (paste_x, paste_y), final_rotated_img)
-        else:
-            # 直接在主图像上绘制文本（无旋转）
-            # 处理粗体和斜体效果
-            # 对于中文字体，总是手动实现粗体和斜体效果，以确保一致性
-            is_chinese_text = self._contains_chinese(text)
-            
-            # 创建临时图像来处理文本效果
-            temp_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
-            temp_draw = ImageDraw.Draw(temp_img)
-            
-            if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
-                print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
-                # 如果是中文字体且需要斜体效果
-                if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
-                    # 创建一个单独的图像来绘制文本，然后应用斜体变换
-                    # 增加画布边距以避免斜体时汉字下半部分被截断
-                    text_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
-                    text_draw = ImageDraw.Draw(text_img)
-                    
-                    # 正常绘制文本（添加向上的位移以避免斜体时汉字下半部分被截断）
-                    text_draw.text((20, 20), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-                    
-                    # 使用仿射变换实现斜体效果
-                    import numpy as np
-                    # 定义斜体变换矩阵（降低倾斜系数）
-                    shear_factor = 0.15  # 降低的倾斜系数
-                    matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
-                    # 应用变换，增加宽度以容纳斜体效果
-                    skewed_img = text_img.transform(
-                        (int(text_img.width + text_img.height * shear_factor), text_img.height),
-                        Image.AFFINE,
-                        matrix,
-                        resample=Image.BICUBIC
-                    )
-                    
-                    # 添加向上的位移来解决汉字下半部分被截断的问题
-                    vertical_offset = -5  # 向上移动5个像素，增加位移量
-                    
-                    # 如果还需要粗体效果，则多次绘制斜体图像
-                    if font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text):
-                        for dx in range(2):
-                            for dy in range(2):
-                                x_offset = 20 + dx
-                                y_offset = 20 + dy + vertical_offset  # 添加垂直位移
-                                temp_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
-                    else:
-                        # 仅斜体效果
-                        temp_img.paste(skewed_img, (20, 20 + vertical_offset), skewed_img)  # 添加垂直位移
-                # 对于英文字体或不需要斜体的字体
-                else:
-                    # 通过多次绘制文本实现粗体效果
-                    for dx in range(2):
-                        for dy in range(2):
-                            x_offset = 20 + dx
-                            y_offset = 20 + dy
-                            # 如果需要斜体效果（英文字体）
-                            if font_italic and not self._is_font_file_italic(font_family):
-                                # 对于英文字体，使用逐行偏移方法
-                                lines = text.split('\n')
-                                line_height = font_size  # 估算行高
-                                for i, line in enumerate(lines):
-                                    # 计算当前行的y坐标
-                                    line_y = y_offset + i * line_height
-                                    # 根据行号计算水平偏移量（模拟斜体倾斜效果）
-                                    offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                                    temp_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-                            else:
-                                temp_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            else:
-                # 正常绘制文本
-                # 添加向上的位移以避免汉字下半部分被截断
-                temp_draw.text((20, 15), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
-            
-            # 应用阴影和描边效果
-            final_img = self._apply_text_effects(temp_img, text_width, text_height, 0, 
-                                                enable_shadow, enable_outline, color, opacity, font, text, 
-                                                outline_color=outline_color, outline_width=outline_width, 
-                                                outline_offset=outline_offset,
-                                                shadow_color=shadow_color, shadow_offset=shadow_offset, 
-                                                shadow_blur=shadow_blur, italic=font_italic)
-            
-            # 将最终图像粘贴到主图像上
-            watermarked_image.paste(final_img, (x - 10, y - 10), final_img)
+            text_image = text_image.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
+            # 旋转后重新计算位置
+            rotated_width, rotated_height = text_image.size
+            x = x - (rotated_width - text_width) // 2
+            y = y - (rotated_height - text_height) // 2
+        
+        # 将文本图片粘贴到主图像上
+        watermarked_image.paste(text_image, (x, y), text_image)
             
         # 更新缓存
         self.last_rendered_image = watermarked_image
         self.last_rendered_settings = watermark_settings.copy()
             
         return watermarked_image
+    
+    def _text_to_image(self, text, font_family, font_size, font_bold, font_italic, color, opacity, 
+                       enable_shadow, enable_outline, outline_color, outline_width, outline_offset,
+                       shadow_color, shadow_offset, shadow_blur):
+        """
+        将文本转换为图片
+        
+        Args:
+            text: 文本内容
+            font_family: 字体名称
+            font_size: 字体大小
+            font_bold: 是否粗体
+            font_italic: 是否斜体
+            color: 文本颜色
+            opacity: 透明度
+            enable_shadow: 是否启用阴影
+            enable_outline: 是否启用描边
+            outline_color: 描边颜色
+            outline_width: 描边宽度
+            outline_offset: 描边偏移量
+            shadow_color: 阴影颜色
+            shadow_offset: 阴影偏移量
+            shadow_blur: 阴影模糊半径
+            
+        Returns:
+            PIL Image对象（文本图片）
+        """
+        # 获取字体
+        font = self._get_font(font_family, font_size, text, font_bold, font_italic)
+        
+        # 创建绘图对象计算文本尺寸
+        temp_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
+        temp_draw = ImageDraw.Draw(temp_img)
+        
+        # 计算文本尺寸
+        bbox = temp_draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # 创建足够大的透明图像来容纳文本
+        text_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
+        text_draw = ImageDraw.Draw(text_img)
+        
+        # 处理粗体和斜体效果
+        is_chinese_text = self._contains_chinese(text)
+        
+        if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
+            print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
+            # 如果是中文字体且需要斜体效果
+            if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
+                # 创建一个单独的图像来绘制文本，然后应用斜体变换
+                # 增加画布边距以避免斜体时汉字下半部分被截断
+                temp_text_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
+                temp_text_draw = ImageDraw.Draw(temp_text_img)
+                
+                # 正常绘制文本（添加向上的位移以避免斜体时汉字下半部分被截断）
+                temp_text_draw.text((20, 20), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                
+                # 使用仿射变换实现斜体效果
+                import numpy as np
+                # 定义斜体变换矩阵（降低倾斜系数）
+                shear_factor = 0.15  # 降低的倾斜系数
+                matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
+                # 应用变换，增加宽度以容纳斜体效果
+                skewed_img = temp_text_img.transform(
+                    (int(temp_text_img.width + temp_text_img.height * shear_factor), temp_text_img.height),
+                    Image.AFFINE,
+                    matrix,
+                    resample=Image.BICUBIC
+                )
+                
+                # 添加向上的位移来解决汉字下半部分被截断的问题
+                vertical_offset = -5  # 向上移动5个像素，增加位移量
+                
+                # 如果还需要粗体效果，则多次绘制斜体图像
+                if font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text):
+                    for dx in range(2):
+                        for dy in range(2):
+                            x_offset = dx
+                            y_offset = dy + vertical_offset  # 添加垂直位移
+                            text_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
+                else:
+                    # 仅斜体效果
+                    text_img.paste(skewed_img, (0, vertical_offset), skewed_img)  # 添加垂直位移
+            # 对于英文字体或不需要斜体的字体
+            else:
+                # 通过多次绘制文本实现粗体效果
+                for dx in range(2):
+                    for dy in range(2):
+                        x_offset = 20 + dx
+                        y_offset = 20 + dy
+                        # 如果需要斜体效果（英文字体）
+                        if font_italic and not self._is_font_file_italic(font_family):
+                            # 对于英文字体，使用逐行偏移方法
+                            lines = text.split('\n')
+                            line_height = font_size  # 估算行高
+                            for i, line in enumerate(lines):
+                                # 计算当前行的y坐标
+                                line_y = y_offset + i * line_height
+                                # 根据行号计算水平偏移量（模拟斜体倾斜效果）
+                                offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
+                                text_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+                        else:
+                            text_draw.text((x_offset, y_offset), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+        else:
+            # 正常绘制文本
+            # 添加向上的位移以避免汉字下半部分被截断
+            text_draw.text((20, 15), text, font=font, fill=(color.red(), color.green(), color.blue(), int(255 * opacity)))
+        
+        # 应用阴影和描边效果
+        final_img = self._apply_text_effects(text_img, text_width, text_height, 0, 
+                                            enable_shadow, enable_outline, color, opacity, font, text, 
+                                            outline_color=outline_color, outline_width=outline_width, 
+                                            outline_offset=outline_offset,
+                                            shadow_color=shadow_color, shadow_offset=shadow_offset, 
+                                            shadow_blur=shadow_blur, italic=font_italic)
+        
+        # 裁剪图像，去除透明边缘
+        bbox = final_img.getbbox()
+        if bbox:
+            final_img = final_img.crop(bbox)
+        
+        return final_img
     
     def _apply_text_effects(self, temp_img, text_width, text_height, diagonal, enable_shadow, enable_outline, 
                           color, opacity, font, text, outline_color=(0, 0, 0), outline_width=None, 
@@ -1204,66 +1167,203 @@ class WatermarkRenderer:
         
         # 处理元组形式的相对位置（九宫格位置）
         if isinstance(position, tuple) and len(position) >= 2:
+            print(f"[BRANCH] _calculate_position: 处理元组形式的相对位置，position={position}")
             # 检查是否是相对位置（0-1之间的值）
             x_ratio, y_ratio = position[0], position[1]
             if 0 <= x_ratio <= 1 and 0 <= y_ratio <= 1:
+                print(f"[BRANCH] _calculate_position: 处理相对位置（0-1之间的值），x_ratio={x_ratio}, y_ratio={y_ratio}")
                 # 计算绝对位置，直接转换为整数
                 x = int(round(img_width * x_ratio - text_width / 2))
                 y = int(round(img_height * y_ratio - text_height / 2))
+                print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
                 
                 # 如果有压缩比例，应用压缩比例并确保结果为整数
                 if hasattr(self, 'compression_scale') and self.compression_scale is not None:
-                    x = int(round(x * self.compression_scale))
-                    y = int(round(y * self.compression_scale))
+                    # x = int(round(x * self.compression_scale))
+                    # y = int(round(y * self.compression_scale))
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
                     print(f"[DEBUG] 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                # 如果有current_watermark_settings，更新watermark_x和watermark_y
+                # 详细检查条件，以便调试
+                has_parent_attr = hasattr(self, 'parent')
+                parent_exists = has_parent_attr and self.parent
+                has_image_manager_attr = parent_exists and hasattr(self.parent, 'image_manager')
+                
+                print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
+                print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
+                if has_parent_attr:
+                    print(f"  - self.parent: {self.parent}")
+                    print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
+                if parent_exists:
+                    print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
+                
+                if not has_parent_attr:
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
+                elif not parent_exists:
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
+                elif not has_image_manager_attr:
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
+                
+                if has_parent_attr and parent_exists and has_image_manager_attr:
+                    current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                    if current_watermark_settings is not None:
+                        # 更新watermark_x和watermark_y
+                        current_watermark_settings["watermark_x"] = x
+                        current_watermark_settings["watermark_y"] = y
+                        print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
+                        
+                        # 同时更新position
+                        if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
+                            # 计算原图坐标
+                            original_x = int(round(x / self.compression_scale))
+                            original_y = int(round(y / self.compression_scale))
+                            current_watermark_settings["position"] = (original_x, original_y)
+                            print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的position为 ({original_x}, {original_y})")
+                    else:
+                        print(f"[DEBUG] WatermarkRenderer._calculate_position: current_watermark_settings为None，无法更新坐标")
                 
                 return x, y
             else:
                 # 处理绝对坐标（九宫格计算出的原图坐标）
-                # 这些坐标已经是基于原图的绝对坐标，需要转换为相对于文本中心的坐标
+                print(f"[BRANCH] _calculate_position: 处理绝对坐标（九宫格计算出的原图坐标），x_ratio={x_ratio}, y_ratio={y_ratio}")
+                # 这些坐标已经是基于原图的绝对坐标，直接使用position中的坐标
                 x = int(round(position[0] - text_width / 2))
                 y = int(round(position[1] - text_height / 2))
+                print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
                 
                 # 如果有压缩比例，应用压缩比例并确保结果为整数
                 if hasattr(self, 'compression_scale') and self.compression_scale is not None:
                     x = int(round(x * self.compression_scale))
                     y = int(round(y * self.compression_scale))
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
                     print(f"[DEBUG] 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                # 如果有current_watermark_settings，更新watermark_x和watermark_y
+                # 详细检查条件，以便调试
+                has_parent_attr = hasattr(self, 'parent')
+                parent_exists = has_parent_attr and self.parent
+                has_image_manager_attr = parent_exists and hasattr(self.parent, 'image_manager')
+                
+                print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
+                print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
+                if has_parent_attr:
+                    print(f"  - self.parent: {self.parent}")
+                    print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
+                if parent_exists:
+                    print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
+                
+                if not has_parent_attr:
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
+                elif not parent_exists:
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
+                elif not has_image_manager_attr:
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
+                
+                if has_parent_attr and parent_exists and has_image_manager_attr:
+                    current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                    if current_watermark_settings is not None:
+                        # 更新watermark_x和watermark_y
+                        current_watermark_settings["watermark_x"] = x
+                        current_watermark_settings["watermark_y"] = y
+                        print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
+                        
+                        # 同时更新position
+                        if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
+                            # 计算原图坐标
+                            original_x = int(round(x / self.compression_scale))
+                            original_y = int(round(y / self.compression_scale))
+                            current_watermark_settings["position"] = (original_x, original_y)
+                            print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的position为 ({original_x}, {original_y})")
+                    else:
+                        print(f"[DEBUG] WatermarkRenderer._calculate_position: current_watermark_settings为None，无法更新坐标")
                 
                 return x, y
         
         # 处理预定义的位置字符串
+        print(f"[BRANCH] _calculate_position: 处理预定义的位置字符串，position='{position}'")
         if position == "top-left":
+            print(f"[BRANCH] _calculate_position: 执行top-left分支")
             x = margin
             y = margin
         elif position == "top-center":
+            print(f"[BRANCH] _calculate_position: 执行top-center分支")
             x = (img_width - text_width) // 2
             y = margin
         elif position == "top-right":
+            print(f"[BRANCH] _calculate_position: 执行top-right分支")
             x = img_width - text_width - margin
             y = margin
         elif position == "middle-left":
+            print(f"[BRANCH] _calculate_position: 执行middle-left分支")
             x = margin
             y = (img_height - text_height) // 2
         elif position == "center":
+            print(f"[BRANCH] _calculate_position: 执行center分支")
             x = (img_width - text_width) // 2
             y = (img_height - text_height) // 2
         elif position == "middle-right":
+            print(f"[BRANCH] _calculate_position: 执行middle-right分支")
             x = img_width - text_width - margin
             y = (img_height - text_height) // 2
         elif position == "bottom-left":
+            print(f"[BRANCH] _calculate_position: 执行bottom-left分支")
             x = margin
             y = img_height - text_height - margin
         elif position == "bottom-center":
+            print(f"[BRANCH] _calculate_position: 执行bottom-center分支")
             x = (img_width - text_width) // 2
             y = img_height - text_height - margin
         elif position == "bottom-right":
+            print(f"[BRANCH] _calculate_position: 执行bottom-right分支")
             x = img_width - text_width - margin
             y = img_height - text_height - margin
         else:
+            print(f"[BRANCH] _calculate_position: 执行默认分支（未知位置字符串）")
             x = margin
             y = margin
             
+        print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
+        
+        # 如果有current_watermark_settings，更新watermark_x和watermark_y
+        # 详细检查条件，以便调试
+        has_parent_attr = hasattr(self, 'parent')
+        parent_exists = has_parent_attr and self.parent
+        has_image_manager_attr = parent_exists and hasattr(self.parent, 'image_manager')
+        
+        print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
+        print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
+        if has_parent_attr:
+            print(f"  - self.parent: {self.parent}")
+            print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
+        if parent_exists:
+            print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
+        
+        if not has_parent_attr:
+            print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
+        elif not parent_exists:
+            print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
+        elif not has_image_manager_attr:
+            print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
+        
+        if has_parent_attr and parent_exists and has_image_manager_attr:
+            current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+            if current_watermark_settings is not None:
+                # 更新watermark_x和watermark_y
+                current_watermark_settings["watermark_x"] = x
+                current_watermark_settings["watermark_y"] = y
+                print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
+                
+                # 同时更新position
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
+                    # 计算原图坐标
+                    original_x = int(round(x / self.compression_scale))
+                    original_y = int(round(y / self.compression_scale))
+                    current_watermark_settings["position"] = (original_x, original_y)
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的position为 ({original_x}, {original_y})")
+            else:
+                print(f"[DEBUG] WatermarkRenderer._calculate_position: current_watermark_settings为None，无法更新坐标")
+        
         return x, y
     
     def render_image_watermark(self, image, watermark_settings, is_preview=False):
@@ -1328,17 +1428,30 @@ class WatermarkRenderer:
             # 计算水印位置
             img_width, img_height = watermarked_image.size
             watermark_width, watermark_height = watermark_img.size
+            print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 使用position={position}计算水印位置")
             x, y = self._calculate_position(position, img_width, img_height, watermark_width, watermark_height)
             
             # 记录水印位置
             self.last_watermark_position = (x, y)
-            print(f"图片水印初始化坐标: x={x}, y={y}")
+            print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 图片水印初始化坐标: x={x}, y={y}")
             
             # 如果有手动指定的坐标，使用手动指定的坐标
             if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
                 x = watermark_settings["watermark_x"]
                 y = watermark_settings["watermark_y"]
                 self.last_watermark_position = (x, y)
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 使用手动指定的坐标: x={x}, y={y}")
+            
+            # 如果有current_watermark_settings，更新watermark_x和watermark_y
+            if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+                current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                if current_watermark_settings is not None:
+                    # 更新watermark_x和watermark_y
+                    current_watermark_settings["watermark_x"] = x
+                    current_watermark_settings["watermark_y"] = y
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
+                else:
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: current_watermark_settings为None，无法更新坐标")
             
             # 将水印粘贴到主图片上
             watermarked_image.paste(watermark_img, (x, y), watermark_img)
@@ -1444,6 +1557,17 @@ class WatermarkRenderer:
                     adjusted_watermark_settings["watermark_x"] = adjusted_watermark_x
                     adjusted_watermark_settings["watermark_y"] = adjusted_watermark_y
                     print(f"[DEBUG] 调整图片水印坐标: ({original_watermark_x}, {original_watermark_y}) -> ({adjusted_watermark_x}, {adjusted_watermark_y}) (乘以压缩比例 {compression_scale:.4f})")
+                    
+                    # 更新current_watermark_settings中的坐标
+                    if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+                        current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                        if current_watermark_settings is not None:
+                            # 更新watermark_x和watermark_y
+                            current_watermark_settings["watermark_x"] = adjusted_watermark_x
+                            current_watermark_settings["watermark_y"] = adjusted_watermark_y
+                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: 更新current_watermark_settings中的预览坐标: watermark_x={adjusted_watermark_x}, watermark_y={adjusted_watermark_y}")
+                        else:
+                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: current_watermark_settings为None，无法更新预览坐标")
                 
                 # 应用图片水印
                 watermarked_image = self.render_image_watermark(preview_image, adjusted_watermark_settings, is_preview=True)
@@ -1452,6 +1576,17 @@ class WatermarkRenderer:
                 if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
                     adjusted_watermark_settings["watermark_x"] = watermark_settings["watermark_x"]
                     adjusted_watermark_settings["watermark_y"] = watermark_settings["watermark_y"]
+                    
+                    # 更新current_watermark_settings中的坐标
+                    if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+                        current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                        if current_watermark_settings is not None:
+                            # 更新watermark_x和watermark_y
+                            current_watermark_settings["watermark_x"] = watermark_settings["watermark_x"]
+                            current_watermark_settings["watermark_y"] = watermark_settings["watermark_y"]
+                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: 恢复current_watermark_settings中的原始坐标: watermark_x={watermark_settings['watermark_x']}, watermark_y={watermark_settings['watermark_y']}")
+                        else:
+                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: current_watermark_settings为None，无法恢复原始坐标")
             else:
                 # 默认为文本水印
                 watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
