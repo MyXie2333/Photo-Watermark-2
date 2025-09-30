@@ -621,6 +621,9 @@ class ImageWatermarkWidget(QWidget):
         
         if "keep_aspect_ratio" in settings:
             self.aspect_ratio_checkbox.setChecked(settings["keep_aspect_ratio"])
+        
+        # 更新坐标输入框
+        self.update_coordinate_inputs()
     
     def set_original_dimensions(self, width, height):
         """设置原始图片尺寸，用于位置计算"""

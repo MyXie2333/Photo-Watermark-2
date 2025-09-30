@@ -1560,6 +1560,14 @@ class MainWindow(QMainWindow):
         print(f"[DEBUG] MainWindow.update_position: 调用函数: self.text_watermark_widget.set_watermark_settings")
         self.text_watermark_widget.set_watermark_settings(current_watermark_settings)
         
+        # 更新图片水印组件
+        if self.watermark_type == "image" and self.image_watermark_widget:
+            print(f"[DEBUG] MainWindow.update_position: 调用函数: self.image_watermark_widget.set_watermark_settings")
+            self.image_watermark_widget.set_watermark_settings(current_watermark_settings)
+            # 更新图片水印组件的坐标输入框
+            print(f"[DEBUG] MainWindow.update_position: 调用函数: self.image_watermark_widget.update_coordinate_inputs")
+            self.image_watermark_widget.update_coordinate_inputs()
+        
         # 更新预览（这会自动调用update_watermark_coordinates）
         print(f"[DEBUG] MainWindow.update_position: 调用函数: self.update_preview_with_watermark")
         self.update_preview_with_watermark()
