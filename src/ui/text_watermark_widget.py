@@ -1121,6 +1121,11 @@ class TextWatermarkWidget(QWidget):
                 self.watermark_x = int(x*self.compression_scale)
                 self.watermark_y = int(y*self.compression_scale)
                 print(f"[DEBUG] TextWatermarkWidget.update_position: 更新position和坐标: position={self.position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
+        elif isinstance(new_position, list) and len(new_position) == 2:
+            # 处理列表格式的位置（从JSON文件加载的可能是列表而不是元组）
+            print(f"[BRANCH] TextWatermarkWidget.update_position: 处理列表格式的位置，new_position={new_position}")
+            # 将列表转换为元组，然后按照元组的逻辑处理
+            self.update_position(tuple(new_position))
         else:
             # 处理预定义的位置字符串
             print(f"[BRANCH] TextWatermarkWidget.update_position: 处理预定义的位置字符串，position='{new_position}'")
@@ -1339,9 +1344,23 @@ class TextWatermarkWidget(QWidget):
             
             # 更新位置
             if "position" in settings:
-                # 使用update_position函数统一处理position更新
-                print(f"[DEBUG] TextWatermarkWidget.set_watermark_settings: 调用函数: self.update_position")
-                self.update_position(settings["position"])
+                # 检查position是否是列表或元组格式
+                if isinstance(settings["position"], (list, tuple)) and len(settings["position"]) == 2:
+                    # 如果是列表或元组，检查是否是相对位置（0-1之间的值）
+                    x, y = settings["position"]
+                    if 0 <= x <= 1 and 0 <= y <= 1:
+                        # 是相对位置，直接使用
+                        print(f"[DEBUG] TextWatermarkWidget.set_watermark_settings: 检测到相对位置 {settings['position']}")
+                        self.update_position(settings["position"])
+                    else:
+                        # 是绝对位置，直接使用
+                        print(f"[DEBUG] TextWatermarkWidget.set_watermark_settings: 检测到绝对位置 {settings['position']}")
+                        self.update_position(settings["position"])
+                else:
+                    # 如果不是列表或元组，可能是字符串或其他格式，直接使用
+                    print(f"[DEBUG] TextWatermarkWidget.set_watermark_settings: 检测到非列表/元组位置 {settings['position']}")
+                    self.update_position(settings["position"])
+                
                 # 更新位置按钮状态
                 for attr_name in dir(self):
                     if attr_name.startswith("pos_") and attr_name.endswith("_btn"):

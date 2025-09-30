@@ -478,6 +478,14 @@ class MainWindow(QMainWindow):
             if isinstance(config_watermark_settings.get('color'), QColor):
                 config_watermark_settings['color'] = config_watermark_settings['color'].name()
             
+            # 处理描边颜色
+            if isinstance(config_watermark_settings.get('outline_color'), QColor):
+                config_watermark_settings['outline_color'] = config_watermark_settings['outline_color'].name()
+            
+            # 处理阴影颜色
+            if isinstance(config_watermark_settings.get('shadow_color'), QColor):
+                config_watermark_settings['shadow_color'] = config_watermark_settings['shadow_color'].name()
+            
             self.config_manager.set_watermark_defaults(config_watermark_settings)
     
     def on_watermark_changed(self):
@@ -538,6 +546,10 @@ class MainWindow(QMainWindow):
                 config_watermark_settings = current_watermark_settings.copy()
                 if isinstance(config_watermark_settings.get('color'), QColor):
                     config_watermark_settings['color'] = config_watermark_settings['color'].name()
+                if isinstance(config_watermark_settings.get('outline_color'), QColor):
+                    config_watermark_settings['outline_color'] = config_watermark_settings['outline_color'].name()
+                if isinstance(config_watermark_settings.get('shadow_color'), QColor):
+                    config_watermark_settings['shadow_color'] = config_watermark_settings['shadow_color'].name()
                 
                 # 设置为默认水印
                 self.config_manager.set_watermark_defaults(config_watermark_settings)
