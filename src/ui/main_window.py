@@ -1841,6 +1841,8 @@ class MainWindow(QMainWindow):
             watermark_settings (dict): 水印设置
             export_settings (dict): 导出设置
         """
+        # 添加标记，用于记录用户是否已经确认过使用原文件夹
+        self._confirmed_original_folder_export = False
         # 获取当前图片所在目录
         current_dir = os.path.dirname(image_path)
         
@@ -1903,6 +1905,10 @@ class MainWindow(QMainWindow):
                 if not output_dir:
                     return  # 用户取消了选择
                 
+                # 如果用户选择了非原文件夹，清除标记
+                if os.path.normpath(output_dir) != os.path.normpath(current_dir):
+                    self._confirmed_original_folder_export = False
+                
                 # 再次检查是否是原文件夹
                 if os.path.normpath(output_dir) == os.path.normpath(current_dir):
                     # 创建自定义按钮的对话框
@@ -1945,8 +1951,11 @@ class MainWindow(QMainWindow):
                             
                             if reply == QMessageBox.No:
                                 return  # 用户取消导出
+                            else:
+                                self._confirmed_original_folder_export = True  # 设置标记，用户已确认使用原文件夹
                     else:
                         # 用户选择继续使用原文件夹
+                        self._confirmed_original_folder_export = True  # 设置标记，用户已确认使用原文件夹
                         pass  # 继续执行导出
             else:
                 # 用户选择继续使用原文件夹，需要二次确认
@@ -1960,6 +1969,8 @@ class MainWindow(QMainWindow):
                 
                 if reply == QMessageBox.No:
                     return  # 用户取消导出
+                
+                self._confirmed_original_folder_export = True  # 设置标记，用户已确认使用原文件夹
         
         # 构建完整的输出文件路径
         output_path = os.path.join(output_dir, output_filename)
@@ -1975,7 +1986,7 @@ class MainWindow(QMainWindow):
             return  # 用户取消了保存
         
         # 再次检查最终选择的路径是否在原文件夹中
-        if os.path.normpath(os.path.dirname(file_name)) == os.path.normpath(current_dir):
+        if os.path.normpath(os.path.dirname(file_name)) == os.path.normpath(current_dir) and not self._confirmed_original_folder_export:
             # 创建自定义按钮的对话框
             msg_box = QMessageBox(self)
             msg_box.setIcon(QMessageBox.Warning)
@@ -2009,6 +2020,10 @@ class MainWindow(QMainWindow):
                 
                 if not new_dir:
                     return  # 用户取消了选择
+                
+                # 如果用户选择了非原文件夹，清除标记
+                if os.path.normpath(new_dir) != os.path.normpath(current_dir):
+                    self._confirmed_original_folder_export = False
                 
                 # 构建新的输出文件路径
                 new_file_name = os.path.join(new_dir, os.path.basename(file_name))
@@ -2052,6 +2067,10 @@ class MainWindow(QMainWindow):
                         if not new_dir:
                             return  # 用户取消了选择
                         
+                        # 如果用户选择了非原文件夹，清除标记
+                        if os.path.normpath(new_dir) != os.path.normpath(current_dir):
+                            self._confirmed_original_folder_export = False
+                        
                         # 构建新的输出文件路径
                         new_file_name = os.path.join(new_dir, os.path.basename(file_name))
                         
@@ -2080,6 +2099,7 @@ class MainWindow(QMainWindow):
                                 return  # 用户取消导出
                     else:
                         # 用户选择继续使用原文件夹
+                        self._confirmed_original_folder_export = True  # 设置标记，用户已确认使用原文件夹
                         pass  # 继续执行导出
             else:
                 # 用户选择继续使用原文件夹，需要二次确认
