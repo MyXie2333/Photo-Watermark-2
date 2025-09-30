@@ -2328,8 +2328,18 @@ class MainWindow(QMainWindow):
             watermark_settings = {}
         
         # 需要将QColor对象转换为字符串格式，以便JSON序列化
-        if isinstance(watermark_settings.get('color'), QColor):
-            watermark_settings['color'] = watermark_settings['color'].name()
+        if watermark_settings:
+            # 处理主颜色
+            if isinstance(watermark_settings.get('color'), QColor):
+                watermark_settings['color'] = watermark_settings['color'].name()
+            
+            # 处理描边颜色
+            if isinstance(watermark_settings.get('outline_color'), QColor):
+                watermark_settings['outline_color'] = watermark_settings['outline_color'].name()
+            
+            # 处理阴影颜色
+            if isinstance(watermark_settings.get('shadow_color'), QColor):
+                watermark_settings['shadow_color'] = watermark_settings['shadow_color'].name()
         
         return watermark_settings
 

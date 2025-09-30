@@ -209,8 +209,18 @@ class TemplateManagerDialog(QDialog):
         if ok and template_name:
             # 需要将QColor对象转换为字符串格式，以便JSON序列化
             template_settings = self.current_watermark_settings.copy()
+            
+            # 处理主颜色
             if isinstance(template_settings.get('color'), QColor):
                 template_settings['color'] = template_settings['color'].name()
+            
+            # 处理描边颜色
+            if isinstance(template_settings.get('outline_color'), QColor):
+                template_settings['outline_color'] = template_settings['outline_color'].name()
+            
+            # 处理阴影颜色
+            if isinstance(template_settings.get('shadow_color'), QColor):
+                template_settings['shadow_color'] = template_settings['shadow_color'].name()
             
             success = self.config_manager.save_watermark_template_to_file(
                 "text", template_name, template_settings
@@ -235,8 +245,18 @@ class TemplateManagerDialog(QDialog):
         if ok and template_name:
             # 需要将QColor对象转换为字符串格式，以便JSON序列化
             template_settings = self.current_watermark_settings.copy()
+            
+            # 处理主颜色
             if isinstance(template_settings.get('color'), QColor):
                 template_settings['color'] = template_settings['color'].name()
+            
+            # 处理描边颜色
+            if isinstance(template_settings.get('outline_color'), QColor):
+                template_settings['outline_color'] = template_settings['outline_color'].name()
+            
+            # 处理阴影颜色
+            if isinstance(template_settings.get('shadow_color'), QColor):
+                template_settings['shadow_color'] = template_settings['shadow_color'].name()
             
             success = self.config_manager.save_watermark_template_to_file(
                 "image", template_name, template_settings

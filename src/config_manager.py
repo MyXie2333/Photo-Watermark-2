@@ -192,7 +192,18 @@ class ConfigManager:
     
     def get_watermark_defaults(self):
         """获取水印默认设置"""
-        return self.config["watermark_defaults"].copy()
+        defaults = self.config["watermark_defaults"].copy()
+        if defaults and "color" in defaults:
+            # 确保颜色是QColor对象
+            color = defaults["color"]
+            if isinstance(color, str):
+                # 如果是字符串，转换为QColor对象
+                defaults["color"] = QColor(color)
+            elif isinstance(color, (tuple, list)) and len(color) >= 3:
+                # 如果是元组或列表，转换为QColor对象
+                defaults["color"] = QColor(color[0], color[1], color[2])
+        
+        return defaults
     
     def set_watermark_defaults(self, defaults):
         """设置水印默认设置"""
@@ -223,10 +234,22 @@ class ConfigManager:
             return False
         
         # 需要将QColor对象转换为字符串格式，以便JSON序列化
-        if template_settings and isinstance(template_settings.get('color'), QColor):
+        if template_settings:
             # 创建副本以避免修改原始设置
             settings_copy = template_settings.copy()
-            settings_copy['color'] = settings_copy['color'].name()
+            
+            # 处理主颜色
+            if isinstance(settings_copy.get('color'), QColor):
+                settings_copy['color'] = settings_copy['color'].name()
+            
+            # 处理描边颜色
+            if isinstance(settings_copy.get('outline_color'), QColor):
+                settings_copy['outline_color'] = settings_copy['outline_color'].name()
+            
+            # 处理阴影颜色
+            if isinstance(settings_copy.get('shadow_color'), QColor):
+                settings_copy['shadow_color'] = settings_copy['shadow_color'].name()
+            
             template_settings = settings_copy
         
         # 确保模板字典存在
@@ -257,7 +280,29 @@ class ConfigManager:
             return None
         
         try:
-            return self.config["watermark_templates"][template_type].get(template_name)
+            template_settings = self.config["watermark_templates"][template_type].get(template_name)
+            if template_settings and "color" in template_settings:
+                # 确保颜色是QColor对象
+                color = template_settings["color"]
+                if isinstance(color, str):
+                    # 如果是字符串，转换为QColor对象
+                    template_settings["color"] = QColor(color)
+                elif isinstance(color, (tuple, list)) and len(color) >= 3:
+                    # 如果是元组或列表，转换为QColor对象
+                    template_settings["color"] = QColor(color[0], color[1], color[2])
+            
+            # 同样处理描边颜色和阴影颜色
+            if template_settings and "outline_color" in template_settings:
+                outline_color = template_settings["outline_color"]
+                if isinstance(outline_color, (tuple, list)) and len(outline_color) >= 3:
+                    template_settings["outline_color"] = QColor(outline_color[0], outline_color[1], outline_color[2])
+            
+            if template_settings and "shadow_color" in template_settings:
+                shadow_color = template_settings["shadow_color"]
+                if isinstance(shadow_color, (tuple, list)) and len(shadow_color) >= 3:
+                    template_settings["shadow_color"] = QColor(shadow_color[0], shadow_color[1], shadow_color[2])
+            
+            return template_settings
         except KeyError:
             return None
     
@@ -390,7 +435,29 @@ class ConfigManager:
         Returns:
             dict: 上一次关闭时的水印设置，如果不存在则返回None
         """
-        return self.config.get("last_watermark_settings")
+        last_settings = self.config.get("last_watermark_settings")
+        if last_settings and "color" in last_settings:
+            # 确保颜色是QColor对象
+            color = last_settings["color"]
+            if isinstance(color, str):
+                # 如果是字符串，转换为QColor对象
+                last_settings["color"] = QColor(color)
+            elif isinstance(color, (tuple, list)) and len(color) >= 3:
+                # 如果是元组或列表，转换为QColor对象
+                last_settings["color"] = QColor(color[0], color[1], color[2])
+        
+        # 同样处理描边颜色和阴影颜色
+        if last_settings and "outline_color" in last_settings:
+            outline_color = last_settings["outline_color"]
+            if isinstance(outline_color, (tuple, list)) and len(outline_color) >= 3:
+                last_settings["outline_color"] = QColor(outline_color[0], outline_color[1], outline_color[2])
+        
+        if last_settings and "shadow_color" in last_settings:
+            shadow_color = last_settings["shadow_color"]
+            if isinstance(shadow_color, (tuple, list)) and len(shadow_color) >= 3:
+                last_settings["shadow_color"] = QColor(shadow_color[0], shadow_color[1], shadow_color[2])
+        
+        return last_settings
     
     def set_load_last_settings(self, load_last):
         """
@@ -478,10 +545,22 @@ class ConfigManager:
             type_dir.mkdir(parents=True, exist_ok=True)
             
             # 需要将QColor对象转换为字符串格式，以便JSON序列化
-            if template_settings and isinstance(template_settings.get('color'), QColor):
+            if template_settings:
                 # 创建副本以避免修改原始设置
                 settings_copy = template_settings.copy()
-                settings_copy['color'] = settings_copy['color'].name()
+                
+                # 处理主颜色
+                if isinstance(settings_copy.get('color'), QColor):
+                    settings_copy['color'] = settings_copy['color'].name()
+                
+                # 处理描边颜色
+                if isinstance(settings_copy.get('outline_color'), QColor):
+                    settings_copy['outline_color'] = settings_copy['outline_color'].name()
+                
+                # 处理阴影颜色
+                if isinstance(settings_copy.get('shadow_color'), QColor):
+                    settings_copy['shadow_color'] = settings_copy['shadow_color'].name()
+                
                 template_settings = settings_copy
             
             # 保存到文件
@@ -520,9 +599,35 @@ class ConfigManager:
                 with open(template_file, 'r', encoding='utf-8') as f:
                     template_settings = json.load(f)
                 
-                # 如果颜色是字符串，转换为QColor对象
-                if template_settings and isinstance(template_settings.get('color'), str):
-                    template_settings['color'] = QColor(template_settings['color'])
+                # 处理主颜色
+                if template_settings and "color" in template_settings:
+                    color = template_settings["color"]
+                    if isinstance(color, str):
+                        # 如果是字符串，转换为QColor对象
+                        template_settings["color"] = QColor(color)
+                    elif isinstance(color, (tuple, list)) and len(color) >= 3:
+                        # 如果是元组或列表，转换为QColor对象
+                        template_settings["color"] = QColor(color[0], color[1], color[2])
+                
+                # 处理描边颜色
+                if template_settings and "outline_color" in template_settings:
+                    outline_color = template_settings["outline_color"]
+                    if isinstance(outline_color, str):
+                        # 如果是字符串，转换为QColor对象
+                        template_settings["outline_color"] = QColor(outline_color)
+                    elif isinstance(outline_color, (tuple, list)) and len(outline_color) >= 3:
+                        # 如果是元组或列表，转换为QColor对象
+                        template_settings["outline_color"] = QColor(outline_color[0], outline_color[1], outline_color[2])
+                
+                # 处理阴影颜色
+                if template_settings and "shadow_color" in template_settings:
+                    shadow_color = template_settings["shadow_color"]
+                    if isinstance(shadow_color, str):
+                        # 如果是字符串，转换为QColor对象
+                        template_settings["shadow_color"] = QColor(shadow_color)
+                    elif isinstance(shadow_color, (tuple, list)) and len(shadow_color) >= 3:
+                        # 如果是元组或列表，转换为QColor对象
+                        template_settings["shadow_color"] = QColor(shadow_color[0], shadow_color[1], shadow_color[2])
                 
                 return template_settings
             return None

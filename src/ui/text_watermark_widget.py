@@ -699,8 +699,19 @@ class TextWatermarkWidget(QWidget):
         
     def on_color_clicked(self):
         """颜色按钮点击"""
+        # 确保font_color是QColor对象
+        initial_color = self.font_color
+        if not isinstance(initial_color, QColor):
+            if isinstance(initial_color, (tuple, list)) and len(initial_color) >= 3:
+                initial_color = QColor(initial_color[0], initial_color[1], initial_color[2])
+            elif isinstance(initial_color, str):
+                initial_color = QColor(initial_color)
+            else:
+                initial_color = QColor(0, 0, 255)  # 默认蓝色
+                print(f"[DEBUG CLR] 警告：font_color类型错误 {type(self.font_color)}，使用默认颜色")
+        
         # 打开颜色选择对话框
-        color = QColorDialog.getColor(self.font_color, self, "选择水印颜色")
+        color = QColorDialog.getColor(initial_color, self, "选择水印颜色")
         
         if color.isValid():
             self.font_color = color
@@ -1301,15 +1312,19 @@ class TextWatermarkWidget(QWidget):
             
             # 更新颜色和透明度
             if "color" in settings:
-                if isinstance(settings["color"], tuple) and len(settings["color"]) == 3:
-                    # 如果是RGB元组，转换为QColor
+                if isinstance(settings["color"], (tuple, list)) and len(settings["color"]) >= 3:
+                    # 如果是RGB元组或列表，转换为QColor
                     self.font_color = QColor(settings["color"][0], settings["color"][1], settings["color"][2])
                 elif isinstance(settings["color"], str):
                     # 如果是字符串，尝试从字符串创建QColor
                     self.font_color = QColor(settings["color"])
-                else:
-                    # 其他情况，直接使用
+                elif isinstance(settings["color"], QColor):
+                    # 如果已经是QColor对象，直接使用
                     self.font_color = settings["color"]
+                else:
+                    # 其他情况，使用默认颜色
+                    self.font_color = QColor(0, 0, 255)  # 默认蓝色
+                    print(f"[DEBUG CLR] 警告：无法识别的颜色类型 {type(settings['color'])}，使用默认颜色")
                 self.update_color_button()
             
             if "opacity" in settings:
@@ -1361,8 +1376,19 @@ class TextWatermarkWidget(QWidget):
             
             # 更新效果详细设置
             if "outline_color" in settings:
-                color_rgb = settings["outline_color"]
-                self.outline_color = QColor(color_rgb[0], color_rgb[1], color_rgb[2])
+                if isinstance(settings["outline_color"], (tuple, list)) and len(settings["outline_color"]) >= 3:
+                    # 如果是RGB元组或列表，转换为QColor
+                    self.outline_color = QColor(settings["outline_color"][0], settings["outline_color"][1], settings["outline_color"][2])
+                elif isinstance(settings["outline_color"], str):
+                    # 如果是字符串，尝试从字符串创建QColor
+                    self.outline_color = QColor(settings["outline_color"])
+                elif isinstance(settings["outline_color"], QColor):
+                    # 如果已经是QColor对象，直接使用
+                    self.outline_color = settings["outline_color"]
+                else:
+                    # 其他情况，使用默认颜色
+                    self.outline_color = QColor(0, 0, 0)  # 默认黑色
+                    print(f"[DEBUG CLR] 警告：无法识别的outline_color类型 {type(settings['outline_color'])}，使用默认颜色")
                 self.update_outline_color_button()
             
             if "outline_width" in settings:
@@ -1373,8 +1399,19 @@ class TextWatermarkWidget(QWidget):
                     self.outline_width_spin.setValue(self.outline_width)
             
             if "shadow_color" in settings:
-                color_rgb = settings["shadow_color"]
-                self.shadow_color = QColor(color_rgb[0], color_rgb[1], color_rgb[2])
+                if isinstance(settings["shadow_color"], (tuple, list)) and len(settings["shadow_color"]) >= 3:
+                    # 如果是RGB元组或列表，转换为QColor
+                    self.shadow_color = QColor(settings["shadow_color"][0], settings["shadow_color"][1], settings["shadow_color"][2])
+                elif isinstance(settings["shadow_color"], str):
+                    # 如果是字符串，尝试从字符串创建QColor
+                    self.shadow_color = QColor(settings["shadow_color"])
+                elif isinstance(settings["shadow_color"], QColor):
+                    # 如果已经是QColor对象，直接使用
+                    self.shadow_color = settings["shadow_color"]
+                else:
+                    # 其他情况，使用默认颜色
+                    self.shadow_color = QColor(0, 0, 0)  # 默认黑色
+                    print(f"[DEBUG CLR] 警告：无法识别的shadow_color类型 {type(settings['shadow_color'])}，使用默认颜色")
                 self.update_shadow_color_button()
             
             if "shadow_offset" in settings:
@@ -1427,15 +1464,19 @@ class TextWatermarkWidget(QWidget):
             
             # 更新颜色和透明度
             if "color" in settings:
-                if isinstance(settings["color"], tuple) and len(settings["color"]) == 3:
-                    # 如果是RGB元组，转换为QColor
+                if isinstance(settings["color"], (tuple, list)) and len(settings["color"]) >= 3:
+                    # 如果是RGB元组或列表，转换为QColor
                     self.font_color = QColor(settings["color"][0], settings["color"][1], settings["color"][2])
                 elif isinstance(settings["color"], str):
                     # 如果是字符串，尝试从字符串创建QColor
                     self.font_color = QColor(settings["color"])
-                else:
-                    # 其他情况，直接使用
+                elif isinstance(settings["color"], QColor):
+                    # 如果已经是QColor对象，直接使用
                     self.font_color = settings["color"]
+                else:
+                    # 其他情况，使用默认颜色
+                    self.font_color = QColor(0, 0, 255)  # 默认蓝色
+                    print(f"[DEBUG CLR] 警告：无法识别的颜色类型 {type(settings['color'])}，使用默认颜色")
                 self.update_color_button()
             
             if "opacity" in settings:
