@@ -346,58 +346,16 @@ class MainWindow(QMainWindow):
         """设置菜单栏"""
         menu_bar = self.menuBar()
         
-        # 文件菜单
-        file_menu = menu_bar.addMenu("文件")
-        
-        self.open_action = QAction("打开图片", self)
-        self.open_action.setShortcut("Ctrl+O")
-        file_menu.addAction(self.open_action)
-        
-        self.open_folder_action = QAction("打开文件夹", self)
-        self.open_folder_action.setShortcut("Ctrl+Shift+O")
-        file_menu.addAction(self.open_folder_action)
-        
-        file_menu.addSeparator()
+        # 导出菜单
+        export_menu = menu_bar.addMenu("导出")
         
         self.export_current_action = QAction("导出此图片", self)
         self.export_current_action.setShortcut("Ctrl+E")
-        file_menu.addAction(self.export_current_action)
+        export_menu.addAction(self.export_current_action)
         
         self.export_all_action = QAction("全部导出", self)
         self.export_all_action.setShortcut("Ctrl+Shift+E")
-        file_menu.addAction(self.export_all_action)
-        
-        file_menu.addSeparator()
-        
-        self.exit_action = QAction("退出", self)
-        self.exit_action.setShortcut("Ctrl+Q")
-        file_menu.addAction(self.exit_action)
-        
-        # 编辑菜单
-        edit_menu = menu_bar.addMenu("编辑")
-        
-        
-        
-        # 视图菜单
-        view_menu = menu_bar.addMenu("视图")
-        
-        self.zoom_in_action = QAction("视图放大", self)
-        self.zoom_in_action.setShortcut("Ctrl++")
-        view_menu.addAction(self.zoom_in_action)
-        
-        self.zoom_out_action = QAction("视图缩小", self)
-        self.zoom_out_action.setShortcut("Ctrl+-")
-        view_menu.addAction(self.zoom_out_action)
-        
-        self.fit_action = QAction("适应窗口", self)
-        self.fit_action.setShortcut("Ctrl+0")
-        view_menu.addAction(self.fit_action)
-        
-        # 帮助菜单
-        help_menu = menu_bar.addMenu("帮助")
-        
-        self.about_action = QAction("关于", self)
-        help_menu.addAction(self.about_action)
+        export_menu.addAction(self.export_all_action)
         
     def setup_status_bar(self):
         """设置状态栏"""
@@ -449,17 +407,8 @@ class MainWindow(QMainWindow):
         self.drag_manager.set_position_changed_callback(self.on_watermark_position_changed)
         
         # 菜单动作
-        self.open_action.triggered.connect(self.import_images)
-        self.open_folder_action.triggered.connect(self.import_folder)
         self.export_current_action.triggered.connect(self.export_image)
         self.export_all_action.triggered.connect(self.export_all_images)
-        self.exit_action.triggered.connect(self.close)
-        self.about_action.triggered.connect(self.show_about)
-        
-        # 视图菜单
-        self.zoom_in_action.triggered.connect(self.zoom_in)
-        self.zoom_out_action.triggered.connect(self.zoom_out)
-        self.fit_action.triggered.connect(self.fit_to_window)
         
     def switch_watermark_type(self, watermark_type):
         """切换水印类型"""
@@ -1867,11 +1816,18 @@ class MainWindow(QMainWindow):
             retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
             continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
             
+            # 添加关闭按钮，使其可以通过点击右上角的叉来关闭
+            close_button = msg_box.addButton("取消", QMessageBox.RejectRole)
+            
             # 设置默认按钮
             msg_box.setDefaultButton(retry_button)
             
             # 显示对话框
             msg_box.exec_()
+            
+            # 检查用户是否点击了关闭按钮
+            if msg_box.clickedButton() == close_button:
+                return  # 用户关闭了对话框
             
             if msg_box.clickedButton() == retry_button:
                 # 用户选择重新选择文件夹
@@ -1967,11 +1923,18 @@ class MainWindow(QMainWindow):
             retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
             continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
             
+            # 添加关闭按钮，使其可以通过点击右上角的叉来关闭
+            close_button = msg_box.addButton("关闭", QMessageBox.RejectRole)
+            
             # 设置默认按钮
             msg_box.setDefaultButton(retry_button)
             
             # 显示对话框
             msg_box.exec_()
+            
+            # 检查用户是否点击了关闭按钮
+            if msg_box.clickedButton() == close_button:
+                return  # 用户关闭了对话框
             
             if msg_box.clickedButton() == retry_button:
                 # 用户选择重新选择文件夹
@@ -2128,11 +2091,18 @@ class MainWindow(QMainWindow):
             retry_button = msg_box.addButton("重新选择文件夹", QMessageBox.ActionRole)
             continue_button = msg_box.addButton("继续使用原文件夹", QMessageBox.ActionRole)
             
+            # 添加关闭按钮，使其可以通过点击右上角的叉来关闭
+            close_button = msg_box.addButton("关闭", QMessageBox.RejectRole)
+            
             # 设置默认按钮
             msg_box.setDefaultButton(retry_button)
             
             # 显示对话框
             msg_box.exec_()
+            
+            # 检查用户是否点击了关闭按钮
+            if msg_box.clickedButton() == close_button:
+                return  # 用户关闭了对话框
             
             if msg_box.clickedButton() == retry_button:
                 # 用户选择重新选择文件夹
