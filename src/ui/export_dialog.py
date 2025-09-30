@@ -46,6 +46,7 @@ class ExportDialog(QDialog):
         self.naming_combo.addItem("保留原文件名", "original")
         self.naming_combo.addItem("添加自定义前缀", "prefix")
         self.naming_combo.addItem("添加自定义后缀", "suffix")
+        self.naming_combo.addItem("自定义命名", "custom")
         self.naming_combo.currentIndexChanged.connect(self.update_naming_options)
         
         naming_layout.addWidget(QLabel("命名规则:"))
@@ -57,6 +58,16 @@ class ExportDialog(QDialog):
         self.prefix_suffix_input = QLineEdit("wm_")
         self.prefix_suffix_layout.addWidget(self.prefix_suffix_label)
         self.prefix_suffix_layout.addWidget(self.prefix_suffix_input)
+        
+        # 自定义命名输入框
+        self.custom_name_layout = QHBoxLayout()
+        self.custom_name_label = QLabel("自定义命名:")
+        self.custom_name_input = QLineEdit(self.original_name)
+        self.custom_name_input.textChanged.connect(self.update_filename_preview)
+        self.custom_name_layout.addWidget(self.custom_name_label)
+        self.custom_name_layout.addWidget(self.custom_name_input)
+        
+        naming_layout.addLayout(self.custom_name_layout)
         
         naming_layout.addLayout(self.prefix_suffix_layout)
         
@@ -183,10 +194,14 @@ class ExportDialog(QDialog):
         if option == "original":
             self.prefix_suffix_label.setEnabled(False)
             self.prefix_suffix_input.setEnabled(False)
+            self.custom_name_label.setEnabled(False)
+            self.custom_name_input.setEnabled(False)
         elif option == "prefix":
             self.prefix_suffix_label.setText("前缀:")
             self.prefix_suffix_label.setEnabled(True)
             self.prefix_suffix_input.setEnabled(True)
+            self.custom_name_label.setEnabled(False)
+            self.custom_name_input.setEnabled(False)
             # 设置前缀的默认值
             if self.prefix_suffix_input.text() == "_watermarked":
                 self.prefix_suffix_input.setText("wm_")
@@ -194,9 +209,16 @@ class ExportDialog(QDialog):
             self.prefix_suffix_label.setText("后缀:")
             self.prefix_suffix_label.setEnabled(True)
             self.prefix_suffix_input.setEnabled(True)
+            self.custom_name_label.setEnabled(False)
+            self.custom_name_input.setEnabled(False)
             # 设置后缀的默认值
             if self.prefix_suffix_input.text() == "wm_":
                 self.prefix_suffix_input.setText("_watermarked")
+        elif option == "custom":
+            self.prefix_suffix_label.setEnabled(False)
+            self.prefix_suffix_input.setEnabled(False)
+            self.custom_name_label.setEnabled(True)
+            self.custom_name_input.setEnabled(True)
         
         self.update_filename_preview()
     
@@ -212,6 +234,13 @@ class ExportDialog(QDialog):
         elif option == "suffix":
             suffix = self.prefix_suffix_input.text()
             filename = f"{self.original_name}{suffix}{self.original_extension}"
+        elif option == "custom":
+            custom_name = self.custom_name_input.text()
+            # 确保文件名包含扩展名
+            if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
+                filename = f"{custom_name}{self.original_extension}"
+            else:
+                filename = custom_name
         
         self.filename_preview.setText(filename)
     
@@ -247,6 +276,7 @@ class ExportDialog(QDialog):
         settings = {
             'naming_rule': self.naming_combo.currentData(),
             'prefix_suffix': self.prefix_suffix_input.text(),
+            'custom_name': self.custom_name_input.text(),
             'resize_option': self.size_option_group.checkedId(),
             'resize_value': self.resize_value_spin.value() if self.resize_value_spin.isEnabled() else None,
             'percent_value': self.percent_value_spin.value() if self.percent_value_spin.isEnabled() else None,
@@ -267,6 +297,13 @@ class ExportDialog(QDialog):
         elif option == "suffix":
             suffix = self.prefix_suffix_input.text()
             filename = f"{self.original_name}{suffix}{self.original_extension}"
+        elif option == "custom":
+            custom_name = self.custom_name_input.text()
+            # 确保文件名包含扩展名
+            if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
+                filename = f"{custom_name}{self.original_extension}"
+            else:
+                filename = custom_name
         
         return filename
     
