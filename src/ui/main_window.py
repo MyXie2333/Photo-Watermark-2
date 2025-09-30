@@ -2344,6 +2344,13 @@ class MainWindow(QMainWindow):
         elif template_type == "image" and self.image_watermark_widget:
             self.image_watermark_widget.set_watermark_settings(template_settings)
         
+        # 更新当前图片的水印设置
+        self.update_watermark_settings_from_current_widget()
+        
+        # 重置预览缓存，强制重新生成预览图像
+        self.last_preview_settings = None
+        self.last_preview_image = None
+        
         # 更新预览
         current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:

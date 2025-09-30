@@ -709,17 +709,51 @@ class TextWatermarkWidget(QWidget):
         
     def update_color_button(self):
         """更新颜色按钮样式"""
-        color_style = f"background-color: rgba({self.font_color.red()}, {self.font_color.green()}, {self.font_color.blue()}, {self.opacity * 255 // 100});"
+        # 确保颜色是QColor对象
+        def ensure_qcolor(color):
+            if isinstance(color, QColor):
+                return color
+            elif isinstance(color, tuple) and len(color) >= 3:
+                return QColor(color[0], color[1], color[2])
+            elif isinstance(color, str):
+                return QColor(color)
+            else:
+                return QColor(0, 0, 0)  # 默认黑色
+        
+        font_color = ensure_qcolor(self.font_color)
+        color_style = f"background-color: rgba({font_color.red()}, {font_color.green()}, {font_color.blue()}, {self.opacity * 255 // 100});"
         self.color_button.setStyleSheet(color_style)
     
     def update_outline_color_button(self):
         """更新描边颜色按钮的背景色"""
-        color = self.outline_color
+        # 确保颜色是QColor对象
+        def ensure_qcolor(color):
+            if isinstance(color, QColor):
+                return color
+            elif isinstance(color, tuple) and len(color) >= 3:
+                return QColor(color[0], color[1], color[2])
+            elif isinstance(color, str):
+                return QColor(color)
+            else:
+                return QColor(0, 0, 0)  # 默认黑色
+        
+        color = ensure_qcolor(self.outline_color)
         self.outline_color_button.setStyleSheet(f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); border: 1px solid #ccc;")
         
     def update_shadow_color_button(self):
         """更新阴影颜色按钮的背景色"""
-        color = self.shadow_color
+        # 确保颜色是QColor对象
+        def ensure_qcolor(color):
+            if isinstance(color, QColor):
+                return color
+            elif isinstance(color, tuple) and len(color) >= 3:
+                return QColor(color[0], color[1], color[2])
+            elif isinstance(color, str):
+                return QColor(color)
+            else:
+                return QColor(0, 0, 0)  # 默认黑色
+        
+        color = ensure_qcolor(self.shadow_color)
         self.shadow_color_button.setStyleSheet(f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); border: 1px solid #ccc;")
         
     def on_opacity_changed(self, value):
@@ -1183,13 +1217,28 @@ class TextWatermarkWidget(QWidget):
         
     def get_watermark_settings(self):
         """获取水印设置"""
+        # 确保颜色是QColor对象
+        def ensure_qcolor(color):
+            if isinstance(color, QColor):
+                return color
+            elif isinstance(color, tuple) and len(color) >= 3:
+                return QColor(color[0], color[1], color[2])
+            elif isinstance(color, str):
+                return QColor(color)
+            else:
+                return QColor(0, 0, 0)  # 默认黑色
+        
+        font_color = ensure_qcolor(self.font_color)
+        outline_color = ensure_qcolor(self.outline_color)
+        shadow_color = ensure_qcolor(self.shadow_color)
+        
         return {
             "text": self.watermark_text,
             "font_family": self.font_family,
             "font_size": self.font_size,
             "font_bold": self.font_bold,
             "font_italic": self.font_italic,
-            "color": (self.font_color.red(), self.font_color.green(), self.font_color.blue()),
+            "color": (font_color.red(), font_color.green(), font_color.blue()),
             "opacity": self.opacity,
             "position": self.position,
             "watermark_x": self.watermark_x,
@@ -1197,10 +1246,10 @@ class TextWatermarkWidget(QWidget):
             "rotation": self.rotation,
             "enable_shadow": self.enable_shadow,
             "enable_outline": self.enable_outline,
-            "outline_color": (self.outline_color.red(), self.outline_color.green(), self.outline_color.blue()),
+            "outline_color": (outline_color.red(), outline_color.green(), outline_color.blue()),
             "outline_width": self.outline_width,
             "outline_offset": self.outline_offset,
-            "shadow_color": (self.shadow_color.red(), self.shadow_color.green(), self.shadow_color.blue()),
+            "shadow_color": (shadow_color.red(), shadow_color.green(), shadow_color.blue()),
             "shadow_offset": self.shadow_offset,
             "shadow_blur": self.shadow_blur
         }
