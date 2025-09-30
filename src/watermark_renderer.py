@@ -1505,31 +1505,54 @@ class WatermarkRenderer:
                     y = int(round(img_height * y_ratio - watermark_height / 2))
                     print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 计算出position为 ({x}, {y})")
             
-            # 如果有压缩比例，应用压缩比例并确保结果为整数
-            if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+            # 如果是预览模式且有压缩比例，应用压缩比例并确保结果为整数
+            if is_preview and hasattr(self, 'compression_scale') and self.compression_scale is not None:
                 x = int(round(x * self.compression_scale))
                 y = int(round(y * self.compression_scale))
-                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+            else:
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，不应用压缩比例，水印坐标: ({x}, {y})")
             
             # 记录水印位置
             self.last_watermark_position = (x, y)
             print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 图片水印初始化坐标: x={x}, y={y}")
             
-            # 如果有手动指定的坐标，使用手动指定的坐标
+            # 根据模式选择坐标来源
             if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
-                x = watermark_settings["watermark_x"]
-                y = watermark_settings["watermark_y"]
+                if is_preview:
+                    # 预览模式使用手动指定的坐标
+                    x = watermark_settings["watermark_x"]
+                    y = watermark_settings["watermark_y"]
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，使用手动指定坐标: ({x}, {y})")
+                else:
+                    # 导出模式使用position计算出的坐标（不使用手动指定的坐标）
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，使用position计算出的坐标，忽略手动指定坐标")
                 self.last_watermark_position = (x, y)
-                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 使用手动指定的坐标: x={x}, y={y}")
             
             # 如果有current_watermark_settings，更新watermark_x和watermark_y
             if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
-                    # 更新最终的watermark_x和watermark_y
-                    current_watermark_settings["watermark_x"] = int(round(x))
-                    current_watermark_settings["watermark_y"] = int(round(y))
-                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 更新current_watermark_settings中的最终watermark_x为 {x}, watermark_y为 {y}")
+                    # 如果是预览模式，需要将坐标转换回原始坐标（去除压缩比例）
+                    if is_preview and hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale != 0:
+                        # 如果是使用手动指定坐标，直接保存
+                        if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
+                            current_watermark_settings["watermark_x"] = int(round(x))
+                            current_watermark_settings["watermark_y"] = int(round(y))
+                            print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，直接保存手动指定坐标({x}, {y})")
+                        else:
+                            # 如果是使用position计算坐标，需要转换回原始坐标
+                            original_x = int(round(x / self.compression_scale))
+                            original_y = int(round(y / self.compression_scale))
+                            print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，将position计算坐标({x}, {y})转换回原始坐标({original_x}, {original_y})")
+                            # 更新最终的watermark_x和watermark_y为原始坐标
+                            current_watermark_settings["watermark_x"] = original_x
+                            current_watermark_settings["watermark_y"] = original_y
+                    else:
+                        # 导出模式直接使用当前坐标
+                        current_watermark_settings["watermark_x"] = int(round(x))
+                        current_watermark_settings["watermark_y"] = int(round(y))
+                        print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，直接使用当前坐标更新watermark_x为 {x}, watermark_y为 {y}")
                 else:
                     print(f"[DEBUG] WatermarkRenderer.render_image_watermark: current_watermark_settings为None，无法更新最终坐标")
             
