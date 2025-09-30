@@ -24,6 +24,7 @@ try:
     from config_manager import ConfigManager
     from ui.text_watermark_widget import TextWatermarkWidget
     from ui.image_watermark_widget import ImageWatermarkWidget
+    from watermark_drag_manager import WatermarkDragManager
 except ImportError as e:
     print(f"导入错误: {e}")
     print("当前Python路径:", sys.path)
@@ -62,17 +63,29 @@ class MainWindow(QMainWindow):
         # 初始化原始图片变量
         self.original_pixmap = None
         
-        # 初始化拖拽相关变量
-        self.is_dragging = False
-        self.drag_start_pos = None
-        self.watermark_offset = None
-        
         # 预览更新优化：缓存上一次的预览设置
         self.last_preview_settings = None
         self.last_preview_image = None
         
         self.setup_ui()
+        
+        # 初始化水印拖拽管理器
+        self.drag_manager = WatermarkDragManager(self.preview_widget)
+        self.drag_manager.set_watermark_widgets(self.text_watermark_widget, self.image_watermark_widget)
+        
+        # 设置水印设置回调函数
+        self.drag_manager.set_watermark_settings_callback(self._get_current_watermark_settings)
+        
         self.setup_connections()
+        
+    def _get_current_watermark_settings(self):
+        """
+        获取当前水印设置的内部方法，用于WatermarkDragManager的回调
+        """
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
+            return self.image_manager.get_current_watermark_settings()
+        return {}
         
     def setup_ui(self):
         """设置用户界面"""
@@ -173,9 +186,7 @@ class MainWindow(QMainWindow):
         self.preview_widget.dropEvent = self.dropEvent
         
         # 安装事件过滤器以捕获鼠标事件用于水印拖拽
-        self.preview_widget.mousePressEvent = self.on_preview_mouse_press
-        self.preview_widget.mouseMoveEvent = self.on_preview_mouse_move
-        self.preview_widget.mouseReleaseEvent = self.on_preview_mouse_release
+        # 注意：鼠标事件现在由WatermarkDragManager处理
         self.preview_widget.setMouseTracking(True)
         
         # 预览滚动区域
@@ -429,6 +440,9 @@ class MainWindow(QMainWindow):
             self.image_watermark_widget.watermark_changed.connect(self.on_watermark_changed)
             self.image_watermark_widget.set_default_watermark.connect(self.on_set_default_watermark)
         
+        # 水印拖拽管理器回调函数设置
+        self.drag_manager.set_position_changed_callback(self.on_watermark_position_changed)
+        
         # 菜单动作
         self.open_action.triggered.connect(self.import_images)
         self.open_folder_action.triggered.connect(self.import_folder)
@@ -445,6 +459,9 @@ class MainWindow(QMainWindow):
         """切换水印类型"""
         # 更新水印类型和按钮状态
         self.watermark_type = watermark_type
+        
+        # 通知拖拽管理器水印类型变化
+        self.drag_manager.set_watermark_type(watermark_type)
         
         if watermark_type == "text":
             self.text_watermark_button.setChecked(True)
@@ -499,7 +516,16 @@ class MainWindow(QMainWindow):
         if current_image_path:
             self.update_preview_with_watermark()
             
-            # 水印坐标显示已在update_preview_with_watermark中更新
+    def on_watermark_position_changed(self, x, y):
+        """处理水印位置变化信号"""
+        # 获取当前图片路径
+        current_image_path = self.image_manager.get_current_image_path()
+        if current_image_path:
+            # 获取当前水印设置
+            current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
+            
+            # 使用update_position函数统一处理position更新
+            self.update_position((x, y), current_watermark_settings)
             
     def on_set_default_watermark(self):
         """为当前图片设置默认水印"""
@@ -552,6 +578,9 @@ class MainWindow(QMainWindow):
             if self.original_pixmap.isNull():
                 self.preview_widget.setText("无法加载图片")
                 return
+                
+            # 更新水印拖拽管理器的原始图片
+            self.drag_manager.set_original_pixmap(self.original_pixmap)
             
             # 检查当前图片是否有保存的缩放比例
             saved_scale = self.image_manager.get_scale_settings(current_image_path)
