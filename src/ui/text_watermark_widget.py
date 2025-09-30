@@ -928,14 +928,120 @@ class TextWatermarkWidget(QWidget):
             new_position: 新的位置，可以是元组(x, y)或相对位置字符串
         """
         print(f"[DEBUG] TextWatermarkWidget.update_position: 修改position为 {new_position}")
-        # 更新position
-        self.position = new_position
         
-        # 如果新位置是元组格式，提取x和y坐标
+        # 如果新位置是元组格式，检查是否是相对位置（0-1之间的值）
         if isinstance(new_position, tuple) and len(new_position) == 2:
-            self.watermark_x = int(new_position[0])
-            self.watermark_y = int(new_position[1])
-            print(f"[DEBUG] TextWatermarkWidget.update_position: 更新position和坐标: position={new_position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
+            x_ratio, y_ratio = new_position[0], new_position[1]
+            
+            # 检查是否是相对位置（0-1之间的值）
+            if 0 <= x_ratio <= 1 and 0 <= y_ratio <= 1:
+                print(f"[BRANCH] TextWatermarkWidget.update_position: 处理相对位置（0-1之间的值），x_ratio={x_ratio}, y_ratio={y_ratio}")
+                
+                # 获取图片尺寸
+                img_width = self.original_width
+                img_height = self.original_height
+                
+                # 计算文本尺寸
+                try:
+                    from PIL import Image, ImageDraw, ImageFont
+                    
+                    # 创建一个足够大的临时图像来绘制文本，用于计算文本边界框
+                    temp_img = Image.new('RGB', (img_width, img_height), (255, 255, 255))
+                    temp_draw = ImageDraw.Draw(temp_img)
+                    
+                    # 尝试加载字体
+                    try:
+                        # 获取主窗口的watermark_renderer实例
+                        main_window = self.parent()
+                        if hasattr(main_window, 'watermark_renderer'):
+                            # 使用watermark_renderer中的字体加载逻辑，确保字体一致性
+                            font = main_window.watermark_renderer._get_font(self.font_family, self.font_size, self.watermark_text, self.font_bold, self.font_italic)
+                        else:
+                            # 如果无法获取watermark_renderer，尝试加载指定字体
+                            try:
+                                font = ImageFont.truetype(self.font_family, self.font_size)
+                            except:
+                                # 如果指定字体加载失败，尝试使用系统默认字体
+                                try:
+                                    font = ImageFont.truetype("arial.ttf", self.font_size)
+                                except:
+                                    # 如果系统默认字体也加载失败，使用PIL默认字体
+                                    font = ImageFont.load_default()
+                    except Exception as e:
+                        print(f"[DEBUG] 加载字体失败: {e}")
+                        # 如果加载字体失败，使用默认字体
+                        font = ImageFont.load_default()
+                    
+                    # 获取文本边界框，用于精确计算文本尺寸
+                    try:
+                        # 确保文本是字符串类型，避免编码问题
+                        text_str = str(self.watermark_text) if self.watermark_text is not None else ""
+                        bbox = temp_draw.textbbox((0, 0), text_str, font=font)
+                    except Exception as text_error:
+                        print(f"[DEBUG] 文本边界框计算失败: {text_error}")
+                        # 使用默认边界框
+                        text_width = self.font_size * 3 if self.watermark_text else self.font_size
+                        text_height = self.font_size
+                        bbox = (0, 0, text_width, text_height)
+                    
+                    # 从边界框中提取文本的宽度和高度
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+                    
+                    # 考虑旋转对边界的影响
+                    if self.rotation != 0:
+                        import math
+                        # 计算旋转后的边界框
+                        angle_rad = math.radians(abs(self.rotation))
+                        rotated_width = abs(text_width * math.cos(angle_rad)) + abs(text_height * math.sin(angle_rad))
+                        rotated_height = abs(text_width * math.sin(angle_rad)) + abs(text_height * math.cos(angle_rad))
+                        text_width, text_height = rotated_width, rotated_height
+                    
+                except Exception as e:
+                    print(f"[DEBUG] 使用PIL获取文本边界框时出错: {e}")
+                    # 设置默认值
+                    text_width = self.font_size * 3 if self.watermark_text else self.font_size
+                    text_height = self.font_size
+                
+                # 计算绝对位置，直接转换为整数
+                x = int(round(img_width * x_ratio - text_width / 2))
+                y = int(round(img_height * y_ratio - text_height / 2))
+                print(f"[DEBUG] TextWatermarkWidget.update_position: 计算绝对位置为 ({x}, {y})")
+                
+                # 如果有压缩比例，应用压缩比例并确保结果为整数
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                    # x = int(round(x * self.compression_scale))
+                    # y = int(round(y * self.compression_scale))
+                    print(f"[DEBUG] TextWatermarkWidget.update_position: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                # 更新position为绝对坐标
+                self.position = (x, y)
+                self.watermark_x = int(x*self.compression_scale)
+                self.watermark_y = int(y*self.compression_scale)
+                print(f"[DEBUG] TextWatermarkWidget.update_position: 更新position和坐标: position={self.position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
+            else:
+                # 处理绝对坐标
+                print(f"[BRANCH] TextWatermarkWidget.update_position: 处理绝对坐标，x_ratio={x_ratio}, y_ratio={y_ratio}")
+                # 这些坐标已经是绝对坐标，直接使用
+                x = int(round(new_position[0]))
+                y = int(round(new_position[1]))
+                
+                # 如果有压缩比例，应用压缩比例并确保结果为整数
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                    # x = int(round(x * self.compression_scale))
+                    # y = int(round(y * self.compression_scale))
+                    print(f"[DEBUG] TextWatermarkWidget.update_position: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                # 更新position和坐标
+                self.position = (x, y)
+                self.watermark_x = x*self.compression_scale
+                self.watermark_y = y*self.compression_scale
+                print(f"[DEBUG] TextWatermarkWidget.update_position: 更新position和坐标: position={self.position}, watermark_x={self.watermark_x}, watermark_y={self.watermark_y}")
+        else:
+            # 处理预定义的位置字符串
+            print(f"[BRANCH] TextWatermarkWidget.update_position: 处理预定义的位置字符串，position='{new_position}'")
+            # 更新position
+            self.position = new_position
         
         # 触发水印变化信号，这将更新预览和坐标显示
         print(f"[DEBUG] TextWatermarkWidget.update_position: 调用函数: self.watermark_changed.emit")

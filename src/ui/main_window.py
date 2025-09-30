@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
         
         # 初始化缩放相关变量
         self.current_scale = 1.0
+        self.compression_scale = 1.0  # 添加压缩比例属性
         
         # 初始化水印类型
         self.watermark_type = "text"  # 默认文本水印
@@ -667,6 +668,8 @@ class MainWindow(QMainWindow):
                         original_width = ratio_info.get('original_width', 0)
                         original_height = ratio_info.get('original_height', 0)
                         compression_scale = ratio_info.get('scale_factor', 1.0)
+                        # 更新MainWindow类的compression_scale属性
+                        self.compression_scale = compression_scale
                         preview_width = ratio_info.get('preview_width', 0)
                         preview_height = ratio_info.get('preview_height', 0)
                         print(f"[DEBUG] 原图尺寸: {original_width}x{original_height}")
@@ -1437,7 +1440,8 @@ class MainWindow(QMainWindow):
                 if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
                     watermark_x = int(current_watermark_settings["watermark_x"])
                     watermark_y = int(current_watermark_settings["watermark_y"])
-                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
+                    position = current_watermark_settings.get("position", "")
+                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                 # 如果没有watermark_x和watermark_y，则使用position
                 elif "position" in current_watermark_settings:
                     position = current_watermark_settings["position"]
@@ -1453,9 +1457,9 @@ class MainWindow(QMainWindow):
                         if current_image_path:
                             self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
                         # 水印位置已经是基于原图坐标系的整数，直接显示
-                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
+                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                     else:
-                        self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                        self.watermark_coord_label.setText(f"水印坐标: (0, 0), position: {position}")
                 else:
                     self.watermark_coord_label.setText("水印坐标: (0, 0)")
             # 图片水印处理
@@ -1464,14 +1468,15 @@ class MainWindow(QMainWindow):
                 if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
                     watermark_x = int(current_watermark_settings["watermark_x"])
                     watermark_y = int(current_watermark_settings["watermark_y"])
-                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
+                    position = current_watermark_settings.get("position", "")
+                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                 # 如果没有watermark_x和watermark_y，则使用position
                 elif "position" in current_watermark_settings:
                     position = current_watermark_settings["position"]
                     if isinstance(position, tuple) and len(position) == 2:
                         # 确保水印坐标是基于原图坐标系的整数
-                        watermark_x = int(position[0])
-                        watermark_y = int(position[1])
+                        watermark_x = int(position[0]*compression_scale)
+                        watermark_y = int(position[1]*compression_scale)
                         # 更新watermark_x和watermark_y，以便下次可以直接使用
                         current_watermark_settings["watermark_x"] = watermark_x
                         current_watermark_settings["watermark_y"] = watermark_y
@@ -1480,9 +1485,9 @@ class MainWindow(QMainWindow):
                         if current_image_path:
                             self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
                         # 水印位置已经是基于原图坐标系的整数，直接显示
-                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y})")
+                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                     else:
-                        self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                        self.watermark_coord_label.setText(f"水印坐标: (0, 0), position: {position}")
                 else:
                     self.watermark_coord_label.setText("水印坐标: (0, 0)")
             else:
@@ -1535,9 +1540,11 @@ class MainWindow(QMainWindow):
         
         # 如果新位置是元组格式，提取x和y坐标
         if isinstance(new_position, tuple) and len(new_position) == 2:
-            current_watermark_settings["watermark_x"] = int(new_position[0])
-            current_watermark_settings["watermark_y"] = int(new_position[1])
-            print(f"[DEBUG] MainWindow.update_position: 更新position和坐标: position={new_position}, watermark_x={current_watermark_settings['watermark_x']}, watermark_y={current_watermark_settings['watermark_y']}")
+            # 注意：这里new_position已经是应用了压缩比例的坐标，不需要再次应用
+            current_watermark_settings["position"] = new_position
+            current_watermark_settings["watermark_x"] = int(new_position[0]*self.compression_scale)
+            current_watermark_settings["watermark_y"] = int(new_position[1]*self.compression_scale)
+            print(f"[DEBUG] MainWindow.update_position: 更新position和坐标: position={new_position}, watermark_x={current_watermark_settings['watermark_x']}, watermark_y={current_watermark_settings['watermark_y']}, compression_scale={self.compression_scale}")
         
         # 保存更新后的水印设置
         self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)

@@ -91,14 +91,20 @@ class WatermarkRenderer:
         
         # 更新current_watermark_settings中的坐标
         if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
-            current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
-            if current_watermark_settings is not None:
-                # 更新watermark_x和watermark_y
-                current_watermark_settings["watermark_x"] = x
-                current_watermark_settings["watermark_y"] = y
-                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新current_watermark_settings中的坐标: watermark_x={x}, watermark_y={y}")
+            current_path = self.parent.image_manager.get_current_image_path()
+            if current_path:
+                current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                if current_watermark_settings is not None:
+                    # 更新watermark_x和watermark_y
+                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                    # 保存更新后的水印设置回image_manager
+                    self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
+                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存水印坐标: watermark_x={x}, watermark_y={y}")
+                else:
+                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: current_watermark_settings为None，无法更新坐标")
             else:
-                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: current_watermark_settings为None，无法更新坐标")
+                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 当前图片路径为空，无法更新坐标")
         
         # 记录水印位置
         self.last_watermark_position = (x, y)
@@ -112,8 +118,25 @@ class WatermarkRenderer:
             x = x - (rotated_width - text_width) // 2
             y = y - (rotated_height - text_height) // 2
         
+        # 更新current_watermark_settings中的最终坐标
+        if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+            current_path = self.parent.image_manager.get_current_image_path()
+            if current_path:
+                current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                if current_watermark_settings is not None:
+                    # 更新最终的watermark_x和watermark_y
+                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                    # 保存更新后的水印设置回image_manager
+                    self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
+                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存最终水印坐标: watermark_x={x}, watermark_y={y}")
+                else:
+                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: current_watermark_settings为None，无法更新最终坐标")
+            else:
+                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 当前图片路径为空，无法更新最终坐标")
+        
         # 将文本图片粘贴到主图像上
-        watermarked_image.paste(text_image, (x, y), text_image)
+        watermarked_image.paste(text_image, (int(round(x*self.compression_scale)), int(round(y*self.compression_scale))), text_image)
             
         # 更新缓存
         self.last_rendered_image = watermarked_image
@@ -1179,61 +1202,6 @@ class WatermarkRenderer:
                 
                 # 如果有压缩比例，应用压缩比例并确保结果为整数
                 if hasattr(self, 'compression_scale') and self.compression_scale is not None:
-                    # x = int(round(x * self.compression_scale))
-                    # y = int(round(y * self.compression_scale))
-                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
-                    print(f"[DEBUG] 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
-                
-                # 如果有current_watermark_settings，更新watermark_x和watermark_y
-                # 详细检查条件，以便调试
-                has_parent_attr = hasattr(self, 'parent')
-                parent_exists = has_parent_attr and self.parent
-                has_image_manager_attr = parent_exists and hasattr(self.parent, 'image_manager')
-                
-                print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
-                print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
-                if has_parent_attr:
-                    print(f"  - self.parent: {self.parent}")
-                    print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
-                if parent_exists:
-                    print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
-                
-                if not has_parent_attr:
-                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
-                elif not parent_exists:
-                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
-                elif not has_image_manager_attr:
-                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
-                
-                if has_parent_attr and parent_exists and has_image_manager_attr:
-                    current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
-                    if current_watermark_settings is not None:
-                        # 更新watermark_x和watermark_y
-                        current_watermark_settings["watermark_x"] = x
-                        current_watermark_settings["watermark_y"] = y
-                        print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
-                        
-                        # 同时更新position
-                        if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
-                            # 计算原图坐标
-                            original_x = int(round(x / self.compression_scale))
-                            original_y = int(round(y / self.compression_scale))
-                            current_watermark_settings["position"] = (original_x, original_y)
-                            print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的position为 ({original_x}, {original_y})")
-                    else:
-                        print(f"[DEBUG] WatermarkRenderer._calculate_position: current_watermark_settings为None，无法更新坐标")
-                
-                return x, y
-            else:
-                # 处理绝对坐标（九宫格计算出的原图坐标）
-                print(f"[BRANCH] _calculate_position: 处理绝对坐标（九宫格计算出的原图坐标），x_ratio={x_ratio}, y_ratio={y_ratio}")
-                # 这些坐标已经是基于原图的绝对坐标，直接使用position中的坐标
-                x = int(round(position[0] - text_width / 2))
-                y = int(round(position[1] - text_height / 2))
-                print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
-                
-                # 如果有压缩比例，应用压缩比例并确保结果为整数
-                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
                     x = int(round(x * self.compression_scale))
                     y = int(round(y * self.compression_scale))
                     print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
@@ -1245,38 +1213,107 @@ class WatermarkRenderer:
                 parent_exists = has_parent_attr and self.parent
                 has_image_manager_attr = parent_exists and hasattr(self.parent, 'image_manager')
                 
-                print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
-                print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
-                if has_parent_attr:
-                    print(f"  - self.parent: {self.parent}")
-                    print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
-                if parent_exists:
-                    print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
+                # print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
+                # print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
+                # if has_parent_attr:
+                #     print(f"  - self.parent: {self.parent}")
+                #     print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
+                # if parent_exists:
+                #     print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
                 
-                if not has_parent_attr:
-                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
-                elif not parent_exists:
-                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
-                elif not has_image_manager_attr:
-                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
+                # if not has_parent_attr:
+                #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
+                # elif not parent_exists:
+                #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
+                # elif not has_image_manager_attr:
+                #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
                 
                 if has_parent_attr and parent_exists and has_image_manager_attr:
                     current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                     if current_watermark_settings is not None:
                         # 更新watermark_x和watermark_y
-                        current_watermark_settings["watermark_x"] = x
-                        current_watermark_settings["watermark_y"] = y
+                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
                         print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
                         
                         # 同时更新position
                         if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
                             # 计算原图坐标
-                            original_x = int(round(x / self.compression_scale))
-                            original_y = int(round(y / self.compression_scale))
+                            original_x = int(round(x))
+                            original_y = int(round(y))
                             current_watermark_settings["position"] = (original_x, original_y)
                             print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的position为 ({original_x}, {original_y})")
                     else:
                         print(f"[DEBUG] WatermarkRenderer._calculate_position: current_watermark_settings为None，无法更新坐标")
+                
+                # 在return前再次更新current_watermark_settings
+                if has_parent_attr and parent_exists and has_image_manager_attr:
+                    current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                    if current_watermark_settings is not None:
+                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                
+                return x, y
+            else:
+                # 处理绝对坐标（九宫格计算出的原图坐标）
+                print(f"[BRANCH] _calculate_position: 处理绝对坐标（九宫格计算出的原图坐标），x_ratio={x_ratio}, y_ratio={y_ratio}")
+                # 这些坐标已经是基于原图的绝对坐标，直接使用position中的坐标
+                x = int(round(position[0] ))
+                y = int(round(position[1] ))
+                print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
+                
+                # 如果有压缩比例，应用压缩比例并确保结果为整数
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                    # x = int(round(x * self.compression_scale))
+                    # y = int(round(y * self.compression_scale))
+                    print(f"[DEBUG] WatermarkRenderer._calculate_position: 修改position为 ({x}, {y})")
+                    print(f"[DEBUG] 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                # 如果有current_watermark_settings，更新watermark_x和watermark_y
+                # 详细检查条件，以便调试
+                has_parent_attr = hasattr(self, 'parent')
+                parent_exists = has_parent_attr and self.parent
+                has_image_manager_attr = parent_exists and hasattr(self.parent, 'image_manager')
+                
+                # print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
+                # print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
+                # if has_parent_attr:
+                #     print(f"  - self.parent: {self.parent}")
+                #     print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
+                # if parent_exists:
+                #     print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
+                
+                # if not has_parent_attr:
+                #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
+                # elif not parent_exists:
+                #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
+                # elif not has_image_manager_attr:
+                #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
+                
+                if has_parent_attr and parent_exists and has_image_manager_attr:
+                    current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                    if current_watermark_settings is not None:
+                        # 更新watermark_x和watermark_y
+                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                        print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
+                        
+                        # 同时更新position
+                        if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
+                            # 计算原图坐标
+                            original_x = int(round(x))
+                            original_y = int(round(y))
+                            current_watermark_settings["position"] = (original_x, original_y)
+                            print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的position为 ({original_x}, {original_y})")
+                    else:
+                        print(f"[DEBUG] WatermarkRenderer._calculate_position: current_watermark_settings为None，无法更新坐标")
+                
+                # 在return前再次更新current_watermark_settings
+                if has_parent_attr and parent_exists and has_image_manager_attr:
+                    current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+                    if current_watermark_settings is not None:
+                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
                 
                 return x, y
         
@@ -1331,38 +1368,45 @@ class WatermarkRenderer:
         parent_exists = has_parent_attr and self.parent
         has_image_manager_attr = parent_exists and hasattr(self.parent, 'image_manager')
         
-        print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
-        print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
-        if has_parent_attr:
-            print(f"  - self.parent: {self.parent}")
-            print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
-        if parent_exists:
-            print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
+        # print(f"[DEBUG] WatermarkRenderer._calculate_position: 检查parent和image_manager属性:")
+        # print(f"  - hasattr(self, 'parent'): {has_parent_attr}")
+        # if has_parent_attr:
+        #     print(f"  - self.parent: {self.parent}")
+        #     print(f"  - self.parent is not None/Falsy: {bool(self.parent)}")
+        # if parent_exists:
+        #     print(f"  - hasattr(self.parent, 'image_manager'): {has_image_manager_attr}")
         
-        if not has_parent_attr:
-            print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
-        elif not parent_exists:
-            print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
-        elif not has_image_manager_attr:
-            print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
+        # if not has_parent_attr:
+        #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况1: 当前对象没有parent属性")
+        # elif not parent_exists:
+        #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况2: parent属性存在但值为None或False")
+        # elif not has_image_manager_attr:
+        #     print(f"[DEBUG] WatermarkRenderer._calculate_position: 情况3: parent对象存在但没有image_manager属性")
         
         if has_parent_attr and parent_exists and has_image_manager_attr:
             current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
             if current_watermark_settings is not None:
                 # 更新watermark_x和watermark_y
-                current_watermark_settings["watermark_x"] = x
-                current_watermark_settings["watermark_y"] = y
+                current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
                 print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
                 
                 # 同时更新position
                 if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale > 0:
                     # 计算原图坐标
-                    original_x = int(round(x / self.compression_scale))
-                    original_y = int(round(y / self.compression_scale))
+                    original_x = int(round(x))
+                    original_y = int(round(y))
                     current_watermark_settings["position"] = (original_x, original_y)
                     print(f"[DEBUG] WatermarkRenderer._calculate_position: 更新current_watermark_settings中的position为 ({original_x}, {original_y})")
             else:
                 print(f"[DEBUG] WatermarkRenderer._calculate_position: current_watermark_settings为None，无法更新坐标")
+        
+        # 在return前再次更新current_watermark_settings
+        if has_parent_attr and parent_exists and has_image_manager_attr:
+            current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
+            if current_watermark_settings is not None:
+                current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
         
         return x, y
     
@@ -1446,12 +1490,12 @@ class WatermarkRenderer:
             if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
-                    # 更新watermark_x和watermark_y
-                    current_watermark_settings["watermark_x"] = x
-                    current_watermark_settings["watermark_y"] = y
-                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 更新current_watermark_settings中的watermark_x为 {x}, watermark_y为 {y}")
+                    # 更新最终的watermark_x和watermark_y
+                    current_watermark_settings["watermark_x"] = int(round(x))
+                    current_watermark_settings["watermark_y"] = int(round(y))
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 更新current_watermark_settings中的最终watermark_x为 {x}, watermark_y为 {y}")
                 else:
-                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: current_watermark_settings为None，无法更新坐标")
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: current_watermark_settings为None，无法更新最终坐标")
             
             # 将水印粘贴到主图片上
             watermarked_image.paste(watermark_img, (x, y), watermark_img)
@@ -1558,11 +1602,11 @@ class WatermarkRenderer:
                     adjusted_watermark_settings["watermark_y"] = adjusted_watermark_y
                     print(f"[DEBUG] 调整图片水印坐标: ({original_watermark_x}, {original_watermark_y}) -> ({adjusted_watermark_x}, {adjusted_watermark_y}) (乘以压缩比例 {compression_scale:.4f})")
                     
-                    # 更新current_watermark_settings中的坐标
+                    # 更新current_watermark_settings中的预览坐标
                     if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
                         current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                         if current_watermark_settings is not None:
-                            # 更新watermark_x和watermark_y
+                            # 更新预览时的watermark_x和watermark_y
                             current_watermark_settings["watermark_x"] = adjusted_watermark_x
                             current_watermark_settings["watermark_y"] = adjusted_watermark_y
                             print(f"[DEBUG] WatermarkRenderer.preview_watermark: 更新current_watermark_settings中的预览坐标: watermark_x={adjusted_watermark_x}, watermark_y={adjusted_watermark_y}")
@@ -1577,11 +1621,11 @@ class WatermarkRenderer:
                     adjusted_watermark_settings["watermark_x"] = watermark_settings["watermark_x"]
                     adjusted_watermark_settings["watermark_y"] = watermark_settings["watermark_y"]
                     
-                    # 更新current_watermark_settings中的坐标
+                    # 更新current_watermark_settings中的原始坐标
                     if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
                         current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                         if current_watermark_settings is not None:
-                            # 更新watermark_x和watermark_y
+                            # 恢复原始的watermark_x和watermark_y
                             current_watermark_settings["watermark_x"] = watermark_settings["watermark_x"]
                             current_watermark_settings["watermark_y"] = watermark_settings["watermark_y"]
                             print(f"[DEBUG] WatermarkRenderer.preview_watermark: 恢复current_watermark_settings中的原始坐标: watermark_x={watermark_settings['watermark_x']}, watermark_y={watermark_settings['watermark_y']}")

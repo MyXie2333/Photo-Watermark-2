@@ -110,6 +110,10 @@ class WatermarkDragManager:
             # 这里为了演示，假设可以通过回调获取
             current_watermark_settings = self._get_current_watermark_settings()
             
+            # 获取压缩比例
+            compression_scale = current_watermark_settings.get("compression_scale", 1.0) if current_watermark_settings else 1.0
+            print(f"[DEBUG] WatermarkDragManager.on_mouse_press: 获取压缩比例 compression_scale = {compression_scale}")
+            
             # 当有文本水印或图片水印时都允许拖拽
             if current_watermark_settings and (
                 current_watermark_settings.get("text") or 
@@ -118,20 +122,17 @@ class WatermarkDragManager:
                 self.is_dragging = True
                 self.drag_start_pos = event.pos()
                 
-                # 获取水印位置
-                if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
-                    watermark_position = (
-                        int(current_watermark_settings["watermark_x"]), 
-                        int(current_watermark_settings["watermark_y"])
-                    )
-                elif "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
+                # 获取水印位置 - 直接使用position
+                if "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
                     watermark_position = current_watermark_settings["position"]
+                    print(f"[DEBUG] WatermarkDragManager.on_mouse_press: 使用position元组作为水印位置: {watermark_position}")
                 else:
                     # 默认位置（图片中心）
                     watermark_position = (
                         self.original_pixmap.width() // 2, 
                         self.original_pixmap.height() // 2
                     )
+                    print(f"[DEBUG] WatermarkDragManager.on_mouse_press: 使用默认位置（图片中心）作为水印位置: {watermark_position}")
                 
                 # 保存水印偏移量
                 self.watermark_offset = watermark_position
@@ -148,24 +149,23 @@ class WatermarkDragManager:
         if self.is_dragging and self.drag_start_pos and self.watermark_offset:
             # 获取当前水印设置，确保watermark_offset初始化为水印原来的位置
             current_watermark_settings = self._get_current_watermark_settings()
+            
+            # 获取压缩比例
+            compression_scale = current_watermark_settings.get("compression_scale", 1.0) if current_watermark_settings else 1.0
+            print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 获取压缩比例 compression_scale = {compression_scale}")
+            
             if current_watermark_settings:
-                # 获取水印位置
-                if "watermark_x" in current_watermark_settings and "watermark_y" in current_watermark_settings:
-                    original_position = (
-                        int(current_watermark_settings["watermark_x"]), 
-                        int(current_watermark_settings["watermark_y"])
-                    )
-                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 分支1 - 使用watermark_x和watermark_y作为原始位置: {original_position}")
-                elif "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
+                # 获取水印位置 - 直接使用position
+                if "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
                     original_position = current_watermark_settings["position"]
-                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 分支2 - 使用position元组作为原始位置: {original_position}")
+                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 使用position元组作为原始位置: {original_position}")
                 else:
                     # 默认位置（图片中心）
                     original_position = (
                         self.original_pixmap.width() // 2, 
                         self.original_pixmap.height() // 2
                     )
-                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 分支3 - 使用默认位置（图片中心）作为原始位置: {original_position}")
+                    print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 使用默认位置（图片中心）作为原始位置: {original_position}")
                 
                 # 更新水印偏移量为原始位置
                 self.watermark_offset = original_position
@@ -213,6 +213,17 @@ class WatermarkDragManager:
             # # 确保水印不会超出允许的边界范围
             # new_x = max(min_x, min(new_x, max_x))
             # new_y = max(min_y, min(new_y, max_y))
+            
+            # 计算应用压缩比例后的watermark_x和watermark_y
+            watermark_x = int(round(new_x * compression_scale))
+            watermark_y = int(round(new_y * compression_scale))
+            print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 计算watermark_x和watermark_y: ({watermark_x}, {watermark_y}) = ({new_x}, {new_y}) * {compression_scale}")
+            
+            # 更新水印设置中的watermark_x和watermark_y
+            if current_watermark_settings:
+                current_watermark_settings["watermark_x"] = watermark_x
+                current_watermark_settings["watermark_y"] = watermark_y
+                print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 更新watermark_x={watermark_x}, watermark_y={watermark_y}")
             
             # 调用位置变化回调
             if self.position_changed_callback:
