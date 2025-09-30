@@ -19,6 +19,16 @@ class WatermarkRenderer:
         self.last_rendered_image = None  # 缓存最后一次渲染的图片
         self.last_rendered_settings = None  # 缓存最后一次渲染的设置
         self.font_path_cache = {}  # 缓存字体文件路径，避免重复文件系统检查
+        self.compression_scale = 1.0  # 原图到压缩图的压缩比例，默认为1.0
+        
+    def set_compression_scale(self, scale):
+        """
+        设置压缩比例
+        
+        Args:
+            scale: 压缩比例值
+        """
+        self.compression_scale = scale
         
     def render_text_watermark(self, image, watermark_settings):
         """
@@ -1256,13 +1266,14 @@ class WatermarkRenderer:
             
         return x, y
     
-    def render_image_watermark(self, image, watermark_settings):
+    def render_image_watermark(self, image, watermark_settings, is_preview=False):
         """
         渲染图片水印到图片上
         
         Args:
             image: PIL Image对象
             watermark_settings: 水印设置字典
+            is_preview: 是否为预览模式，预览模式会应用压缩比例
             
         Returns:
             PIL Image对象（带水印的图片）
@@ -1286,8 +1297,16 @@ class WatermarkRenderer:
             
             # 调整水印图片大小
             original_width, original_height = watermark_img.size
-            new_width = int(original_width * scale)
-            new_height = int(original_height * scale)
+            
+            # 根据是否为预览模式决定是否应用压缩比例
+            if is_preview:
+                # 预览模式：应用压缩比例，使水印在预览图中大小合适
+                new_width = int(original_width * scale * self.compression_scale)
+                new_height = int(original_height * scale * self.compression_scale)
+            else:
+                # 导出模式：不应用压缩比例，使用原始比例
+                new_width = int(original_width * scale)
+                new_height = int(original_height * scale)
             
             # 如果需要保持纵横比，使用缩放比例
             if keep_aspect_ratio:
@@ -1427,7 +1446,7 @@ class WatermarkRenderer:
                     print(f"[DEBUG] 调整图片水印坐标: ({original_watermark_x}, {original_watermark_y}) -> ({adjusted_watermark_x}, {adjusted_watermark_y}) (乘以压缩比例 {compression_scale:.4f})")
                 
                 # 应用图片水印
-                watermarked_image = self.render_image_watermark(preview_image, adjusted_watermark_settings)
+                watermarked_image = self.render_image_watermark(preview_image, adjusted_watermark_settings, is_preview=True)
                 
                 # 恢复原始坐标，确保不影响原图上的水印坐标
                 if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
@@ -1436,9 +1455,6 @@ class WatermarkRenderer:
             else:
                 # 默认为文本水印
                 watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
-            
-            # 重置压缩比例
-            self.compression_scale = None
             
             # 确保水印位置是整数
             watermark_position = None

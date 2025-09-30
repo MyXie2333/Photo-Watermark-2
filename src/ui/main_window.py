@@ -680,6 +680,9 @@ class MainWindow(QMainWindow):
                         self.text_watermark_widget.set_compression_scale(compression_scale)
                         if self.image_watermark_widget:
                             self.image_watermark_widget.set_compression_scale(compression_scale)
+                        
+                        # 传递压缩比例给watermark_renderer
+                        self.watermark_renderer.set_compression_scale(compression_scale)
                 else:
                     # 兼容旧版本返回格式
                     preview_image = preview_result
@@ -1820,7 +1823,7 @@ class MainWindow(QMainWindow):
                 watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
             elif watermark_type == 'image':
                 # 渲染图片水印
-                watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings)
+                watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings, is_preview=False)
             else:
                 # 默认使用文本水印
                 watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
