@@ -32,7 +32,7 @@ class ImageWatermarkWidget(QWidget):
             "image_path": "",
             "scale": 50,  # 缩放百分比
             "opacity": 80,  # 透明度百分比
-            "position": "center",
+            "position": (0.5, 0.5),  # 使用二元组表示中心位置
             "watermark_x": 0,
             "watermark_y": 0,
             "keep_aspect_ratio": True
@@ -195,13 +195,9 @@ class ImageWatermarkWidget(QWidget):
                 for btn in self.position_buttons:
                     if btn.property("position") == (0.5, 0.5):
                         btn.setChecked(True)
-                        # 直接设置位置并计算坐标，不通过sender()
-                        self.watermark_settings["position"] = "center"
-                        print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 选择水印图片后，修改position为 'center'")
-                        print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 调用函数: self.calculate_watermark_coordinates")
-                        self.calculate_watermark_coordinates()
-                        print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 调用函数: self.update_watermark_settings")
-                        self.update_watermark_settings()
+                        # 使用新的update_position方法处理位置变化
+                        print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 调用函数: self.update_position((0.5, 0.5))")
+                        self.update_position((0.5, 0.5))
                         # 取消其他按钮的选中状态
                         for other_btn in self.position_buttons:
                             if other_btn != btn:
@@ -237,85 +233,78 @@ class ImageWatermarkWidget(QWidget):
             pos_value = sender.property("position")
             print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 修改position为 {pos_value}")
             
-            # 将元组位置转换为字符串位置
-            position_map = {
-                (0.1, 0.1): "top-left",
-                (0.5, 0.1): "top-center",
-                (0.9, 0.1): "top-right",
-                (0.1, 0.5): "middle-left",
-                (0.5, 0.5): "center",
-                (0.9, 0.5): "middle-right",
-                (0.1, 0.9): "bottom-left",
-                (0.5, 0.9): "bottom-center",
-                (0.9, 0.9): "bottom-right"
-            }
-            
-            if pos_value in position_map:
-                # 手动设置按钮为选中状态
-                sender.setChecked(True)
-                self.watermark_settings["position"] = position_map[pos_value]
-                # 计算水印坐标
-                print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 调用函数: self.calculate_watermark_coordinates")
-                self.calculate_watermark_coordinates()
-                print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 调用函数: self.update_watermark_settings")
-                self.update_watermark_settings()
-                # 取消其他按钮的选中状态
-                for other_btn in self.position_buttons:
-                    if other_btn != sender:
-                        other_btn.setChecked(False)
+            # 手动设置按钮为选中状态
+            sender.setChecked(True)
+            # 直接使用元组位置，不再转换为字符串
+            print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 调用函数: self.update_position({pos_value})")
+            self.update_position(pos_value)
+            # 取消其他按钮的选中状态
+            for other_btn in self.position_buttons:
+                if other_btn != sender:
+                    other_btn.setChecked(False)
     
-    def calculate_watermark_coordinates(self):
-        """根据位置预设和图片尺寸计算水印坐标"""
-        if self.original_width <= 0 or self.original_height <= 0:
-            print("[DEBUG] 图片尺寸未设置，无法计算水印坐标")
-            return
+    def update_position(self, new_position):
+        """
+        统一更新position的函数，确保每次position变化时都更新watermark_x和watermark_y
+        使用与TextWatermarkWidget相同的逻辑来处理坐标
         
-        if not self.watermark_path:
-            print("[DEBUG] 水印图片未选择，无法计算水印坐标")
-            return
+        Args:
+            new_position: 新的位置，可以是元组(x, y)或相对位置字符串
+        """
+        print(f"[DEBUG] ImageWatermarkWidget.update_position: 修改position为 {new_position}")
         
-        position = self.watermark_settings["position"]
-        scale = self.watermark_settings["scale"] / 100.0
-        
-        # 计算水印图片的实际尺寸
-        watermark_width = int(self.original_watermark_size[0] * scale)
-        watermark_height = int(self.original_watermark_size[1] * scale)
-        
-        # 根据位置预设计算坐标
-        if position == "top-left":
-            x = 0
-            y = 0
-        elif position == "top-center":
-            x = (self.original_width - watermark_width) // 2
-            y = 0
-        elif position == "top-right":
-            x = self.original_width - watermark_width
-            y = 0
-        elif position == "middle-left":
-            x = 0
-            y = (self.original_height - watermark_height) // 2
-        elif position == "center":
-            x = (self.original_width - watermark_width) // 2
-            y = (self.original_height - watermark_height) // 2
-        elif position == "middle-right":
-            x = self.original_width - watermark_width
-            y = (self.original_height - watermark_height) // 2
-        elif position == "bottom-left":
-            x = 0
-            y = self.original_height - watermark_height
-        elif position == "bottom-center":
-            x = (self.original_width - watermark_width) // 2
-            y = self.original_height - watermark_height
-        elif position == "bottom-right":
-            x = self.original_width - watermark_width
-            y = self.original_height - watermark_height
-        else:
-            x = 0
-            y = 0
+        # 如果新位置是元组格式，检查是否是相对位置（0-1之间的值）
+        if isinstance(new_position, tuple) and len(new_position) == 2:
+            x_ratio, y_ratio = new_position[0], new_position[1]
             
-        # 更新水印坐标
-        self.watermark_settings["watermark_x"] = x
-        self.watermark_settings["watermark_y"] = y
+            # 检查是否是相对位置（0-1之间的值）
+            if 0 <= x_ratio <= 1 and 0 <= y_ratio <= 1:
+                print(f"[BRANCH] ImageWatermarkWidget.update_position: 处理相对位置（0-1之间的值），x_ratio={x_ratio}, y_ratio={y_ratio}")
+                
+                # 获取图片尺寸
+                img_width = self.original_width
+                img_height = self.original_height
+                
+                # 计算图片水印尺寸
+                scale = self.watermark_settings["scale"] / 100.0
+                watermark_width = int(self.original_watermark_size[0] * scale)
+                watermark_height = int(self.original_watermark_size[1] * scale)
+                
+                # 计算绝对位置，直接转换为整数
+                x = int(round(img_width * x_ratio - watermark_width / 2))
+                y = int(round(img_height * y_ratio - watermark_height / 2))
+                print(f"[DEBUG] ImageWatermarkWidget.update_position: 计算绝对位置为 ({x}, {y})")
+                
+                # 如果有压缩比例，应用压缩比例并确保结果为整数
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                    print(f"[DEBUG] ImageWatermarkWidget.update_position: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                # 更新position为绝对坐标
+                self.watermark_settings["position"] = (x, y)
+                self.watermark_settings["watermark_x"] = int(x * self.compression_scale)
+                self.watermark_settings["watermark_y"] = int(y * self.compression_scale)
+                print(f"[DEBUG] ImageWatermarkWidget.update_position: 更新position和坐标: position={self.watermark_settings['position']}, watermark_x={self.watermark_settings['watermark_x']}, watermark_y={self.watermark_settings['watermark_y']}")
+            else:
+                # 处理绝对坐标
+                print(f"[BRANCH] ImageWatermarkWidget.update_position: 处理绝对坐标，x_ratio={x_ratio}, y_ratio={y_ratio}")
+                # 这些坐标已经是绝对坐标，直接使用
+                x = int(round(new_position[0]))
+                y = int(round(new_position[1]))
+                
+                # 如果有压缩比例，应用压缩比例并确保结果为整数
+                if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                    print(f"[DEBUG] ImageWatermarkWidget.update_position: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
+                
+                # 更新position和坐标
+                self.watermark_settings["position"] = (x, y)
+                self.watermark_settings["watermark_x"] = x * self.compression_scale
+                self.watermark_settings["watermark_y"] = y * self.compression_scale
+                print(f"[DEBUG] ImageWatermarkWidget.update_position: 更新position和坐标: position={self.watermark_settings['position']}, watermark_x={self.watermark_settings['watermark_x']}, watermark_y={self.watermark_settings['watermark_y']}")
+        else:
+            # 处理预定义的位置字符串
+            print(f"[BRANCH] ImageWatermarkWidget.update_position: 处理预定义的位置字符串，position='{new_position}'")
+            # 更新position
+            self.watermark_settings["position"] = new_position
         
         # 如果有父窗口（主窗口），则更新主窗口中的current_watermark_settings
         if hasattr(self, 'parent') and self.parent():
@@ -325,13 +314,77 @@ class ImageWatermarkWidget(QWidget):
                 if current_image_path:
                     current_watermark_settings = main_window.image_manager.get_watermark_settings(current_image_path)
                     if current_watermark_settings:
-                        current_watermark_settings["watermark_x"] = x
-                        current_watermark_settings["watermark_y"] = y
+                        current_watermark_settings["position"] = self.watermark_settings["position"]
+                        current_watermark_settings["watermark_x"] = self.watermark_settings["watermark_x"]
+                        current_watermark_settings["watermark_y"] = self.watermark_settings["watermark_y"]
                         main_window.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
         
-        print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 计算图片水印坐标: position={position}, 图片尺寸={self.original_width}x{self.original_height}, 水印尺寸={watermark_width}x{watermark_height}, 坐标=({x}, {y})")
-        print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 修改watermark_x为 {x}, watermark_y为 {y}")
+        # 触发水印变化信号，这将更新预览和坐标显示
+        print(f"[DEBUG] ImageWatermarkWidget.update_position: 调用函数: self.watermark_changed.emit")
+        self.watermark_changed.emit()
+
+    def calculate_watermark_coordinates(self):
+        """
+        根据位置预设和图片尺寸计算水印坐标
+        现在使用update_position方法来处理坐标计算，保持与TextWatermarkWidget的一致性
+        """
+        if self.original_width <= 0 or self.original_height <= 0:
+            print("[DEBUG] 图片尺寸未设置，无法计算水印坐标")
+            return
+        
+        if not self.watermark_path:
+            print("[DEBUG] 水印图片未选择，无法计算水印坐标")
+            return
+        
+        # 获取当前位置
+        position = self.watermark_settings["position"]
+        
+        # 如果是字符串位置，直接调用update_position
+        if isinstance(position, str):
+            print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 将字符串位置{position}转换为对应的二元组")
+            # 将字符串位置转换为对应的二元组
+            position_map = {
+                "top-left": (0.1, 0.1),
+                "top-center": (0.5, 0.1),
+                "top-right": (0.9, 0.1),
+                "middle-left": (0.1, 0.5),
+                "center": (0.5, 0.5),
+                "middle-right": (0.9, 0.5),
+                "bottom-left": (0.1, 0.9),
+                "bottom-center": (0.5, 0.9),
+                "bottom-right": (0.9, 0.9)
+            }
+            if position in position_map:
+                self.update_position(position_map[position])
+            else:
+                # 默认使用中心位置
+                print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 使用默认中心位置")
+                self.update_position((0.5, 0.5))
+        else:
+            # 如果是元组位置，转换为相对位置（0-1之间的值）再调用update_position
+            # 这样可以确保使用相同的坐标计算逻辑
+            if isinstance(position, tuple) and len(position) == 2:
+                x, y = position
+                
+                # 检查是否是绝对坐标（大于1的值）
+                if x > 1 or y > 1:
+                    # 将绝对坐标转换为相对坐标
+                    x_ratio = x / self.original_width if self.original_width > 0 else 0.5
+                    y_ratio = y / self.original_height if self.original_height > 0 else 0.5
+                    print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 将绝对坐标({x}, {y})转换为相对位置({x_ratio}, {y_ratio})")
+                    self.update_position((x_ratio, y_ratio))
+                else:
+                    # 已经是相对位置，直接调用update_position
+                    self.update_position(position)
+            else:
+                # 默认使用中心位置
+                print(f"[DEBUG] ImageWatermarkWidget.calculate_watermark_coordinates: 使用默认中心位置")
+                self.update_position((0.5, 0.5))
     
+    def set_compression_scale(self, scale):
+        """设置压缩比例，用于预览"""
+        self.compression_scale = scale
+
     def on_aspect_ratio_changed(self, checked):
         """保持纵横比选项变化时的处理"""
         self.watermark_settings["keep_aspect_ratio"] = checked
@@ -447,10 +500,6 @@ class ImageWatermarkWidget(QWidget):
         """设置原始图片尺寸，用于位置计算"""
         self.original_width = width
         self.original_height = height
-    
-    def set_compression_scale(self, scale):
-        """设置压缩比例，用于预览"""
-        self.compression_scale = scale
 
 if __name__ == "__main__":
     import sys

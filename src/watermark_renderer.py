@@ -1433,7 +1433,7 @@ class WatermarkRenderer:
             image_path = watermark_settings["image_path"]
             scale = watermark_settings.get("scale", 50) / 100.0  # 转换为比例
             opacity = watermark_settings.get("opacity", 80) / 100.0  # 转换为比例
-            position = watermark_settings.get("position", "center")
+            position = watermark_settings.get("position", (0.5, 0.5))  # 使用二元组表示中心位置
             keep_aspect_ratio = watermark_settings.get("keep_aspect_ratio", True)
             
             # 加载水印图片
@@ -1473,7 +1473,43 @@ class WatermarkRenderer:
             img_width, img_height = watermarked_image.size
             watermark_width, watermark_height = watermark_img.size
             print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 使用position={position}计算水印位置")
-            x, y = self._calculate_position(position, img_width, img_height, watermark_width, watermark_height)
+            
+            # 使用TextWatermarkWidget的坐标处理逻辑
+            # 首先检查position是字符串还是元组
+            if isinstance(position, str):
+                # 如果是字符串位置（如"center"、"top-left"等），直接使用_calculate_position方法
+                x, y = self._calculate_position(position, img_width, img_height, watermark_width, watermark_height)
+            else:
+                # 如果是元组位置，可能是相对位置（0-1之间的值）或绝对位置
+                if isinstance(position, tuple) and len(position) >= 2:
+                    x_ratio, y_ratio = position[0], position[1]
+                    if 0 <= x_ratio <= 1 and 0 <= y_ratio <= 1:
+                        # 相对位置（0-1之间的值）
+                        print(f"[BRANCH] render_image_watermark: 处理相对位置（0-1之间的值），x_ratio={x_ratio}, y_ratio={y_ratio}")
+                        # 计算绝对位置，直接转换为整数
+                        x = int(round(img_width * x_ratio - watermark_width / 2))
+                        y = int(round(img_height * y_ratio - watermark_height / 2))
+                        print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 计算出position为 ({x}, {y})")
+                    else:
+                        # 绝对位置（九宫格计算出的原图坐标）
+                        print(f"[BRANCH] render_image_watermark: 处理绝对坐标（九宫格计算出的原图坐标），x_ratio={x_ratio}, y_ratio={y_ratio}")
+                        x = int(round(position[0]))
+                        y = int(round(position[1]))
+                        print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 使用绝对position为 ({x}, {y})")
+                else:
+                    # 默认使用(0.5, 0.5)位置
+                    print(f"[BRANCH] render_image_watermark: 使用默认(0.5, 0.5)位置")
+                    x_ratio, y_ratio = 0.5, 0.5
+                    # 计算绝对位置，直接转换为整数
+                    x = int(round(img_width * x_ratio - watermark_width / 2))
+                    y = int(round(img_height * y_ratio - watermark_height / 2))
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 计算出position为 ({x}, {y})")
+            
+            # 如果有压缩比例，应用压缩比例并确保结果为整数
+            if hasattr(self, 'compression_scale') and self.compression_scale is not None:
+                x = int(round(x * self.compression_scale))
+                y = int(round(y * self.compression_scale))
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 应用压缩比例 {self.compression_scale:.4f} 到水印坐标: ({x}, {y})")
             
             # 记录水印位置
             self.last_watermark_position = (x, y)
@@ -1590,47 +1626,8 @@ class WatermarkRenderer:
                 # 应用文本水印
                 watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
             elif watermark_type == "image":
-                # 调整图片水印坐标，使其乘以压缩比例（仅用于预览，不影响原图）
-                if "watermark_x" in adjusted_watermark_settings and "watermark_y" in adjusted_watermark_settings:
-                    adjusted_watermark_x = int(adjusted_watermark_settings["watermark_x"] * compression_scale)
-                    adjusted_watermark_y = int(adjusted_watermark_settings["watermark_y"] * compression_scale)
-                    # 保存原始坐标，以便后续恢复
-                    original_watermark_x = adjusted_watermark_settings["watermark_x"]
-                    original_watermark_y = adjusted_watermark_settings["watermark_y"]
-                    # 更新为调整后的坐标
-                    adjusted_watermark_settings["watermark_x"] = adjusted_watermark_x
-                    adjusted_watermark_settings["watermark_y"] = adjusted_watermark_y
-                    print(f"[DEBUG] 调整图片水印坐标: ({original_watermark_x}, {original_watermark_y}) -> ({adjusted_watermark_x}, {adjusted_watermark_y}) (乘以压缩比例 {compression_scale:.4f})")
-                    
-                    # 更新current_watermark_settings中的预览坐标
-                    if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
-                        current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
-                        if current_watermark_settings is not None:
-                            # 更新预览时的watermark_x和watermark_y
-                            current_watermark_settings["watermark_x"] = adjusted_watermark_x
-                            current_watermark_settings["watermark_y"] = adjusted_watermark_y
-                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: 更新current_watermark_settings中的预览坐标: watermark_x={adjusted_watermark_x}, watermark_y={adjusted_watermark_y}")
-                        else:
-                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: current_watermark_settings为None，无法更新预览坐标")
-                
-                # 应用图片水印
+                # 应用图片水印，使用TextWatermarkWidget的坐标处理逻辑
                 watermarked_image = self.render_image_watermark(preview_image, adjusted_watermark_settings, is_preview=True)
-                
-                # 恢复原始坐标，确保不影响原图上的水印坐标
-                if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
-                    adjusted_watermark_settings["watermark_x"] = watermark_settings["watermark_x"]
-                    adjusted_watermark_settings["watermark_y"] = watermark_settings["watermark_y"]
-                    
-                    # 更新current_watermark_settings中的原始坐标
-                    if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
-                        current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
-                        if current_watermark_settings is not None:
-                            # 恢复原始的watermark_x和watermark_y
-                            current_watermark_settings["watermark_x"] = watermark_settings["watermark_x"]
-                            current_watermark_settings["watermark_y"] = watermark_settings["watermark_y"]
-                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: 恢复current_watermark_settings中的原始坐标: watermark_x={watermark_settings['watermark_x']}, watermark_y={watermark_settings['watermark_y']}")
-                        else:
-                            print(f"[DEBUG] WatermarkRenderer.preview_watermark: current_watermark_settings为None，无法恢复原始坐标")
             else:
                 # 默认为文本水印
                 watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
