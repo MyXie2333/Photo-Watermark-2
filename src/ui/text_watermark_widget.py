@@ -363,11 +363,19 @@ class TextWatermarkWidget(QWidget):
         supported_chinese_fonts = [
             "Microsoft YaHei",  # 微软雅黑
             "SimHei",           # 黑体
-            "SimSun",           # 宋体
             "KaiTi",            # 楷体
             "FangSong",         # 仿宋
             "Arial Unicode MS"  # 回退字体
         ]
+        
+        # 创建英文字体名称到中文字体名称的映射
+        font_name_mapping = {
+            "Microsoft YaHei": "微软雅黑",
+            "SimHei": "黑体",
+            "KaiTi": "楷体",
+            "FangSong": "仿宋",
+            "Arial Unicode MS": "Arial Unicode MS"
+        }
         
         supported_english_fonts = [
             "Arial", "Times New Roman", "Courier New", "Verdana", 
@@ -393,7 +401,11 @@ class TextWatermarkWidget(QWidget):
         # 添加可用的中文字体
         chinese_fonts = [f for f in available_fonts if f in supported_chinese_fonts]
         for font in chinese_fonts:
-            self.font_combo.addItem(font)
+            # 同时显示英文名称和中文名称
+            display_name = f"{font} - {font_name_mapping.get(font, '')}"
+            self.font_combo.addItem(display_name)
+            # 存储实际的字体名称，用于后续使用
+            self.font_combo.setItemData(self.font_combo.count() - 1, font, Qt.UserRole)
         
         # 添加分隔线（如果已经有中文字体）
         if chinese_fonts:
@@ -450,11 +462,6 @@ class TextWatermarkWidget(QWidget):
                 "regular": ["simhei.ttf"]
                 # 黑体没有专门的粗体文件，但PIL会通过特性模拟实现粗体效果
             },
-            "SimSun": {
-                "regular": ["simsun.ttc"],
-                "bold": ["simsunb.ttf"],
-                "extended": ["SimsunExtG.ttf"]
-            },
             "KaiTi": {
                 "regular": ["simkai.ttf", "STKAITI.TTF"]
                 # 楷体没有专门的粗体文件，但PIL会通过特性模拟实现粗体效果
@@ -510,12 +517,11 @@ class TextWatermarkWidget(QWidget):
         """设置信号连接"""
         # 文本设置
         self.text_input.textChanged.connect(self.on_text_changed)
-        self.font_combo.currentTextChanged.connect(self.on_font_changed)
+        self.font_combo.currentIndexChanged.connect(self.on_font_changed)
         self.font_size_spin.valueChanged.connect(self.on_font_size_changed)
         self.bold_checkbox.stateChanged.connect(self.on_bold_changed)
         self.italic_checkbox.stateChanged.connect(self.on_italic_changed)
         self.clear_button.clicked.connect(self.on_clear_clicked)
-        self.text_input.textChanged.connect(self.on_text_changed)
         self.text_input.installEventFilter(self)
         
         # 样式设置
@@ -613,9 +619,20 @@ class TextWatermarkWidget(QWidget):
         
         self.watermark_changed.emit()
         
-    def on_font_changed(self, font):
+    def on_font_changed(self, index):
         """字体变化"""
-        self.font_family = font
+        if index >= 0:
+            # 获取实际的字体名称
+            actual_font_name = self.font_combo.itemData(index, Qt.UserRole)
+            if actual_font_name is not None:
+                self.font_family = actual_font_name
+            else:
+                # 对于英文字体，直接使用显示文本
+                self.font_family = self.font_combo.itemText(index)
+            
+            # 检查新选择的字体是否支持中文，并根据需要自动切换
+            self._auto_switch_chinese_font(self.watermark_text)
+            
         self.watermark_changed.emit()
         
     def on_font_size_changed(self, size):
@@ -652,12 +669,14 @@ class TextWatermarkWidget(QWidget):
         # 检测文本是否包含中文字符
         if self._contains_chinese(text):
             # 如果文本包含中文，检查当前字体是否已经是中文字体
-            current_font = self.font_combo.currentText()
+            current_index = self.font_combo.currentIndex()
+            current_font = self.font_combo.itemData(current_index, Qt.UserRole) if current_index >= 0 else ""
             
             # 获取下拉菜单中所有可用的中文字体
             chinese_fonts = []
-            chinese_keywords = ['yahei', 'simhei', 'simsun', 'kaiti', 'fangsong', 
-                               '黑体', '宋体', '楷体', '仿宋', '微软雅黑', '华文', '方正']
+            chinese_font_display_names = []
+            chinese_keywords = ['yahei', 'simhei', 'kaiti', 'fangsong', 
+                               '黑体', '楷体', '仿宋', '微软雅黑', '华文', '方正']
             
             # 从下拉菜单中检测所有中文字体
             for i in range(self.font_combo.count()):
@@ -665,31 +684,42 @@ class TextWatermarkWidget(QWidget):
                 if not item_text.startswith("---"):  # 跳过分隔线
                     item_lower = item_text.lower()
                     if any(keyword in item_lower for keyword in chinese_keywords):
-                        chinese_fonts.append(item_text)
+                        chinese_font_display_names.append(item_text)
+                        # 获取实际的字体名称
+                        actual_font = self.font_combo.itemData(i, Qt.UserRole)
+                        if actual_font:
+                            chinese_fonts.append(actual_font)
             
             # 关键修复：如果当前字体已经是中文字体，不要改变字体
             if current_font in chinese_fonts:
                 return  # 保持当前字体不变
             
             # 只有当当前字体不是中文字体时，才自动切换到中文字体
-            if current_font not in chinese_fonts:
-                # 优先尝试微软雅黑
-                if "Microsoft YaHei" in chinese_fonts:
-                    self.font_combo.setCurrentText("Microsoft YaHei")
-                    self.font_family = "Microsoft YaHei"
-                    # 发出字体切换提示信号
-                    self.font_switch_notification.emit("当前字体不支持中文显示，已为您切换至中文字体")
-                # 如果微软雅黑不可用，尝试其他中文字体
-                elif chinese_fonts:
-                    # 按优先级选择：微软雅黑 > 黑体 > 宋体 > 楷体 > 仿宋 > 其他
-                    priority_order = ["Microsoft YaHei", "SimHei", "SimSun", "KaiTi", "FangSong"]
-                    for font in priority_order:
-                        if font in chinese_fonts:
-                            self.font_combo.setCurrentText(font)
-                            self.font_family = font
-                            # 发出字体切换提示信号
-                            self.font_switch_notification.emit("当前字体不支持中文显示，已为您切换至中文字体")
-                            break
+            # 优先尝试微软雅黑
+            if "Microsoft YaHei" in chinese_fonts:
+                # 查找并选择显示名称
+                for i in range(self.font_combo.count()):
+                    if self.font_combo.itemData(i, Qt.UserRole) == "Microsoft YaHei":
+                        self.font_combo.setCurrentIndex(i)
+                        self.font_family = "Microsoft YaHei"
+                        # 发出字体切换提示信号
+                        self.font_switch_notification.emit("当前字体不支持中文显示，已为您切换至中文字体")
+                        break
+            elif chinese_fonts:
+                # 按优先级选择：微软雅黑 > 黑体 > 楷体 > 仿宋 > 其他
+                priority_order = ["SimHei", "KaiTi", "FangSong"]
+                found = False
+                for font in priority_order:
+                    if font in chinese_fonts:
+                        # 查找并选择显示名称
+                        for i in range(self.font_combo.count()):
+                            if self.font_combo.itemData(i, Qt.UserRole) == font:
+                                self.font_combo.setCurrentIndex(i)
+                                self.font_family = font
+                                # 发出字体切换提示信号
+                                self.font_switch_notification.emit("当前字体不支持中文显示，已为您切换至中文字体")
+                                break
+                        break
                     else:
                         # 如果没有优先级字体，使用第一个可用的中文字体
                         self.font_combo.setCurrentText(chinese_fonts[0])
@@ -1305,11 +1335,18 @@ class TextWatermarkWidget(QWidget):
             # 更新字体设置
             if "font_family" in settings:
                 self.font_family = settings["font_family"]
-                index = self.font_combo.findText(self.font_family)
-                if index >= 0:
-                    self.font_combo.setCurrentIndex(index)
-                else:
-                    self.font_combo.setCurrentText(self.font_family)
+                # 查找匹配的实际字体名称
+                found = False
+                for i in range(self.font_combo.count()):
+                    if self.font_combo.itemData(i, Qt.UserRole) == self.font_family:
+                        self.font_combo.setCurrentIndex(i)
+                        found = True
+                        break
+                # 如果没有找到，尝试使用文本匹配
+                if not found:
+                    index = self.font_combo.findText(self.font_family)
+                    if index >= 0:
+                        self.font_combo.setCurrentIndex(index)
             
             if "font_size" in settings:
                 self.font_size = settings["font_size"]
@@ -1471,11 +1508,18 @@ class TextWatermarkWidget(QWidget):
             # 更新字体设置
             if "font_family" in settings:
                 self.font_family = settings["font_family"]
-                index = self.font_combo.findText(self.font_family)
-                if index >= 0:
-                    self.font_combo.setCurrentIndex(index)
-                else:
-                    self.font_combo.setCurrentText(self.font_family)
+                # 查找匹配的实际字体名称
+                found = False
+                for i in range(self.font_combo.count()):
+                    if self.font_combo.itemData(i, Qt.UserRole) == self.font_family:
+                        self.font_combo.setCurrentIndex(i)
+                        found = True
+                        break
+                # 如果没有找到，尝试使用文本匹配
+                if not found:
+                    index = self.font_combo.findText(self.font_family)
+                    if index >= 0:
+                        self.font_combo.setCurrentIndex(index)
             
             if "font_size" in settings:
                 self.font_size = settings["font_size"]

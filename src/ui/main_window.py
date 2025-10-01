@@ -209,6 +209,12 @@ class MainWindow(QMainWindow):
         self.preview_scroll_area.setWidget(self.preview_widget)
         layout.addWidget(self.preview_scroll_area)
         
+        # 添加预览提示文本
+        self.preview_hint_label = QLabel("鼠标拖动预览图中任意区域调整水印位置，试图放大后拖动预览框滑条调整预览可见区域")
+        self.preview_hint_label.setAlignment(Qt.AlignCenter)
+        self.preview_hint_label.setStyleSheet("font-size: 10px; color: #333; margin: 5px;")
+        layout.addWidget(self.preview_hint_label)
+
         # 预览控制按钮
         control_layout = QHBoxLayout()
         

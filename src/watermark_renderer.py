@@ -210,67 +210,68 @@ class WatermarkRenderer:
         # 处理粗体和斜体效果
         is_chinese_text = self._contains_chinese(text)
         
-        if (font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)) or is_chinese_text:
-            print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}")
-            # 如果是中文字体且需要斜体效果
+        # 关键优化：优先使用字体文件自身的样式，其次才手动实现
+        # 对于中文文本，我们总是使用手动实现的样式，因为中文字体通常不自带斜体
+        if (font_bold and not self._is_font_file_bold(font_family)) or (font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text)):
+            print(f"[DEBUG] 手动实现粗体或斜体效果: {font_family}，粗体={font_bold}，斜体={font_italic}，中文={is_chinese_text}")
+            
+            # 优化方案：统一使用仿射变换实现斜体效果，提高稳定性
             if font_italic and (not self._is_font_file_italic(font_family) or is_chinese_text):
                 # 创建一个单独的图像来绘制文本，然后应用斜体变换
                 # 增加画布边距以避免斜体时汉字下半部分被截断
-                temp_text_img = Image.new('RGBA', (text_width + 40, text_height + 40), (0, 0, 0, 0))
+                temp_text_img = Image.new('RGBA', (text_width + 60, text_height + 60), (0, 0, 0, 0))  # 增大边距提高稳定性
                 temp_text_draw = ImageDraw.Draw(temp_text_img)
                 
                 # 正常绘制文本（添加向上的位移以避免斜体时汉字下半部分被截断）
                 color_rgb = self._get_color_rgb(color)
-                temp_text_draw.text((20, 20), text, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
+                # 改进：增加透明度确保叠加效果更自然
+                draw_opacity = int(255 * opacity) if font_bold else int(255 * opacity)
+                temp_text_draw.text((30, 25), text, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], draw_opacity))
                 
                 # 使用仿射变换实现斜体效果
                 import numpy as np
-                # 定义斜体变换矩阵（降低倾斜系数）
-                shear_factor = 0.15  # 降低的倾斜系数
+                # 定义斜体变换矩阵，优化倾斜系数
+                shear_factor = 0.12  # 优化的倾斜系数，使效果更自然
                 matrix = [1, shear_factor, 0, 0, 1, 0, 0, 0, 1]
                 # 应用变换，增加宽度以容纳斜体效果
                 skewed_img = temp_text_img.transform(
-                    (int(temp_text_img.width + temp_text_img.height * shear_factor), temp_text_img.height),
+                    (int(temp_text_img.width + temp_text_img.height * shear_factor), temp_text_img.height + 10),
                     Image.AFFINE,
                     matrix,
                     resample=Image.BICUBIC
                 )
                 
                 # 添加向上的位移来解决汉字下半部分被截断的问题
-                vertical_offset = -5  # 向上移动5个像素，增加位移量
+                vertical_offset = -8  # 向上移动8个像素，增加位移量提高稳定性
                 
                 # 如果还需要粗体效果，则多次绘制斜体图像
-                if font_bold and (not self._is_font_file_bold(font_family) or is_chinese_text):
-                    for dx in range(2):
-                        for dy in range(2):
-                            x_offset = dx
-                            y_offset = dy + vertical_offset  # 添加垂直位移
-                            text_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
+                if font_bold and not self._is_font_file_bold(font_family):
+                    # 优化：使用更精确的偏移量，避免重叠过度导致模糊
+                    for dx in range(-1, 2):
+                        for dy in range(-1, 2):
+                              if dx != 0 or dy != 0:  # 跳过中心位置，避免过度重叠
+                                  x_offset = dx  # 减小间隔，避免重影效果
+                                  y_offset = dy + vertical_offset  # 添加垂直位移
+                                  text_img.paste(skewed_img, (x_offset, y_offset), skewed_img)
+                    # 中心位置最后绘制，确保清晰
+                    text_img.paste(skewed_img, (0, vertical_offset), skewed_img)
                 else:
                     # 仅斜体效果
                     text_img.paste(skewed_img, (0, vertical_offset), skewed_img)  # 添加垂直位移
-            # 对于英文字体或不需要斜体的字体
             else:
-                # 通过多次绘制文本实现粗体效果
-                for dx in range(2):
-                    for dy in range(2):
-                        x_offset = 20 + dx
-                        y_offset = 20 + dy
-                        # 如果需要斜体效果（英文字体）
-                        if font_italic and not self._is_font_file_italic(font_family):
-                            # 对于英文字体，使用逐行偏移方法
-                            lines = text.split('\n')
-                            line_height = font_size  # 估算行高
-                            for i, line in enumerate(lines):
-                                # 计算当前行的y坐标
-                                line_y = y_offset + i * line_height
-                                # 根据行号计算水平偏移量（模拟斜体倾斜效果）
-                                offset_x = int(i * line_height * 0.2)  # 0.2是斜体倾斜系数
-                                color_rgb = self._get_color_rgb(color)
-                                text_draw.text((x_offset + offset_x, line_y), line, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
-                        else:
-                            color_rgb = self._get_color_rgb(color)
-                            text_draw.text((x_offset, y_offset), text, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
+                # 仅粗体效果，通过多次绘制文本实现
+                color_rgb = self._get_color_rgb(color)
+                # 优化：使用更精确的偏移量和透明度，提高稳定性
+                draw_opacity = int(255 * opacity * 0.9)  # 降低基础透明度，避免重叠后过暗
+                
+                # 首先绘制周围的偏移文本（形成粗体效果）
+                for dx in range(-1, 2):
+                    for dy in range(-1, 2):
+                        if dx != 0 or dy != 0:  # 跳过中心位置
+                            text_draw.text((20 + dx, 20 + dy), text, font=font, 
+                                          fill=(color_rgb[0], color_rgb[1], color_rgb[2], draw_opacity))
+                # 最后绘制中心位置的文本，确保清晰
+                text_draw.text((20, 20), text, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], int(255 * opacity)))
         else:
             # 正常绘制文本
             # 添加向上的位移以避免汉字下半部分被截断
@@ -737,33 +738,30 @@ class WatermarkRenderer:
         Returns:
             bool: 是否通过文件实现粗体
         """
-        # 中文字体文件映射（包含粗体和斜体变体）
-        chinese_font_files = {
-            "Microsoft YaHei": {
-                "regular": ["msyh.ttc", "msyh.ttf"],
-                "bold": ["msyhbd.ttc", "msyhbd.ttf"],
-                "light": ["msyhl.ttc"]
-            },
-            "SimHei": {
-                "regular": ["simhei.ttf"]
-            },
-            "SimSun": {
-                "regular": ["simsun.ttc"],
-                "bold": ["simsunb.ttf"],
-                "extended": ["SimsunExtG.ttf"]
-            },
-            "KaiTi": {
-                "regular": ["simkai.ttf", "STKAITI.TTF"]
-            },
-            "FangSong": {
-                "regular": ["simfang.ttf"]
-            },
-            "Arial Unicode MS": {
-                "regular": ["arialuni.ttf"]
-            }
-        }
+        # 根据用户要求，所有中文字体一律使用手动加粗
+        # 中文字体名称列表
+        chinese_font_names = [
+            "Microsoft YaHei", "微软雅黑", "msyh", 
+            "SimHei", "黑体", "simhei",
+            "KaiTi", "楷体", "simkai", "STKAITI",
+            "FangSong", "仿宋", "simfang",
+            "YouYuan", "幼圆", "youyuan",
+            "LiSu", "隶书", "lisu",
+            "STSong", "华文中宋", "stsong",
+            "STZhongsong", "华文中宋",
+            "STKaiti", "楷体_GB2312",
+            "STXingkai", "行楷",
+            "STFangsong", "仿宋_GB2312",
+            "NSimSun", "新宋体",
+            "Arial Unicode MS", "arialuni"
+        ]
         
-        # 英文字体文件映射
+        # 检查是否为中文字体
+        if any(font.lower() in font_name.lower() for font in chinese_font_names):
+            print(f"[DEBUG] 字体 {font_name} 被识别为中文字体，强制使用手动加粗")
+            return False
+        
+        # 检查英文字体文件映射
         english_font_files = {
             "Arial": ["arial.ttf", "arialbd.ttf", "arialbi.ttf", "ariali.ttf"],
             "Times New Roman": ["times.ttf", "timesbd.ttf", "timesbi.ttf", "timesi.ttf"],
@@ -833,11 +831,6 @@ class WatermarkRenderer:
             "SimHei": {
                 "regular": ["simhei.ttf"]
             },
-            "SimSun": {
-                "regular": ["simsun.ttc"],
-                "bold": ["simsunb.ttf"],
-                "extended": ["SimsunExtG.ttf"]
-            },
             "KaiTi": {
                 "regular": ["simkai.ttf", "STKAITI.TTF"]
             },
@@ -900,7 +893,6 @@ class WatermarkRenderer:
         """
         print(f"[DEBUG] _get_chinese_font_by_name: 尝试加载字体 {font_name}, bold={bold}, italic={italic}")
         
-        # 中文字体文件映射（包含粗体和斜体变体）
         chinese_font_files = {
             "Microsoft YaHei": {
                 "regular": ["msyh.ttc", "msyh.ttf"],
@@ -909,11 +901,6 @@ class WatermarkRenderer:
             },
             "SimHei": {
                 "regular": ["simhei.ttf"]
-            },
-            "SimSun": {
-                "regular": ["simsun.ttc"],
-                "bold": ["simsunb.ttf"],
-                "extended": ["SimsunExtG.ttf"]
             },
             "KaiTi": {
                 "regular": ["simkai.ttf", "STKAITI.TTF"]
@@ -1048,11 +1035,9 @@ class WatermarkRenderer:
             bold: 是否粗体
             italic: 是否斜体
         """
-        # 中文字体优先级列表
         chinese_fonts = [
             "Microsoft YaHei",  # 微软雅黑
             "SimHei",           # 黑体
-            "SimSun",           # 宋体
             "KaiTi",            # 楷体
             "FangSong",         # 仿宋
             "Arial Unicode MS", # Arial Unicode
