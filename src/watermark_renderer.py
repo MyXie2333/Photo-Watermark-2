@@ -582,13 +582,15 @@ class WatermarkRenderer:
             bold: 是否粗体
             italic: 是否斜体
         """
-        font_key = f"{font_family}_{font_size}_{bold}_{italic}"
+        # 检测是否需要中文字体支持
+        needs_chinese_font = self._contains_chinese(text)
+        
+        # 关键修复：将文本是否包含中文的信息添加到缓存键中
+        # 确保当文本从纯英文变为中英文混合时，能正确加载支持中文的字体
+        font_key = f"{font_family}_{font_size}_{bold}_{italic}_{needs_chinese_font}"
         
         if font_key in self.font_cache:
             return self.font_cache[font_key]
-            
-        # 检测是否需要中文字体支持
-        needs_chinese_font = self._contains_chinese(text)
         
         # 关键修复：优先使用用户设置的字体，只有在用户设置的字体不支持中文时才回退到中文字体
         if needs_chinese_font:
