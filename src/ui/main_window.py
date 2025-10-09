@@ -1857,14 +1857,30 @@ class MainWindow(QMainWindow):
         documents_dir = str(pathlib.Path.home() / "Documents")
         
         # 获取输出文件名
-        export_dialog = self.findChild(ExportDialog)
-        if export_dialog:
-            output_filename = export_dialog.get_output_filename()
+        # 从export_settings直接获取用户设置的命名规则
+        naming_rule = export_settings.get('naming_rule', 'original')
+        prefix_suffix = export_settings.get('prefix_suffix', '')
+        custom_name = export_settings.get('custom_name', '')
+        
+        # 根据用户设置的命名规则构建输出文件名
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        extension = os.path.splitext(image_path)[1]
+        
+        if naming_rule == 'original':
+            output_filename = f"{base_name}{extension}"
+        elif naming_rule == 'prefix':
+            output_filename = f"{prefix_suffix}{base_name}{extension}"
+        elif naming_rule == 'suffix':
+            output_filename = f"{base_name}{prefix_suffix}{extension}"
+        elif naming_rule == 'custom':
+            # 确保自定义文件名包含扩展名
+            if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
+                output_filename = f"{custom_name}{extension}"
+            else:
+                output_filename = custom_name
         else:
-            # 如果找不到对话框，使用默认命名
-            base_name = os.path.splitext(os.path.basename(image_path))[0]
-            extension = os.path.splitext(image_path)[1]
-            output_filename = f"{base_name}_watermark{extension}"
+            # 默认使用原始文件名
+            output_filename = f"{base_name}{extension}"
         
         # 打开文件夹选择对话框，让用户选择输出文件夹
         output_dir = QFileDialog.getExistingDirectory(
@@ -1981,7 +1997,7 @@ class MainWindow(QMainWindow):
         # 构建完整的输出文件路径
         output_path = os.path.join(output_dir, output_filename)
         
-        # 打开文件保存对话框，让用户确认文件名
+        # 打开文件保存对话框，预填充用户设置的文件名
         file_name, _ = QFileDialog.getSaveFileName(
             self, "导出图片", 
             output_path,
@@ -2031,10 +2047,35 @@ class MainWindow(QMainWindow):
                 if os.path.normpath(new_dir) != os.path.normpath(current_dir):
                     self._confirmed_original_folder_export = False
                 
-                # 构建新的输出文件路径
-                new_file_name = os.path.join(new_dir, os.path.basename(file_name))
+                # 从export_settings直接获取用户设置的命名规则
+                naming_rule = export_settings.get('naming_rule', 'original')
+                prefix_suffix = export_settings.get('prefix_suffix', '')
+                custom_name = export_settings.get('custom_name', '')
                 
-                # 再次打开文件保存对话框，让用户确认文件名
+                # 根据用户设置的命名规则构建输出文件名
+                base_name = os.path.splitext(os.path.basename(image_path))[0]
+                extension = os.path.splitext(image_path)[1]
+                
+                if naming_rule == 'original':
+                    output_filename = f"{base_name}{extension}"
+                elif naming_rule == 'prefix':
+                    output_filename = f"{prefix_suffix}{base_name}{extension}"
+                elif naming_rule == 'suffix':
+                    output_filename = f"{base_name}{prefix_suffix}{extension}"
+                elif naming_rule == 'custom':
+                    # 确保自定义文件名包含扩展名
+                    if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
+                        output_filename = f"{custom_name}{extension}"
+                    else:
+                        output_filename = custom_name
+                else:
+                    # 默认使用原始文件名
+                    output_filename = f"{base_name}{extension}"
+                
+                # 构建新的输出文件路径，使用用户设置的命名规则
+                new_file_name = os.path.join(new_dir, output_filename)
+                
+                # 再次打开文件保存对话框，预填充用户设置的文件名
                 file_name, _ = QFileDialog.getSaveFileName(
                     self, "导出图片", 
                     new_file_name,
@@ -2077,10 +2118,35 @@ class MainWindow(QMainWindow):
                         if os.path.normpath(new_dir) != os.path.normpath(current_dir):
                             self._confirmed_original_folder_export = False
                         
-                        # 构建新的输出文件路径
-                        new_file_name = os.path.join(new_dir, os.path.basename(file_name))
+                        # 从export_settings直接获取用户设置的命名规则
+                        naming_rule = export_settings.get('naming_rule', 'original')
+                        prefix_suffix = export_settings.get('prefix_suffix', '')
+                        custom_name = export_settings.get('custom_name', '')
                         
-                        # 再次打开文件保存对话框，让用户确认文件名
+                        # 根据用户设置的命名规则构建输出文件名
+                        base_name = os.path.splitext(os.path.basename(image_path))[0]
+                        extension = os.path.splitext(image_path)[1]
+                        
+                        if naming_rule == 'original':
+                            output_filename = f"{base_name}{extension}"
+                        elif naming_rule == 'prefix':
+                            output_filename = f"{prefix_suffix}{base_name}{extension}"
+                        elif naming_rule == 'suffix':
+                            output_filename = f"{base_name}{prefix_suffix}{extension}"
+                        elif naming_rule == 'custom':
+                            # 确保自定义文件名包含扩展名
+                            if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
+                                output_filename = f"{custom_name}{extension}"
+                            else:
+                                output_filename = custom_name
+                        else:
+                            # 默认使用原始文件名
+                            output_filename = f"{base_name}{extension}"
+                        
+                        # 构建新的输出文件路径，使用用户设置的命名规则
+                        new_file_name = os.path.join(new_dir, output_filename)
+                        
+                        # 再次打开文件保存对话框，预填充用户设置的文件名
                         file_name, _ = QFileDialog.getSaveFileName(
                             self, "导出图片", 
                             new_file_name,
