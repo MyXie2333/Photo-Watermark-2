@@ -31,7 +31,8 @@ class TextWatermarkWidget(QWidget):
         self.font_size = 64 
         self.font_bold = False  # 粗体
         self.font_italic = False  # 斜体
-        self.font_color = QColor(0, 0, 255)  # 白色
+        # 确保文字颜色的亮度value分量为255（HSV模型中的V值）
+        self.font_color = QColor(0, 0, 255)  # 蓝色，H=240, S=100%, V=100% (255)
         self.opacity = 80  # 透明度百分比
         self.position = (0.5, 0.5)  # 位置
         self.watermark_x = 0  # 水印X坐标
@@ -40,10 +41,12 @@ class TextWatermarkWidget(QWidget):
         self.enable_shadow = False
         self.enable_outline = False
         # 阴影和描边详细设置
-        self.outline_color = QColor(0, 0, 0)  # 描边颜色默认为黑色
+        # 确保描边颜色的亮度value分量为255
+        self.outline_color = QColor(0, 0, 0)  # 黑色，这里H=0, S=0%, V=0%，但我们会在选择时确保V=255
         self.outline_width = 1  # 描边宽度默认为1
         self.outline_offset = (0, 0)  # 描边偏移默认为(0,0)
-        self.shadow_color = QColor(0, 0, 0)  # 阴影颜色默认为黑色
+        # 确保阴影颜色的亮度value分量为255
+        self.shadow_color = QColor(0, 0, 0)  # 黑色，这里H=0, S=0%, V=0%，但我们会在选择时确保V=255
         self.shadow_offset = (3, 3)  # 阴影偏移默认为(3,3)
         self.shadow_blur = 3  # 阴影模糊半径默认为3
         
@@ -727,10 +730,18 @@ class TextWatermarkWidget(QWidget):
                 initial_color = QColor(0, 0, 255)  # 默认蓝色
                 print(f"[DEBUG CLR] 警告：font_color类型错误 {type(self.font_color)}，使用默认颜色")
         
+        # 确保初始颜色的亮度value分量为255
+        h, s, v, a = initial_color.getHsv()
+        initial_color.setHsv(h, s, 255, a)
+        
         # 打开颜色选择对话框
         color = QColorDialog.getColor(initial_color, self, "选择水印颜色")
         
         if color.isValid():
+            # 确保选择的颜色亮度value分量为255
+            h, s, v, a = color.getHsv()
+            color.setHsv(h, s, 255, a)
+            
             self.font_color = color
             self.update_color_button()
             self.watermark_changed.emit()
@@ -1206,8 +1217,21 @@ class TextWatermarkWidget(QWidget):
         
     def on_outline_color_clicked(self):
         """描边颜色按钮点击"""
-        color = QColorDialog.getColor(self.outline_color, self, "选择描边颜色")
+        # 确保初始颜色的亮度value分量为255
+        initial_color = self.outline_color
+        if isinstance(initial_color, QColor):
+            h, s, v, a = initial_color.getHsv()
+            initial_color.setHsv(h, s, 255, a)
+        else:
+            initial_color = QColor(0, 0, 0)  # 默认黑色
+            print(f"[DEBUG CLR] 警告：outline_color类型错误 {type(self.outline_color)}，使用默认颜色")
+        
+        color = QColorDialog.getColor(initial_color, self, "选择描边颜色")
         if color.isValid():
+            # 确保选择的颜色亮度value分量为255
+            h, s, v, a = color.getHsv()
+            color.setHsv(h, s, 255, a)
+            
             self.outline_color = color
             self.update_outline_color_button()
             self.watermark_changed.emit()
@@ -1219,8 +1243,21 @@ class TextWatermarkWidget(QWidget):
     
     def on_shadow_color_clicked(self):
         """阴影颜色按钮点击"""
-        color = QColorDialog.getColor(self.shadow_color, self, "选择阴影颜色")
+        # 确保初始颜色的亮度value分量为255
+        initial_color = self.shadow_color
+        if isinstance(initial_color, QColor):
+            h, s, v, a = initial_color.getHsv()
+            initial_color.setHsv(h, s, 255, a)
+        else:
+            initial_color = QColor(0, 0, 0)  # 默认黑色
+            print(f"[DEBUG CLR] 警告：shadow_color类型错误 {type(self.shadow_color)}，使用默认颜色")
+        
+        color = QColorDialog.getColor(initial_color, self, "选择阴影颜色")
         if color.isValid():
+            # 确保选择的颜色亮度value分量为255
+            h, s, v, a = color.getHsv()
+            color.setHsv(h, s, 255, a)
+            
             self.shadow_color = color
             self.update_shadow_color_button()
             self.watermark_changed.emit()
