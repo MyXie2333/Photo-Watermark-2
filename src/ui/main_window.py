@@ -1776,6 +1776,80 @@ class MainWindow(QMainWindow):
                 return True
         return False
     
+    def _export_single_image(self, image_path, watermark_settings, output_path, export_settings):
+        """
+        封装单个图片的导出核心逻辑（无UI交互）
+        
+        Args:
+            image_path (str): 原始图片路径
+            watermark_settings (dict): 水印设置
+            output_path (str): 输出文件路径
+            export_settings (dict): 导出设置
+            
+        Returns:
+            bool: 导出是否成功
+            str: 错误信息（如果失败）
+        """
+        try:
+            # 加载原始图片
+            original_image = PILImage.open(image_path)
+            
+            # 根据水印类型选择渲染方法
+            watermark_type = watermark_settings.get('watermark_type', 'text')
+            if watermark_type == 'text':
+                # 渲染文本水印
+                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
+            elif watermark_type == 'image':
+                # 渲染图片水印
+                watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings, is_preview=False)
+            else:
+                # 默认使用文本水印
+                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
+            
+            # 根据导出设置调整图片尺寸（现在是对已经渲染了水印的图片进行整体缩放）
+            resize_option = export_settings.get('resize_option', 0)
+            if resize_option == 1:  # 按宽度调整
+                new_width = export_settings.get('resize_value', 800)
+                # 计算保持宽高比的高度
+                width_percent = (new_width / float(watermarked_image.size[0]))
+                new_height = int(float(watermarked_image.size[1]) * float(width_percent))
+                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
+            elif resize_option == 2:  # 按高度调整
+                new_height = export_settings.get('resize_value', 600)
+                # 计算保持宽高比的宽度
+                height_percent = (new_height / float(watermarked_image.size[1]))
+                new_width = int(float(watermarked_image.size[0]) * float(height_percent))
+                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
+            elif resize_option == 3:  # 按百分比调整
+                percent = export_settings.get('percent_value', 100) / 100.0
+                new_width = int(watermarked_image.size[0] * percent)
+                new_height = int(watermarked_image.size[1] * percent)
+                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
+            elif resize_option == 4:  # 自定义尺寸
+                new_width = export_settings.get('custom_width', 800)
+                new_height = export_settings.get('custom_height', 600)
+                # 直接调整到指定尺寸，不保持宽高比
+                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
+            
+            # 准备保存参数
+            save_params = {}
+            file_ext = os.path.splitext(output_path)[1].lower()
+            
+            # 如果是JPEG格式，添加质量设置
+            if file_ext in ['.jpg', '.jpeg'] and 'quality' in export_settings:
+                save_params['quality'] = export_settings['quality']
+                save_params['optimize'] = True
+            elif file_ext == '.png':
+                save_params['optimize'] = True
+            
+            # 保存渲染后的图片
+            watermarked_image.save(output_path, **save_params)
+            return True, ""
+        except Exception as e:
+            error_msg = str(e)
+            logging.error(f"导出图片 {image_path} 失败: {error_msg}")
+            return False, error_msg
+            
     def export_image(self):
         """导出当前图片，应用水印效果"""
         # 获取当前图片路径
@@ -2145,63 +2219,14 @@ class MainWindow(QMainWindow):
                     return  # 用户取消导出
         
         try:
-            # 加载原始图片
-            original_image = PILImage.open(image_path)
+            # 调用封装的单个图片导出函数
+            success, error_msg = self._export_single_image(image_path, watermark_settings, file_name, export_settings)
             
-            # 根据水印类型选择渲染方法
-            watermark_type = watermark_settings.get('watermark_type', 'text')
-            if watermark_type == 'text':
-                # 渲染文本水印
-                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
-            elif watermark_type == 'image':
-                # 渲染图片水印
-                watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings, is_preview=False)
+            if success:
+                # 显示导出成功提示
+                QMessageBox.information(self, "成功", f"图片已成功导出到:\n{file_name}")
             else:
-                # 默认使用文本水印
-                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
-            
-            # 根据导出设置调整图片尺寸（现在是对已经渲染了水印的图片进行整体缩放）
-            resize_option = export_settings.get('resize_option', 0)
-            if resize_option == 1:  # 按宽度调整
-                new_width = export_settings.get('resize_value', 800)
-                # 计算保持宽高比的高度
-                width_percent = (new_width / float(watermarked_image.size[0]))
-                new_height = int(float(watermarked_image.size[1]) * float(width_percent))
-                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-            elif resize_option == 2:  # 按高度调整
-                new_height = export_settings.get('resize_value', 600)
-                # 计算保持宽高比的宽度
-                height_percent = (new_height / float(watermarked_image.size[1]))
-                new_width = int(float(watermarked_image.size[0]) * float(height_percent))
-                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-            elif resize_option == 3:  # 按百分比调整
-                percent = export_settings.get('percent_value', 100) / 100.0
-                new_width = int(watermarked_image.size[0] * percent)
-                new_height = int(watermarked_image.size[1] * percent)
-                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-            elif resize_option == 4:  # 自定义尺寸
-                new_width = export_settings.get('custom_width', 800)
-                new_height = export_settings.get('custom_height', 600)
-                # 直接调整到指定尺寸，不保持宽高比
-                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-            
-            # 准备保存参数
-            save_params = {}
-            file_ext = os.path.splitext(file_name)[1].lower()
-            
-            # 如果是JPEG格式，添加质量设置
-            if file_ext in ['.jpg', '.jpeg'] and 'quality' in export_settings:
-                save_params['quality'] = export_settings['quality']
-                save_params['optimize'] = True
-            elif file_ext == '.png':
-                save_params['optimize'] = True
-            
-            # 保存渲染后的图片
-            watermarked_image.save(file_name, **save_params)
-            
-            # 显示导出成功提示
-            QMessageBox.information(self, "成功", f"图片已成功导出到:\n{file_name}")
-            
+                QMessageBox.critical(self, "错误", f"导出图片时出错:\n{error_msg}")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"导出图片时出错:\n{str(e)}")
             logging.error(f"导出图片失败: {str(e)}")
@@ -2341,7 +2366,7 @@ class MainWindow(QMainWindow):
         
         # 创建进度对话框
         progress_dialog = QProgressDialog("正在导出图片...", "取消", 0, len(all_image_paths), self)
-        progress_dialog.setWindowTitle("导出进度")
+        progress_dialog.setWindowTitle("请稍等，正在导出图片...")
         progress_dialog.setWindowModality(Qt.WindowModal)
         progress_dialog.show()
         
@@ -2382,61 +2407,12 @@ class MainWindow(QMainWindow):
             output_path = os.path.join(output_dir, output_file_name)
             
             try:
-                # 加载原始图片
-                original_image = PILImage.open(image_path)
-                
-                # 根据水印类型选择渲染方法
-                watermark_type = watermark_settings.get('watermark_type', 'text')
-                if watermark_type == 'text':
-                    # 渲染文本水印
-                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
-                elif watermark_type == 'image':
-                    # 渲染图片水印
-                    watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings, is_preview=False)
+                # 调用封装的单个图片导出函数
+                success, error_msg = self._export_single_image(image_path, watermark_settings, output_path, export_settings)
+                if success:
+                    success_count += 1
                 else:
-                    # 默认使用文本水印
-                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
-                
-                # 根据导出设置调整图片尺寸（现在是对已经渲染了水印的图片进行整体缩放）
-                resize_option = export_settings.get('resize_option', 0)
-                if resize_option == 1:  # 按宽度调整
-                    new_width = export_settings.get('resize_value', 800)
-                    # 计算保持宽高比的高度
-                    width_percent = (new_width / float(watermarked_image.size[0]))
-                    new_height = int(float(watermarked_image.size[1]) * float(width_percent))
-                    watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-                elif resize_option == 2:  # 按高度调整
-                    new_height = export_settings.get('resize_value', 600)
-                    # 计算保持宽高比的宽度
-                    height_percent = (new_height / float(watermarked_image.size[1]))
-                    new_width = int(float(watermarked_image.size[0]) * float(height_percent))
-                    watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-                elif resize_option == 3:  # 按百分比调整
-                    percent = export_settings.get('percent_value', 100) / 100.0
-                    new_width = int(watermarked_image.size[0] * percent)
-                    new_height = int(watermarked_image.size[1] * percent)
-                    watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-                elif resize_option == 4:  # 自定义尺寸
-                    new_width = export_settings.get('custom_width', 800)
-                    new_height = export_settings.get('custom_height', 600)
-                    # 直接调整到指定尺寸，不保持宽高比
-                    watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
-                
-                # 准备保存参数
-                save_params = {}
-                file_ext = os.path.splitext(output_path)[1].lower()
-                
-                # 如果是JPEG格式，添加质量设置
-                if file_ext in ['.jpg', '.jpeg'] and 'quality' in export_settings:
-                    save_params['quality'] = export_settings['quality']
-                    save_params['optimize'] = True
-                elif file_ext == '.png':
-                    save_params['optimize'] = True
-                
-                # 保存渲染后的图片
-                watermarked_image.save(output_path, **save_params)
-                success_count += 1
-                
+                    failed_images.append(os.path.basename(image_path))
             except Exception as e:
                 failed_images.append(os.path.basename(image_path))
                 logging.error(f"导出图片 {image_path} 失败: {str(e)}")
