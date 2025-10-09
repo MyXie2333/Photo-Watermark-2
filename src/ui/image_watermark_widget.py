@@ -142,11 +142,13 @@ class ImageWatermarkWidget(QWidget):
         
         for i, (label, pos_value) in enumerate(positions):
             btn = QPushButton(label)
-            btn.setCheckable(True)
+            # 不再设置按钮为可选中状态
+            # btn.setCheckable(True)
             btn.setProperty("position", pos_value)
-            # 默认选择中心位置
+            # 默认选择中心位置，但不显示选中状态
             if pos_value == (0.5, 0.5):
-                btn.setChecked(True)
+                # 不再设置按钮为选中状态
+                # btn.setChecked(True)
                 self.watermark_settings["position"] = "center"
             
             # 添加到网格布局
@@ -184,15 +186,6 @@ class ImageWatermarkWidget(QWidget):
         
         layout.addWidget(coord_group)
         
-        # 保持纵横比
-        aspect_ratio_layout = QHBoxLayout()
-        self.aspect_ratio_checkbox = QPushButton("保持纵横比")
-        self.aspect_ratio_checkbox.setCheckable(True)
-        self.aspect_ratio_checkbox.setChecked(True)
-        self.aspect_ratio_checkbox.clicked.connect(self.on_aspect_ratio_changed)
-        aspect_ratio_layout.addWidget(self.aspect_ratio_checkbox)
-        aspect_ratio_layout.addStretch()
-        settings_layout.addLayout(aspect_ratio_layout, 4, 0, 1, 2)
         
         layout.addWidget(settings_group)
         
@@ -229,17 +222,19 @@ class ImageWatermarkWidget(QWidget):
                 # 更新水印设置
                 self.update_watermark_settings()
                 
+
                 # 自动设置中心位置
                 for btn in self.position_buttons:
                     if btn.property("position") == (0.5, 0.5):
-                        btn.setChecked(True)
+                        # 不再设置按钮为选中状态
+                        # btn.setChecked(True)
                         # 使用新的update_position方法处理位置变化
                         print(f"[DEBUG] ImageWatermarkWidget.select_watermark_image: 调用函数: self.update_position((0.5, 0.5))")
                         self.update_position((0.5, 0.5))
-                        # 取消其他按钮的选中状态
-                        for other_btn in self.position_buttons:
-                            if other_btn != btn:
-                                other_btn.setChecked(False)
+                        # 不再取消其他按钮的选中状态
+                        # for other_btn in self.position_buttons:
+                        #     if other_btn != btn:
+                        #         other_btn.setChecked(False)
                         break
             except Exception as e:
                 self.preview_label.setText(f"加载失败: {str(e)}")
@@ -287,15 +282,9 @@ class ImageWatermarkWidget(QWidget):
             pos_value = sender.property("position")
             print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 修改position为 {pos_value}")
             
-            # 手动设置按钮为选中状态
-            sender.setChecked(True)
             # 直接使用元组位置，不再转换为字符串
             print(f"[DEBUG] ImageWatermarkWidget.on_position_changed: 调用函数: self.update_position({pos_value})")
             self.update_position(pos_value)
-            # 取消其他按钮的选中状态
-            for other_btn in self.position_buttons:
-                if other_btn != sender:
-                    other_btn.setChecked(False)
     
     def on_apply_coord_clicked(self):
         """手动坐标输入应用按钮点击时的处理"""
@@ -526,12 +515,7 @@ class ImageWatermarkWidget(QWidget):
         """
         self.compression_scale = scale
 
-    def on_aspect_ratio_changed(self, checked):
-        """保持纵横比选项变化时的处理"""
-        self.watermark_settings["keep_aspect_ratio"] = checked
-        # 重新计算坐标
-        self.calculate_watermark_coordinates()
-        self.update_watermark_settings()
+
     
     def on_scale_changed(self, value):
         """缩放滑块变化时的处理"""
@@ -663,8 +647,7 @@ class ImageWatermarkWidget(QWidget):
                 # 更新坐标输入框
                 self.update_coordinate_inputs()
         
-        if "keep_aspect_ratio" in settings:
-            self.aspect_ratio_checkbox.setChecked(settings["keep_aspect_ratio"])
+
         
         # 更新坐标输入框
         self.update_coordinate_inputs()

@@ -214,10 +214,12 @@ class TextWatermarkWidget(QWidget):
         
         for i, (label, pos_value) in enumerate(positions):
             btn = QPushButton(label)
-            btn.setCheckable(True)
+            # 不再设置按钮为可选中状态
+            # btn.setCheckable(True)
             btn.setProperty("position", pos_value)
-            if pos_value == self.position:
-                btn.setChecked(True)
+            # 不再设置初始选中状态
+            # if pos_value == self.position:
+            #     btn.setChecked(True)
             
             # 添加到网格布局
             row = i // 3
@@ -831,28 +833,18 @@ class TextWatermarkWidget(QWidget):
         6. 改进错误处理，确保在各种异常情况下仍能提供合理的默认位置
         
         处理流程：
-        1. 取消其他位置按钮的选中状态
-        2. 获取原图尺寸（优先使用传递的尺寸，否则从图片文件读取）
-        3. 使用PIL精确计算文本边界框
-        4. 考虑旋转因素调整文本尺寸
-        5. 根据九宫格位置计算水印坐标，考虑文本尺寸和边距
-        6. 调用update_position更新水印位置
+        1. 获取原图尺寸（优先使用传递的尺寸，否则从图片文件读取）
+        2. 使用PIL精确计算文本边界框
+        3. 考虑旋转因素调整文本尺寸
+        4. 根据九宫格位置计算水印坐标，考虑文本尺寸和边距
+        5. 调用update_position更新水印位置
         """
         # 获取发送信号的对象（被点击的位置按钮）
         sender = self.sender()
-        if sender.isChecked():
-            # 取消其他位置按钮的选中状态，确保只有一个按钮被选中
-            for attr_name in dir(self):
-                # 查找所有位置按钮（以pos_开头，以_btn结尾的属性）
-                if attr_name.startswith("pos_") and attr_name.endswith("_btn"):
-                    btn = getattr(self, attr_name)
-                    # 如果不是当前点击的按钮，则取消其选中状态
-                    if btn != sender:
-                        btn.setChecked(False)
-            
-            # 获取按钮的位置属性（相对位置元组）
-            position_tuple = sender.property("position")
-            if position_tuple:
+        
+        # 获取按钮的位置属性（相对位置元组）
+        position_tuple = sender.property("position")
+        if position_tuple:
                 # 获取当前图片的原始尺寸
                 try:
                     # 首先尝试使用传递的原图尺寸（如果存在）
@@ -1020,11 +1012,11 @@ class TextWatermarkWidget(QWidget):
                 # 如果前两种方案都失败，直接报错
                 print(f"[ERROR] 无法获取图片尺寸，无法计算水印位置")
                 return
-            else:
-                # 如果没有位置属性，默认使用左上角位置
-                self.update_position((20, 20))
-                
-            # 不再需要手动触发水印变化信号，因为update_position函数已经触发了
+        else:
+            # 如果没有位置属性，默认使用左上角位置
+            self.update_position((20, 20))
+            
+        # 不再需要手动触发水印变化信号，因为update_position函数已经触发了
         
     def update_position(self, new_position):
         """
