@@ -138,7 +138,7 @@ class TemplateManagerDialog(QDialog):
         bottom_layout.addItem(spacer)
         
         # 关闭按钮
-        self.close_btn = QPushButton("关闭")
+        self.close_btn = QPushButton("确定")
         bottom_layout.addWidget(self.close_btn)
         
         layout.addLayout(bottom_layout)
@@ -568,12 +568,14 @@ class StartupSettingsDialog(QDialog):
             template_dialog.exec_()
             
             # 在用户成功选择并加载模板后，直接接受对话框并进入主界面
-            # 不再取消选中模板管理选项，这样用户选择模板后就不会回到启动界面
             # 使用默认选项，避免用户再次选择
             self.load_default_radio.setChecked(True)
             
             # 保存这个设置
             self.config_manager.set_load_last_settings(False)
+            
+            # 直接接受对话框，进入主界面
+            self.accept()
     
     def get_selected_option(self):
         """获取选中的选项"""
