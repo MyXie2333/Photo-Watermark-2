@@ -143,41 +143,29 @@ class ExportDialog(QDialog):
         size_layout.addWidget(self.percent_resize_radio)
         size_layout.addWidget(self.custom_size_radio)
         
-        # 尺寸调整值
-        self.resize_value_layout = QHBoxLayout()
-        self.resize_value_label = QLabel("")
-        self.resize_value_spin = QSpinBox()
-        self.resize_value_spin.setRange(1, 10000)
-        self.resize_value_spin.setValue(800)
-        self.resize_value_spin.setEnabled(False)
+        # 宽度值设置
+        self.width_layout = QHBoxLayout()
+        self.width_label = QLabel("宽度:")
+        self.width_spin = QSpinBox()
+        self.width_spin.setRange(1, 10000)
+        self.width_spin.setValue(800)
+        self.width_spin.setEnabled(False)
         
-        self.resize_value_layout.addWidget(self.resize_value_label)
-        self.resize_value_layout.addWidget(self.resize_value_spin)
-        self.resize_value_layout.addWidget(QLabel("像素"))
+        self.width_layout.addWidget(self.width_label)
+        self.width_layout.addWidget(self.width_spin)
+        self.width_layout.addWidget(QLabel("像素"))
         
-        # 自定义宽度值
-        self.custom_width_layout = QHBoxLayout()
-        self.custom_width_label = QLabel("宽度:")
-        self.custom_width_spin = QSpinBox()
-        self.custom_width_spin.setRange(1, 10000)
-        self.custom_width_spin.setValue(800)
-        self.custom_width_spin.setEnabled(False)
+        # 高度值设置
+        self.height_layout = QHBoxLayout()
+        self.height_label = QLabel("高度:")
+        self.height_spin = QSpinBox()
+        self.height_spin.setRange(1, 10000)
+        self.height_spin.setValue(600)
+        self.height_spin.setEnabled(False)
         
-        self.custom_width_layout.addWidget(self.custom_width_label)
-        self.custom_width_layout.addWidget(self.custom_width_spin)
-        self.custom_width_layout.addWidget(QLabel("像素"))
-        
-        # 自定义高度值
-        self.custom_height_layout = QHBoxLayout()
-        self.custom_height_label = QLabel("高度:")
-        self.custom_height_spin = QSpinBox()
-        self.custom_height_spin.setRange(1, 10000)
-        self.custom_height_spin.setValue(600)
-        self.custom_height_spin.setEnabled(False)
-        
-        self.custom_height_layout.addWidget(self.custom_height_label)
-        self.custom_height_layout.addWidget(self.custom_height_spin)
-        self.custom_height_layout.addWidget(QLabel("像素"))
+        self.height_layout.addWidget(self.height_label)
+        self.height_layout.addWidget(self.height_spin)
+        self.height_layout.addWidget(QLabel("像素"))
         
         # 百分比调整值
         self.percent_value_layout = QHBoxLayout()
@@ -191,9 +179,8 @@ class ExportDialog(QDialog):
         self.percent_value_layout.addWidget(self.percent_value_spin)
         self.percent_value_layout.addWidget(QLabel("%"))
         
-        size_layout.addLayout(self.resize_value_layout)
-        size_layout.addLayout(self.custom_width_layout)
-        size_layout.addLayout(self.custom_height_layout)
+        size_layout.addLayout(self.width_layout)
+        size_layout.addLayout(self.height_layout)
         size_layout.addLayout(self.percent_value_layout)
         
         # 连接信号
@@ -282,52 +269,57 @@ class ExportDialog(QDialog):
     def update_resize_options(self, option):
         """更新尺寸调整选项的显示状态"""
         if option == 0:  # 不调整
-            self.resize_value_label.setText("")
-            self.resize_value_spin.setEnabled(False)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(False)
+            self.height_spin.setEnabled(False)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
         elif option == 1:  # 按宽度
-            self.resize_value_label.setText("宽度:")
-            self.resize_value_spin.setEnabled(True)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(True)
+            self.height_spin.setEnabled(False)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
         elif option == 2:  # 按高度
-            self.resize_value_label.setText("高度:")
-            self.resize_value_spin.setEnabled(True)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(False)
+            self.height_spin.setEnabled(True)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
         elif option == 3:  # 按百分比
-            self.resize_value_label.setText("")
-            self.resize_value_spin.setEnabled(False)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(False)
+            self.height_spin.setEnabled(False)
             self.percent_value_label.setText("缩放比例:")
             self.percent_value_spin.setEnabled(True)
         elif option == 4:  # 自定义尺寸
-            self.resize_value_label.setText("")
-            self.resize_value_spin.setEnabled(False)
-            self.custom_width_spin.setEnabled(True)
-            self.custom_height_spin.setEnabled(True)
+            self.width_spin.setEnabled(True)
+            self.height_spin.setEnabled(True)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
     
     def get_export_settings(self):
         """获取导出设置"""
+        resize_option = self.size_option_group.checkedId()
+        
+        # 根据不同的resize_option设置相应的值
+        resize_value = None
+        custom_width = None
+        custom_height = None
+        
+        if resize_option == 1:  # 按宽度
+            resize_value = self.width_spin.value()
+        elif resize_option == 2:  # 按高度
+            resize_value = self.height_spin.value()
+        elif resize_option == 4:  # 自定义尺寸
+            custom_width = self.width_spin.value()
+            custom_height = self.height_spin.value()
+        
         settings = {
             'naming_rule': self.naming_combo.currentData(),
             'prefix_suffix': self.prefix_suffix_input.text(),
             'custom_name': self.custom_name_input.text(),
-            'resize_option': self.size_option_group.checkedId(),
-            'resize_value': self.resize_value_spin.value() if self.resize_value_spin.isEnabled() else None,
+            'resize_option': resize_option,
+            'resize_value': resize_value,
             'percent_value': self.percent_value_spin.value() if self.percent_value_spin.isEnabled() else None,
-            'custom_width': self.custom_width_spin.value() if self.custom_width_spin.isEnabled() else None,
-            'custom_height': self.custom_height_spin.value() if self.custom_height_spin.isEnabled() else None,
+            'custom_width': custom_width,
+            'custom_height': custom_height,
             'quality': self.quality_slider.value(),
         }
         
@@ -478,41 +470,29 @@ class BatchExportDialog(QDialog):
         size_layout.addWidget(self.percent_resize_radio)
         size_layout.addWidget(self.custom_size_radio)
         
-        # 尺寸调整值
-        self.resize_value_layout = QHBoxLayout()
-        self.resize_value_label = QLabel("")
-        self.resize_value_spin = QSpinBox()
-        self.resize_value_spin.setRange(1, 10000)
-        self.resize_value_spin.setValue(800)
-        self.resize_value_spin.setEnabled(False)
+        # 宽度值设置
+        self.width_layout = QHBoxLayout()
+        self.width_label = QLabel("宽度:")
+        self.width_spin = QSpinBox()
+        self.width_spin.setRange(1, 10000)
+        self.width_spin.setValue(800)
+        self.width_spin.setEnabled(False)
         
-        self.resize_value_layout.addWidget(self.resize_value_label)
-        self.resize_value_layout.addWidget(self.resize_value_spin)
-        self.resize_value_layout.addWidget(QLabel("像素"))
+        self.width_layout.addWidget(self.width_label)
+        self.width_layout.addWidget(self.width_spin)
+        self.width_layout.addWidget(QLabel("像素"))
         
-        # 自定义宽度值
-        self.custom_width_layout = QHBoxLayout()
-        self.custom_width_label = QLabel("宽度:")
-        self.custom_width_spin = QSpinBox()
-        self.custom_width_spin.setRange(1, 10000)
-        self.custom_width_spin.setValue(800)
-        self.custom_width_spin.setEnabled(False)
+        # 高度值设置
+        self.height_layout = QHBoxLayout()
+        self.height_label = QLabel("高度:")
+        self.height_spin = QSpinBox()
+        self.height_spin.setRange(1, 10000)
+        self.height_spin.setValue(600)
+        self.height_spin.setEnabled(False)
         
-        self.custom_width_layout.addWidget(self.custom_width_label)
-        self.custom_width_layout.addWidget(self.custom_width_spin)
-        self.custom_width_layout.addWidget(QLabel("像素"))
-        
-        # 自定义高度值
-        self.custom_height_layout = QHBoxLayout()
-        self.custom_height_label = QLabel("高度:")
-        self.custom_height_spin = QSpinBox()
-        self.custom_height_spin.setRange(1, 10000)
-        self.custom_height_spin.setValue(600)
-        self.custom_height_spin.setEnabled(False)
-        
-        self.custom_height_layout.addWidget(self.custom_height_label)
-        self.custom_height_layout.addWidget(self.custom_height_spin)
-        self.custom_height_layout.addWidget(QLabel("像素"))
+        self.height_layout.addWidget(self.height_label)
+        self.height_layout.addWidget(self.height_spin)
+        self.height_layout.addWidget(QLabel("像素"))
         
         # 百分比调整值
         self.percent_value_layout = QHBoxLayout()
@@ -526,9 +506,8 @@ class BatchExportDialog(QDialog):
         self.percent_value_layout.addWidget(self.percent_value_spin)
         self.percent_value_layout.addWidget(QLabel("%"))
         
-        size_layout.addLayout(self.resize_value_layout)
-        size_layout.addLayout(self.custom_width_layout)
-        size_layout.addLayout(self.custom_height_layout)
+        size_layout.addLayout(self.width_layout)
+        size_layout.addLayout(self.height_layout)
         size_layout.addLayout(self.percent_value_layout)
         
         # 连接信号
@@ -607,51 +586,56 @@ class BatchExportDialog(QDialog):
     def update_resize_options(self, option):
         """更新尺寸调整选项的显示状态"""
         if option == 0:  # 不调整
-            self.resize_value_label.setText("")
-            self.resize_value_spin.setEnabled(False)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(False)
+            self.height_spin.setEnabled(False)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
         elif option == 1:  # 按宽度
-            self.resize_value_label.setText("宽度:")
-            self.resize_value_spin.setEnabled(True)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(True)
+            self.height_spin.setEnabled(False)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
         elif option == 2:  # 按高度
-            self.resize_value_label.setText("高度:")
-            self.resize_value_spin.setEnabled(True)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(False)
+            self.height_spin.setEnabled(True)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
         elif option == 3:  # 按百分比
-            self.resize_value_label.setText("")
-            self.resize_value_spin.setEnabled(False)
-            self.custom_width_spin.setEnabled(False)
-            self.custom_height_spin.setEnabled(False)
+            self.width_spin.setEnabled(False)
+            self.height_spin.setEnabled(False)
             self.percent_value_label.setText("缩放比例:")
             self.percent_value_spin.setEnabled(True)
         elif option == 4:  # 自定义尺寸
-            self.resize_value_label.setText("")
-            self.resize_value_spin.setEnabled(False)
-            self.custom_width_spin.setEnabled(True)
-            self.custom_height_spin.setEnabled(True)
+            self.width_spin.setEnabled(True)
+            self.height_spin.setEnabled(True)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
     
     def get_export_settings(self):
         """获取导出设置"""
+        resize_option = self.size_option_group.checkedId()
+        
+        # 根据不同的resize_option设置相应的值
+        resize_value = None
+        custom_width = None
+        custom_height = None
+        
+        if resize_option == 1:  # 按宽度
+            resize_value = self.width_spin.value()
+        elif resize_option == 2:  # 按高度
+            resize_value = self.height_spin.value()
+        elif resize_option == 4:  # 自定义尺寸
+            custom_width = self.width_spin.value()
+            custom_height = self.height_spin.value()
+        
         settings = {
             'naming_rule': self.naming_combo.currentData(),
             'prefix_suffix': self.prefix_suffix_input.text(),
-            'resize_option': self.size_option_group.checkedId(),
-            'resize_value': self.resize_value_spin.value() if self.resize_value_spin.isEnabled() else None,
+            'resize_option': resize_option,
+            'resize_value': resize_value,
             'percent_value': self.percent_value_spin.value() if self.percent_value_spin.isEnabled() else None,
-            'custom_width': self.custom_width_spin.value() if self.custom_width_spin.isEnabled() else None,
-            'custom_height': self.custom_height_spin.value() if self.custom_height_spin.isEnabled() else None,
+            'custom_width': custom_width,
+            'custom_height': custom_height,
             'quality': self.quality_slider.value(),
         }
         

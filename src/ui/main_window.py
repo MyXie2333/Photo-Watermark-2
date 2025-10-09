@@ -7,7 +7,8 @@
 import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
-                             QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea, QDialog)
+                             QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea, QDialog,
+                             QProgressDialog)
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage, QColor, QPainter, QPen, QFont
 from PIL import Image as PILImage
