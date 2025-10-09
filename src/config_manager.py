@@ -69,12 +69,19 @@ class ConfigManager:
         """加载配置文件"""
         try:
             if self.config_file.exists():
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    loaded_config = json.load(f)
-                    
-                # 合并配置，确保新字段有默认值
-                self.config = self._merge_configs(self.default_config, loaded_config)
-                logging.info(f"配置文件加载成功: {self.config_file}")
+                try:
+                    with open(self.config_file, 'r', encoding='utf-8') as f:
+                        loaded_config = json.load(f)
+                        
+                    # 合并配置，确保新字段有默认值
+                    self.config = self._merge_configs(self.default_config, loaded_config)
+                    logging.info(f"配置文件加载成功: {self.config_file}")
+                except json.JSONDecodeError as e:
+                    logging.error(f"配置文件格式错误: {e}")
+                    # 配置文件格式错误，创建新的默认配置文件
+                    self.config = self.default_config.copy()
+                    self.save_config()
+                    logging.info(f"创建新的默认配置文件: {self.config_file}")
             else:
                 # 配置文件不存在，使用默认配置
                 self.save_config()

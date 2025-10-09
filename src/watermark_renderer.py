@@ -114,8 +114,8 @@ class WatermarkRenderer:
                 text_image = text_image.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
                 # 旋转后重新计算位置
                 rotated_width, rotated_height = text_image.size
-                x = x - (rotated_width - text_width) // 2
-                y = y - (rotated_height - text_height) // 2
+                # x = x - (rotated_width - text_width) // 2
+                # y = y - (rotated_height - text_height) // 2
             
             # 记录旋转后的水印位置（预览模式）
             if is_preview:
