@@ -2221,6 +2221,11 @@ class MainWindow(QMainWindow):
                 new_width = int(watermarked_image.size[0] * percent)
                 new_height = int(watermarked_image.size[1] * percent)
                 watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
+            elif resize_option == 4:  # 自定义尺寸
+                new_width = export_settings.get('custom_width', 800)
+                new_height = export_settings.get('custom_height', 600)
+                # 直接调整到指定尺寸，不保持宽高比
+                watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
             
             # 准备保存参数
             save_params = {}
@@ -2450,6 +2455,11 @@ class MainWindow(QMainWindow):
                     percent = export_settings.get('percent_value', 100) / 100.0
                     new_width = int(watermarked_image.size[0] * percent)
                     new_height = int(watermarked_image.size[1] * percent)
+                    watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
+                elif resize_option == 4:  # 自定义尺寸
+                    new_width = export_settings.get('custom_width', 800)
+                    new_height = export_settings.get('custom_height', 600)
+                    # 直接调整到指定尺寸，不保持宽高比
                     watermarked_image = watermarked_image.resize((new_width, new_height), PILImage.LANCZOS)
                 
                 # 准备保存参数
