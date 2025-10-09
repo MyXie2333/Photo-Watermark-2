@@ -2148,13 +2148,13 @@ class MainWindow(QMainWindow):
             watermark_type = watermark_settings.get('watermark_type', 'text')
             if watermark_type == 'text':
                 # 渲染文本水印
-                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
             elif watermark_type == 'image':
                 # 渲染图片水印
                 watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings, is_preview=False)
             else:
                 # 默认使用文本水印
-                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+                watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
             
             # 准备保存参数
             save_params = {}
@@ -2378,13 +2378,13 @@ class MainWindow(QMainWindow):
                 watermark_type = watermark_settings.get('watermark_type', 'text')
                 if watermark_type == 'text':
                     # 渲染文本水印
-                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
                 elif watermark_type == 'image':
                     # 渲染图片水印
                     watermarked_image = self.watermark_renderer.render_image_watermark(original_image, watermark_settings, is_preview=False)
                 else:
                     # 默认使用文本水印
-                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings)
+                    watermarked_image = self.watermark_renderer.render_text_watermark(original_image, watermark_settings, is_preview=False)
                 
                 # 准备保存参数
                 save_params = {}

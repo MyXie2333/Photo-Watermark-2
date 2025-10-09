@@ -52,13 +52,14 @@ class WatermarkRenderer:
         """
         self.compression_scale = scale
         
-    def render_text_watermark(self, image, watermark_settings):
+    def render_text_watermark(self, image, watermark_settings, is_preview=False):
         """
         渲染文本水印到图片上（使用图片水印渲染接口，但保留原有的位置计算逻辑）
         
         Args:
             image: PIL Image对象
             watermark_settings: 水印设置字典
+            is_preview: 是否为预览模式，预览模式会应用压缩比例
             
         Returns:
             PIL Image对象（带水印的图片）
@@ -117,8 +118,14 @@ class WatermarkRenderer:
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
                     # 更新watermark_x和watermark_y
-                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
-                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                    if is_preview:
+                        # 预览模式：使用压缩坐标
+                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                    else:
+                        # 导出模式：使用原始坐标
+                        current_watermark_settings["watermark_x"] = int(round(x))
+                        current_watermark_settings["watermark_y"] = int(round(y))
                     # 保存更新后的水印设置回image_manager
                     self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
                     print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存水印坐标: watermark_x={x}, watermark_y={y}")
@@ -146,8 +153,14 @@ class WatermarkRenderer:
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
                     # 更新最终的watermark_x和watermark_y
-                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
-                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                    if is_preview:
+                        # 预览模式：使用压缩坐标
+                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
+                    else:
+                        # 导出模式：使用原始坐标
+                        current_watermark_settings["watermark_x"] = int(round(x))
+                        current_watermark_settings["watermark_y"] = int(round(y))
                     # 保存更新后的水印设置回image_manager
                     self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
                     print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存最终水印坐标: watermark_x={x}, watermark_y={y}")
@@ -157,7 +170,15 @@ class WatermarkRenderer:
                 print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 当前图片路径为空，无法更新最终坐标")
         
         # 将文本图片粘贴到主图像上
-        watermarked_image.paste(text_image, (int(round(x*self.compression_scale)), int(round(y*self.compression_scale))), text_image)
+        if is_preview:
+            # 预览模式：应用压缩比例
+            paste_x = int(round(x*self.compression_scale))
+            paste_y = int(round(y*self.compression_scale))
+        else:
+            # 导出模式：不应用压缩比例
+            paste_x = int(round(x))
+            paste_y = int(round(y))
+        watermarked_image.paste(text_image, (paste_x, paste_y), text_image)
             
         # 更新缓存
         self.last_rendered_image = watermarked_image
@@ -1696,13 +1717,13 @@ class WatermarkRenderer:
                     print(f"[DEBUG] 调整字体大小: {watermark_settings['font_size']} -> {adjusted_font_size} (乘以压缩比例 {compression_scale:.4f})")
                 
                 # 应用文本水印
-                watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
+                watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings, is_preview=True)
             elif watermark_type == "image":
                 # 应用图片水印，使用TextWatermarkWidget的坐标处理逻辑
                 watermarked_image = self.render_image_watermark(preview_image, adjusted_watermark_settings, is_preview=True)
             else:
                 # 默认为文本水印
-                watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings)
+                watermarked_image = self.render_text_watermark(preview_image, adjusted_watermark_settings, is_preview=True)
             
             # 确保水印位置是整数
             watermark_position = None
