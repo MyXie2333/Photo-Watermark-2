@@ -1580,7 +1580,7 @@ class WatermarkRenderer:
             # 根据模式选择坐标来源
             # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
             # 预览模式使用watermark_settings["watermark_x"]（压缩图上的坐标）
-            # 导出模式使用position（原图上的坐标）
+            # 导出模式也使用watermark_x和watermark_y，确保每个图片的水印位置独立存储
             if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
                 if is_preview:
                     # 预览模式使用手动指定的坐标
@@ -1588,8 +1588,10 @@ class WatermarkRenderer:
                     y = watermark_settings["watermark_y"]
                     print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，使用手动指定坐标: ({x}, {y})")
                 else:
-                    # 导出模式使用position计算出的坐标（不使用手动指定的坐标）
-                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，使用position计算出的坐标，忽略手动指定坐标")
+                    # 导出模式也使用手动指定的坐标，确保每个图片的水印位置独立
+                    x = watermark_settings["watermark_x"]
+                    y = watermark_settings["watermark_y"]
+                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，使用手动指定坐标: ({x}, {y})")
                 self.last_watermark_position = (x, y)
             
             # 如果有current_watermark_settings，更新watermark_x和watermark_y
