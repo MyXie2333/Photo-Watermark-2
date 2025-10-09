@@ -64,106 +64,84 @@ class WatermarkRenderer:
         if not watermark_settings.get("text"):
             return image
         
-        # 获取水印设置
-        text = watermark_settings["text"]
-        font_family = watermark_settings.get("font_family", "Arial")
-        font_size = watermark_settings.get("font_size", 24)
-        font_bold = watermark_settings.get("font_bold", False)
-        font_italic = watermark_settings.get("font_italic", False)
-        color = watermark_settings.get("color", QColor(255, 255, 255))
-        opacity = watermark_settings.get("opacity", 80) / 100.0
-        position = watermark_settings.get("position", "center")
-        rotation = watermark_settings.get("rotation", 0)
-        enable_shadow = watermark_settings.get("enable_shadow", False)
-        enable_outline = watermark_settings.get("enable_outline", False)
-        outline_color = watermark_settings.get("outline_color", (0, 0, 0))
-        outline_width = watermark_settings.get("outline_width", None)
-        outline_offset = watermark_settings.get("outline_offset", (0, 0))
-        shadow_color = watermark_settings.get("shadow_color", (0, 0, 0))
-        shadow_offset = watermark_settings.get("shadow_offset", None)
-        shadow_blur = watermark_settings.get("shadow_blur", None)
-        
-        # 创建图片副本
-        watermarked_image = image.copy()
-        
-        # 将文本转换为图片
-        text_image = self._text_to_image(
-            text, font_family, font_size, font_bold, font_italic, color, opacity,
-            enable_shadow, enable_outline, outline_color, outline_width, outline_offset,
-            shadow_color, shadow_offset, shadow_blur
-        )
-        
-        # 获取文本图片尺寸
-        text_width, text_height = text_image.size
-        
-        # 计算水印位置（使用原有的位置计算逻辑）
-        img_width, img_height = watermarked_image.size
-        print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 使用position={position}计算水印位置")
-        x, y = self._calculate_position(position, img_width, img_height, text_width, text_height)
-        
-        # 在导出模式下不更新任何水印设置
-        if is_preview and hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
-            current_path = self.parent.image_manager.get_current_image_path()
-            if current_path:
-                current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
-                if current_watermark_settings is not None:
-                    # 更新watermark_x和watermark_y
-                    # 预览模式：使用压缩坐标
-                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
-                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
-                    # 保存更新后的水印设置回image_manager
-                    self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
-                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存水印坐标: watermark_x={x}, watermark_y={y}")
-                else:
-                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: current_watermark_settings为None，无法更新坐标")
-            else:
-                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 当前图片路径为空，无法更新坐标")
-        
-        # 记录水印位置（预览模式）
-        if is_preview:
-            print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 水印初始化坐标: x={x}, y={y}")
-        
-        # 如果需要旋转，应用旋转
-        if rotation != 0:
-            text_image = text_image.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
-            # 旋转后重新计算位置
-            rotated_width, rotated_height = text_image.size
-            x = x - (rotated_width - text_width) // 2
-            y = y - (rotated_height - text_height) // 2
-        
-        # 在导出模式下不更新任何水印设置
-        if is_preview and hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
-            current_path = self.parent.image_manager.get_current_image_path()
-            if current_path:
-                current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
-                if current_watermark_settings is not None:
-                    # 更新最终的watermark_x和watermark_y
-                    # 预览模式：使用压缩坐标
-                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
-                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
-                    # 保存更新后的水印设置回image_manager
-                    self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
-                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存最终水印坐标: watermark_x={x}, watermark_y={y}")
-                else:
-                    print(f"[DEBUG] WatermarkRenderer.render_text_watermark: current_watermark_settings为None，无法更新最终坐标")
-            else:
-                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 当前图片路径为空，无法更新最终坐标")
-        
-        # 将文本图片粘贴到主图像上
-        if is_preview:
-            # 预览模式：应用压缩比例
-            paste_x = int(round(x*self.compression_scale))
-            paste_y = int(round(y*self.compression_scale))
-        else:
-            # 导出模式：不应用压缩比例
-            paste_x = int(round(x))
-            paste_y = int(round(y))
-        watermarked_image.paste(text_image, (paste_x, paste_y), text_image)
+        try:
+            # 获取水印设置
+            text = watermark_settings["text"]
+            font_family = watermark_settings.get("font_family", "Arial")
+            font_size = watermark_settings.get("font_size", 24)
+            font_bold = watermark_settings.get("font_bold", False)
+            font_italic = watermark_settings.get("font_italic", False)
+            color = watermark_settings.get("color", QColor(255, 255, 255))
+            opacity = watermark_settings.get("opacity", 80) / 100.0
+            position = watermark_settings.get("position", "center")
+            rotation = watermark_settings.get("rotation", 0)
+            enable_shadow = watermark_settings.get("enable_shadow", False)
+            enable_outline = watermark_settings.get("enable_outline", False)
+            outline_color = watermark_settings.get("outline_color", (0, 0, 0))
+            outline_width = watermark_settings.get("outline_width", None)
+            outline_offset = watermark_settings.get("outline_offset", (0, 0))
+            shadow_color = watermark_settings.get("shadow_color", (0, 0, 0))
+            shadow_offset = watermark_settings.get("shadow_offset", None)
+            shadow_blur = watermark_settings.get("shadow_blur", None)
             
-        # 预览模式：不使用实例缓存，避免状态共享
-        return watermarked_image
+            # 创建图片副本
+            watermarked_image = image.copy()
             
-        return watermarked_image
+            # 将文本转换为图片
+            text_image = self._text_to_image(
+                text, font_family, font_size, font_bold, font_italic, color, opacity,
+                enable_shadow, enable_outline, outline_color, outline_width, outline_offset,
+                shadow_color, shadow_offset, shadow_blur
+            )
+            
+            # 获取文本图片尺寸
+            text_width, text_height = text_image.size
+            
+            # 计算水印位置（使用原有的位置计算逻辑）
+            img_width, img_height = watermarked_image.size
+            print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 使用position={position}计算水印位置")
+            x, y = self._calculate_position(position, img_width, img_height, text_width, text_height)
+            
+            # 记录水印位置（预览模式）
+            if is_preview:
+                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 水印初始化坐标: x={x}, y={y}")
+            
+            # 注意：在渲染过程中不更新任何水印设置，只在用户明确操作（如拖动水印、点击位置按钮等）时才更新
+            # 这确保了预览和导出时使用相同的原始水印配置
+            
+            # 如果需要旋转，应用旋转
+            if rotation != 0:
+                text_image = text_image.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
+                # 旋转后重新计算位置
+                rotated_width, rotated_height = text_image.size
+                x = x - (rotated_width - text_width) // 2
+                y = y - (rotated_height - text_height) // 2
+            
+            # 记录旋转后的水印位置（预览模式）
+            if is_preview:
+                print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 旋转后水印坐标: x={x}, y={y}")
+            
+            # 注意：旋转操作不更新原始水印设置，只在渲染时应用
+            # 这样确保预览和导出时都使用相同的旋转参数进行渲染
+            
+            # 将文本图片粘贴到主图像上
+            if is_preview:
+                # 预览模式：应用压缩比例
+                paste_x = int(round(x*self.compression_scale))
+                paste_y = int(round(y*self.compression_scale))
+            else:
+                # 导出模式：不应用压缩比例
+                paste_x = int(round(x))
+                paste_y = int(round(y))
+            watermarked_image.paste(text_image, (paste_x, paste_y), text_image)
+                
+            # 预览模式：不使用实例缓存，避免状态共享
+            return watermarked_image
+        except Exception as e:
+            print(f"Render text watermark failed: {e}")
+            # 出错时抛出异常，让调用者知道渲染失败
+            # 这样在批量导出时，异常会被捕获并计入失败图片列表
+            raise e
     
     def _text_to_image(self, text, font_family, font_size, font_bold, font_italic, color, opacity, 
                        enable_shadow, enable_outline, outline_color, outline_width, outline_offset,
@@ -1568,39 +1546,21 @@ class WatermarkRenderer:
                 # 导出模式或没有手动指定坐标时，使用position计算的位置
                 print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式或无手动指定坐标，使用position计算的位置: ({x}, {y})")
             
-            # 在导出模式下不更新任何水印设置
-            # 只在预览模式下更新当前显示图片的水印设置
-            if is_preview and hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
-                current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
-                if current_watermark_settings is not None:
-                    # 预览模式需要将坐标转换回原始坐标（去除压缩比例）
-                    if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale != 0:
-                        # 如果是使用手动指定坐标，直接保存
-                        # 注意：watermark_settings["watermark_x"]已经是压缩图上的坐标，无需转换
-                        if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
-                            current_watermark_settings["watermark_x"] = int(round(x))
-                            current_watermark_settings["watermark_y"] = int(round(y))
-                            print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，直接保存手动指定坐标({x}, {y})")
-                        else:
-                            # 如果是使用position计算坐标，需要转换回原始坐标
-                            # 注意：position是原图上的坐标，预览时应用了压缩比例，现在需要去除压缩比例
-                            # 关系：original_x = x / self.compression_scale
-                            original_x = int(round(x / self.compression_scale))
-                            original_y = int(round(y / self.compression_scale))
-                            print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，将position计算坐标({x}, {y})转换回原始坐标({original_x}, {original_y})")
-                            # 更新最终的watermark_x和watermark_y为原始坐标
-                            current_watermark_settings["watermark_x"] = original_x
-                            current_watermark_settings["watermark_y"] = original_y
-                else:
-                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: current_watermark_settings为None，无法更新最终坐标")
+            # 记录最终使用的水印位置（预览模式）
+            if is_preview:
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 图片水印最终坐标: ({x}, {y})")
+                
+            # 注意：在渲染过程中不更新任何水印设置，只在用户明确操作（如拖动水印、点击位置按钮等）时才更新
+            # 这确保了预览和导出时使用相同的原始水印配置
             
             # 将水印粘贴到主图片上
             watermarked_image.paste(watermark_img, (x, y), watermark_img)
             
         except Exception as e:
             print(f"Render image watermark failed: {e}")
-            # 出错时返回原图的副本
-            pass
+            # 出错时抛出异常，让调用者知道渲染失败
+            # 这样在批量导出时，异常会被捕获并计入失败图片列表
+            raise e
         
         return watermarked_image
     
@@ -1676,7 +1636,8 @@ class WatermarkRenderer:
             
             # 复制水印设置并根据水印类型进行调整
             adjusted_watermark_settings = watermark_settings.copy()
-            watermark_type = watermark_settings.get("type", "text")
+            # 同时支持'watermark_type'和'type'两种键名，确保批量导出和预览模式都能正确识别水印类型
+            watermark_type = watermark_settings.get("watermark_type", watermark_settings.get("type", "text"))
             
             # 根据水印类型选择不同的渲染方法
             if watermark_type == "text":
