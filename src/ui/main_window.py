@@ -2579,11 +2579,30 @@ class MainWindow(QMainWindow):
         # 切换到对应的水印类型
         self.switch_watermark_type(template_type)
         
-        # 应用模板设置
+        # 应用模板设置到UI控件
         if template_type == "text" and self.text_watermark_widget:
             self.text_watermark_widget.set_watermark_settings(template_settings)
         elif template_type == "image" and self.image_watermark_widget:
             self.image_watermark_widget.set_watermark_settings(template_settings)
+        
+        # 为所有图片应用模板设置
+        all_image_paths = self.image_manager.get_all_image_paths()
+        for image_path in all_image_paths:
+            # 为每张图片设置相同的模板设置
+            # 创建一个深拷贝，确保每个图片获得独立的设置
+            image_settings = template_settings.copy()
+            
+            # 确保位置信息正确处理
+            if "position" in image_settings:
+                # 如果position是预定义的字符串位置（如"center"），保持不变
+                # 如果是坐标，则确保是元组格式
+                if isinstance(image_settings["position"], list):
+                    image_settings["position"] = tuple(image_settings["position"])
+            
+            # 为图片设置完整的水印设置
+            self.image_manager.set_watermark_settings(image_path, image_settings)
+            # 重置水印位置初始化标志，确保水印位置会被重新计算
+            self.image_manager.set_watermark_position_initialized(image_path, False)
         
         # 更新当前图片的水印设置
         self.update_watermark_settings_from_current_widget()
