@@ -345,16 +345,7 @@ class TextWatermarkWidget(QWidget):
         layout.addWidget(effect_group)
         
         # 预览和应用按钮
-        button_layout = QHBoxLayout()
-        
-        self.preview_button = QPushButton("预览效果")
-        self.apply_button = QPushButton("应用水印")
-        
-        button_layout.addWidget(self.preview_button)
-        button_layout.addWidget(self.apply_button)
-        button_layout.addStretch()
-        
-        layout.addLayout(button_layout)
+        # 移除了"预览效果"和"应用水印"按钮，因为任何设置更改都会自动触发预览更新
         layout.addStretch()
         
     def load_fonts(self):
@@ -546,10 +537,6 @@ class TextWatermarkWidget(QWidget):
         self.shadow_offset_x_spin.valueChanged.connect(self.on_shadow_offset_changed)
         self.shadow_offset_y_spin.valueChanged.connect(self.on_shadow_offset_changed)
         self.shadow_blur_spin.valueChanged.connect(self.on_shadow_blur_changed)
-        
-        # 按钮
-        self.preview_button.clicked.connect(self.on_preview_clicked)
-        self.apply_button.clicked.connect(self.on_apply_clicked)
         
     def eventFilter(self, obj, event):
         """事件过滤器处理焦点事件"""
@@ -1251,14 +1238,6 @@ class TextWatermarkWidget(QWidget):
     def on_shadow_blur_changed(self, value):
         """阴影模糊半径变化"""
         self.shadow_blur = value
-        self.watermark_changed.emit()
-        
-    def on_preview_clicked(self):
-        """预览按钮点击"""
-        self.watermark_changed.emit()
-        
-    def on_apply_clicked(self):
-        """应用按钮点击"""
         self.watermark_changed.emit()
         
     def get_watermark_settings(self):

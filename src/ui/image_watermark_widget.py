@@ -196,14 +196,6 @@ class ImageWatermarkWidget(QWidget):
         
         layout.addWidget(settings_group)
         
-        # 操作按钮
-        action_layout = QHBoxLayout()
-        self.set_default_button = QPushButton("设为默认")
-        self.set_default_button.clicked.connect(self.on_set_default)
-        action_layout.addWidget(self.set_default_button)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
-        
         layout.addStretch()
     
     def select_watermark_image(self):
@@ -571,10 +563,6 @@ class ImageWatermarkWidget(QWidget):
         # 重新计算坐标
         # self.calculate_watermark_coordinates()
         self.update_watermark_settings()
-    
-    def on_set_default(self):
-        """设置为默认水印"""
-        self.set_default_watermark.emit()
     
     def update_watermark_settings(self):
         """更新水印设置并发出信号"""

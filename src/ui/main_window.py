@@ -420,13 +420,11 @@ class MainWindow(QMainWindow):
         
         # 水印设置信号连接
         self.text_watermark_widget.watermark_changed.connect(self.on_watermark_changed)
-        self.text_watermark_widget.set_default_watermark.connect(self.on_set_default_watermark)
         self.text_watermark_widget.font_switch_notification.connect(self.on_font_switch_notification)
         
         # 图片水印设置信号连接
         if self.image_watermark_widget:
             self.image_watermark_widget.watermark_changed.connect(self.on_watermark_changed)
-            self.image_watermark_widget.set_default_watermark.connect(self.on_set_default_watermark)
         
         # 水印拖拽管理器回调函数设置
         self.drag_manager.set_position_changed_callback(self.on_watermark_position_changed)
@@ -522,47 +520,6 @@ class MainWindow(QMainWindow):
             print(f"[DEBUG] MainWindow.on_watermark_position_changed: 调用函数: self.update_position")
             self.update_position((x, y), current_watermark_settings)
             
-    def on_set_default_watermark(self):
-        """为当前图片设置默认水印"""
-        current_image_path = self.image_manager.get_current_image_path()
-        if current_image_path:
-            # 获取当前图片的水印设置
-            current_watermark_settings = self.image_manager.get_watermark_settings(current_image_path)
-            
-            # 如果当前图片没有水印设置，则为其设置默认水印
-            if not current_watermark_settings:
-                # 获取全局默认水印设置
-                global_default_settings = self.config_manager.get_watermark_defaults()
-                
-                # 将颜色字符串转换为QColor对象
-                if "color" in global_default_settings and isinstance(global_default_settings["color"], str):
-                    global_default_settings["color"] = QColor(global_default_settings["color"])
-                
-                # 为当前图片设置默认水印
-                self.image_manager.set_watermark_settings(current_image_path, global_default_settings)
-                
-                # 更新文本水印组件显示当前图片的水印设置（正常样式）
-                self.text_watermark_widget.set_watermark_settings(global_default_settings)
-                
-                # 更新预览
-                self.update_preview_with_watermark()
-                
-                print(f"为图片设置默认水印: {current_image_path}")
-            else:
-                # 如果当前图片已有水印设置，将其设置为默认水印
-                # 需要将QColor对象转换为字符串格式，以便JSON序列化
-                config_watermark_settings = current_watermark_settings.copy()
-                if isinstance(config_watermark_settings.get('color'), QColor):
-                    config_watermark_settings['color'] = config_watermark_settings['color'].name()
-                if isinstance(config_watermark_settings.get('outline_color'), QColor):
-                    config_watermark_settings['outline_color'] = config_watermark_settings['outline_color'].name()
-                if isinstance(config_watermark_settings.get('shadow_color'), QColor):
-                    config_watermark_settings['shadow_color'] = config_watermark_settings['shadow_color'].name()
-                
-                # 设置为默认水印
-                self.config_manager.set_watermark_defaults(config_watermark_settings)
-                print(f"将当前图片的水印设置为默认水印: {current_image_path}")
-                
     def on_font_switch_notification(self, message):
         """处理字体切换提示信号"""
         # 显示字体切换提示
