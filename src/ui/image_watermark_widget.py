@@ -386,7 +386,9 @@ class ImageWatermarkWidget(QWidget):
                 
                 # 计算绝对位置，直接转换为整数
                 x = int(round(img_width * x_ratio ))
+                x = int(x - watermark_width // 2)
                 y = int(round(img_height * y_ratio ))
+                y = int(y - watermark_height // 2)
                 print(f"[DEBUG] ImageWatermarkWidget.update_position: 计算绝对位置为 ({x}, {y})")
                 
                 # 如果有压缩比例，应用压缩比例并确保结果为整数
