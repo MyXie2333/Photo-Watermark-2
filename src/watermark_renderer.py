@@ -67,10 +67,10 @@ class WatermarkRenderer:
         if not watermark_settings.get("text"):
             return image
             
-        # 检查是否可以使用缓存
-        if (self.last_rendered_image is not None and 
-            self.last_rendered_settings is not None and
-            self._settings_equal(watermark_settings, self.last_rendered_settings)):
+        # 检查是否可以使用缓存 - 只在预览模式下使用缓存
+        if is_preview and self.last_rendered_image is not None and \
+           self.last_rendered_settings is not None and \
+           self._settings_equal(watermark_settings, self.last_rendered_settings):
             print("[DEBUG] 使用缓存的水印图片")
             return self.last_rendered_image
         
@@ -180,9 +180,10 @@ class WatermarkRenderer:
             paste_y = int(round(y))
         watermarked_image.paste(text_image, (paste_x, paste_y), text_image)
             
-        # 更新缓存
-        self.last_rendered_image = watermarked_image
-        self.last_rendered_settings = watermark_settings.copy()
+        # 只在预览模式下更新缓存
+        if is_preview:
+            self.last_rendered_image = watermarked_image
+            self.last_rendered_settings = watermark_settings.copy()
             
         return watermarked_image
     

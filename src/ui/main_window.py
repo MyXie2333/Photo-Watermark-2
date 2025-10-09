@@ -2410,15 +2410,17 @@ class MainWindow(QMainWindow):
             extension = os.path.splitext(image_path)[1]
             
             # 根据导出设置生成文件名
-            naming_option = export_settings.get('naming_option', 0)
-            if naming_option == 0:  # 保留原文件名
+            naming_rule = export_settings.get('naming_rule', 'original')
+            if naming_rule == 'original':  # 保留原文件名
                 output_file_name = f"{base_name}{extension}"
-            elif naming_option == 1:  # 添加自定义前缀
-                prefix = export_settings.get('prefix', 'wm_')
+            elif naming_rule == 'prefix':  # 添加自定义前缀
+                prefix = export_settings.get('prefix_suffix', 'wm_')
                 output_file_name = f"{prefix}{base_name}{extension}"
-            elif naming_option == 2:  # 添加自定义后缀
-                suffix = export_settings.get('suffix', '_watermarked')
+            elif naming_rule == 'suffix':  # 添加自定义后缀
+                suffix = export_settings.get('prefix_suffix', '_watermarked')
                 output_file_name = f"{base_name}{suffix}{extension}"
+            else:
+                output_file_name = f"{base_name}{extension}"
             
             output_path = os.path.join(output_dir, output_file_name)
             
