@@ -2546,13 +2546,14 @@ class MainWindow(QMainWindow):
         all_image_paths = self.image_manager.get_all_image_paths()
         for image_path in all_image_paths:
             # 为每张图片设置相同的模板设置
-            # 创建一个深拷贝，确保每个图片获得独立的设置
-            image_settings = template_settings.copy()
+            # 创建一个深拷贝，确保每个图片获得完全独立的设置
+            import copy
+            image_settings = copy.deepcopy(template_settings)
             
             # 确保位置信息正确处理
             if "position" in image_settings:
                 # 如果position是预定义的字符串位置（如"center"），保持不变
-                # 如果是坐标，则确保是元组格式
+                # 如果是坐标列表，则确保是元组格式
                 if isinstance(image_settings["position"], list):
                     image_settings["position"] = tuple(image_settings["position"])
             
