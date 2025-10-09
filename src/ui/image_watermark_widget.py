@@ -641,13 +641,25 @@ class ImageWatermarkWidget(QWidget):
                 "bottom-right": (0.9, 0.9)
             }
             
-            if settings["position"] in position_map:
-                target_pos = position_map[settings["position"]]
+            position_value = settings["position"]
+            # 检查position是字符串位置名称还是具体坐标列表
+            if isinstance(position_value, str) and position_value in position_map:
+                target_pos = position_map[position_value]
                 # 找到对应的按钮并选中
                 for btn in self.position_buttons:
                     if btn.property("position") == target_pos:
                         btn.setChecked(True)
                         break
+            elif isinstance(position_value, list) and len(position_value) == 2:
+                # 如果是具体坐标列表，直接使用这些坐标值
+                # 先取消所有位置按钮的选中状态
+                for btn in self.position_buttons:
+                    btn.setChecked(False)
+                # 然后设置自定义位置
+                self.watermark_x = position_value[0]
+                self.watermark_y = position_value[1]
+                # 更新坐标输入框
+                self.update_coordinate_inputs()
         
         if "keep_aspect_ratio" in settings:
             self.aspect_ratio_checkbox.setChecked(settings["keep_aspect_ratio"])
