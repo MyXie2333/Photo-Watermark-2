@@ -1527,9 +1527,9 @@ class WatermarkRenderer:
                 watermark_img = watermark_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
                 
                 # 旋转后重新计算位置，确保水印中心点不变
-                rotated_width, rotated_height = watermark_img.size
-                x = x - (rotated_width - original_width) // 2
-                y = y - (rotated_height - original_height) // 2
+                # rotated_width, rotated_height = watermark_img.size
+                # x = x - (rotated_width - original_width) // 2
+                # y = y - (rotated_height - original_height) // 2
                 
                 print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 应用旋转{rotation}度，旋转后尺寸: {rotated_width}x{rotated_height}，调整后坐标: x={x}, y={y}")
             
