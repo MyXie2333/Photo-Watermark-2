@@ -1408,6 +1408,11 @@ class WatermarkRenderer:
                 # 应用旋转
                 watermark_img = watermark_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
                 
+                # 计算旋转后的尺寸
+                import math
+                angle_rad = math.radians(abs(rotation))
+                rotated_width = abs(original_width * math.cos(angle_rad)) + abs(original_height * math.sin(angle_rad))
+                rotated_height = abs(original_width * math.sin(angle_rad)) + abs(original_height * math.cos(angle_rad))
                 
                 print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 应用旋转{rotation}度，旋转后尺寸: {rotated_width}x{rotated_height}，调整后坐标: x={x}, y={y}")
             
