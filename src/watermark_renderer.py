@@ -15,9 +15,6 @@ class WatermarkRenderer:
     
     def __init__(self, parent=None):
         self.font_cache = {}
-        self.last_watermark_position = None  # 记录最后一次渲染的水印位置
-        self.last_rendered_image = None  # 缓存最后一次渲染的图片
-        self.last_rendered_settings = None  # 缓存最后一次渲染的设置
         self.font_path_cache = {}  # 缓存字体文件路径，避免重复文件系统检查
         self.compression_scale = 1.0  # 原图到压缩图的压缩比例，默认为1.0
         self.parent = parent  # 设置parent属性
@@ -66,13 +63,6 @@ class WatermarkRenderer:
         """
         if not watermark_settings.get("text"):
             return image
-            
-        # 检查是否可以使用缓存 - 只在预览模式下使用缓存
-        if is_preview and self.last_rendered_image is not None and \
-           self.last_rendered_settings is not None and \
-           self._settings_equal(watermark_settings, self.last_rendered_settings):
-            print("[DEBUG] 使用缓存的水印图片")
-            return self.last_rendered_image
         
         # 获取水印设置
         text = watermark_settings["text"]
@@ -111,21 +101,16 @@ class WatermarkRenderer:
         print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 使用position={position}计算水印位置")
         x, y = self._calculate_position(position, img_width, img_height, text_width, text_height)
         
-        # 更新current_watermark_settings中的坐标
-        if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+        # 在导出模式下不更新任何水印设置
+        if is_preview and hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
             current_path = self.parent.image_manager.get_current_image_path()
             if current_path:
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
                     # 更新watermark_x和watermark_y
-                    if is_preview:
-                        # 预览模式：使用压缩坐标
-                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
-                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
-                    else:
-                        # 导出模式：使用原始坐标
-                        current_watermark_settings["watermark_x"] = int(round(x))
-                        current_watermark_settings["watermark_y"] = int(round(y))
+                    # 预览模式：使用压缩坐标
+                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
                     # 保存更新后的水印设置回image_manager
                     self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
                     print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存水印坐标: watermark_x={x}, watermark_y={y}")
@@ -134,9 +119,9 @@ class WatermarkRenderer:
             else:
                 print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 当前图片路径为空，无法更新坐标")
         
-        # 记录水印位置
-        self.last_watermark_position = (x, y)
-        print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 水印初始化坐标: x={x}, y={y}")
+        # 记录水印位置（预览模式）
+        if is_preview:
+            print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 水印初始化坐标: x={x}, y={y}")
         
         # 如果需要旋转，应用旋转
         if rotation != 0:
@@ -146,21 +131,16 @@ class WatermarkRenderer:
             x = x - (rotated_width - text_width) // 2
             y = y - (rotated_height - text_height) // 2
         
-        # 更新current_watermark_settings中的最终坐标
-        if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+        # 在导出模式下不更新任何水印设置
+        if is_preview and hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
             current_path = self.parent.image_manager.get_current_image_path()
             if current_path:
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
                     # 更新最终的watermark_x和watermark_y
-                    if is_preview:
-                        # 预览模式：使用压缩坐标
-                        current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
-                        current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
-                    else:
-                        # 导出模式：使用原始坐标
-                        current_watermark_settings["watermark_x"] = int(round(x))
-                        current_watermark_settings["watermark_y"] = int(round(y))
+                    # 预览模式：使用压缩坐标
+                    current_watermark_settings["watermark_x"] = int(round(x*self.compression_scale))
+                    current_watermark_settings["watermark_y"] = int(round(y*self.compression_scale))
                     # 保存更新后的水印设置回image_manager
                     self.parent.image_manager.set_watermark_settings(current_path, current_watermark_settings)
                     print(f"[DEBUG] WatermarkRenderer.render_text_watermark: 更新并保存最终水印坐标: watermark_x={x}, watermark_y={y}")
@@ -180,10 +160,8 @@ class WatermarkRenderer:
             paste_y = int(round(y))
         watermarked_image.paste(text_image, (paste_x, paste_y), text_image)
             
-        # 只在预览模式下更新缓存
-        if is_preview:
-            self.last_rendered_image = watermarked_image
-            self.last_rendered_settings = watermark_settings.copy()
+        # 预览模式：不使用实例缓存，避免状态共享
+        return watermarked_image
             
         return watermarked_image
     
@@ -1558,9 +1536,9 @@ class WatermarkRenderer:
             else:
                 print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，不应用压缩比例，水印坐标: ({x}, {y})")
             
-            # 记录水印位置
-            self.last_watermark_position = (x, y)
-            print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 图片水印初始化坐标: x={x}, y={y}")
+            # 记录水印位置（预览模式）
+            if is_preview:
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 图片水印初始化坐标: x={x}, y={y}")
             
             # 如果需要旋转，应用旋转
             if rotation != 0:
@@ -1580,28 +1558,23 @@ class WatermarkRenderer:
             # 根据模式选择坐标来源
             # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
             # 预览模式使用watermark_settings["watermark_x"]（压缩图上的坐标）
-            # 导出模式也使用watermark_x和watermark_y，确保每个图片的水印位置独立存储
-            if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
-                if is_preview:
-                    # 预览模式使用手动指定的坐标
-                    x = watermark_settings["watermark_x"]
-                    y = watermark_settings["watermark_y"]
-                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，使用手动指定坐标: ({x}, {y})")
-                else:
-                    # 导出模式也使用手动指定的坐标，确保每个图片的水印位置独立
-                    x = watermark_settings["watermark_x"]
-                    y = watermark_settings["watermark_y"]
-                    print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，使用手动指定坐标: ({x}, {y})")
-                self.last_watermark_position = (x, y)
+            # 导出模式只使用position计算的位置
+            if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings and is_preview:
+                    # 仅在预览模式下使用手动指定的坐标
+                x = watermark_settings["watermark_x"]
+                y = watermark_settings["watermark_y"]
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，使用手动指定坐标: ({x}, {y})")
+            else:
+                # 导出模式或没有手动指定坐标时，使用position计算的位置
+                print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式或无手动指定坐标，使用position计算的位置: ({x}, {y})")
             
-            # 如果有current_watermark_settings，更新watermark_x和watermark_y
-            # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
-            # 关系：watermark_x = x * self.compression_scale（取整）
-            if hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
+            # 在导出模式下不更新任何水印设置
+            # 只在预览模式下更新当前显示图片的水印设置
+            if is_preview and hasattr(self, 'parent') and self.parent and hasattr(self.parent, 'image_manager'):
                 current_watermark_settings = self.parent.image_manager.ensure_watermark_settings_initialized()
                 if current_watermark_settings is not None:
-                    # 如果是预览模式，需要将坐标转换回原始坐标（去除压缩比例）
-                    if is_preview and hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale != 0:
+                    # 预览模式需要将坐标转换回原始坐标（去除压缩比例）
+                    if hasattr(self, 'compression_scale') and self.compression_scale is not None and self.compression_scale != 0:
                         # 如果是使用手动指定坐标，直接保存
                         # 注意：watermark_settings["watermark_x"]已经是压缩图上的坐标，无需转换
                         if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings:
@@ -1618,12 +1591,6 @@ class WatermarkRenderer:
                             # 更新最终的watermark_x和watermark_y为原始坐标
                             current_watermark_settings["watermark_x"] = original_x
                             current_watermark_settings["watermark_y"] = original_y
-                    else:
-                        # 导出模式直接使用当前坐标
-                        # 注意：导出模式使用position（原图上的坐标），不应用压缩比例
-                        current_watermark_settings["watermark_x"] = int(round(x))
-                        current_watermark_settings["watermark_y"] = int(round(y))
-                        print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 导出模式，直接使用当前坐标更新watermark_x为 {x}, watermark_y为 {y}")
                 else:
                     print(f"[DEBUG] WatermarkRenderer.render_image_watermark: current_watermark_settings为None，无法更新最终坐标")
             
@@ -1730,9 +1697,6 @@ class WatermarkRenderer:
             
             # 确保水印位置是整数
             watermark_position = None
-            if self.last_watermark_position is not None:
-                # 直接存储为整数，不使用浮点数
-                watermark_position = (int(self.last_watermark_position[0]), int(self.last_watermark_position[1]))
             
             # 返回水印预览图、原始图片比例信息和水印位置
             return watermarked_image, {
