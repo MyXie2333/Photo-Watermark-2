@@ -442,15 +442,32 @@ class TemplateManagerDialog(QDialog):
             QMessageBox.warning(self, "警告", "请先选择一个模板")
             return
         
-        template_name = current_item.text().replace(" (默认)", "")
+        # 获取模板名称并去除" (默认)"后缀
+        template_name_text = current_item.text()
+        template_name = template_name_text.replace(" (默认)", "")
         
-        success = self.config_manager.set_default_template("text", template_name)
-        
-        if success:
-            QMessageBox.information(self, "成功", "默认模板设置成功")
-            self.load_templates()
-        else:
-            QMessageBox.critical(self, "错误", "默认模板设置失败")
+        try:
+            # 尝试直接设置默认模板
+            success = self.config_manager.set_default_template("text", template_name)
+            
+            # 如果失败，尝试一个备选方案：先确保模板在配置中存在
+            if not success:
+                # 尝试从文件系统加载模板
+                template_settings = self.config_manager.load_watermark_template_from_file("text", template_name)
+                if template_settings:
+                    # 如果能加载到模板，先保存到配置中
+                    self.config_manager.save_watermark_template("text", template_name, template_settings)
+                    # 再次尝试设置默认模板
+                    success = self.config_manager.set_default_template("text", template_name)
+            
+            if success:
+                QMessageBox.information(self, "成功", f"默认模板 '{template_name}' 设置成功")
+                self.load_templates()
+            else:
+                QMessageBox.critical(self, "错误", f"默认模板 '{template_name}' 设置失败，请检查模板文件是否存在且可读")
+        except Exception as e:
+            logging.error(f"设置默认模板时发生错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"设置默认模板时发生错误: {str(e)}")
     
     def set_default_image_template(self):
         """设置默认图片水印模板"""
@@ -534,7 +551,7 @@ class StartupSettingsDialog(QDialog):
         if not last_settings:
             # 如果没有上一次的设置，禁用"继续上次的设置"选项并修改文本
             self.load_last_radio.setEnabled(False)
-            self.load_last_radio.setText("继续上次的设置（首次启动程序，无相关记录）")
+            self.load_last_radio.setText("继续上次的设置（首次启动程序或上一次非正常关闭，无法读取记录）")
             # 默认选择"加载默认模板"
             self.load_default_radio.setChecked(True)
         else:

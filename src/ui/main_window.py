@@ -2466,12 +2466,9 @@ class MainWindow(QMainWindow):
             elif selected_option == "load_default":
                 # 加载默认模板
                 default_template = self.config_manager.get_default_template()
-                if default_template:
-                    template_settings = self.config_manager.load_watermark_template(
-                        default_template['type'], default_template['name']
-                    )
-                    if template_settings:
-                        self.load_watermark_template(default_template['type'], template_settings)
+                if default_template and "settings" in default_template:
+                    # 直接使用从get_default_template返回的settings
+                    self.load_watermark_template(default_template['type'], default_template['settings'])
 
     def show_template_manager(self):
         """显示模板管理对话框"""

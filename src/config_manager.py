@@ -95,13 +95,43 @@ class ConfigManager:
     def save_config(self):
         """保存配置文件"""
         try:
+            # 创建配置的深拷贝，避免修改原始配置
+            config_copy = self._deep_copy_config(self.config)
+            
+            # 确保所有QColor对象都被转换为字符串格式
+            self._convert_qcolor_to_string(config_copy)
+            
             with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
+                json.dump(config_copy, f, indent=2, ensure_ascii=False)
             logging.info(f"配置文件保存成功: {self.config_file}")
             return True
         except Exception as e:
             logging.error(f"配置文件保存失败: {e}")
             return False
+    
+    def _deep_copy_config(self, config):
+        """深拷贝配置字典，避免修改原始配置"""
+        if isinstance(config, dict):
+            return {k: self._deep_copy_config(v) for k, v in config.items()}
+        elif isinstance(config, list):
+            return [self._deep_copy_config(item) for item in config]
+        else:
+            return config
+    
+    def _convert_qcolor_to_string(self, config):
+        """递归遍历配置字典，将所有QColor对象转换为字符串格式"""
+        if isinstance(config, dict):
+            for key, value in config.items():
+                if isinstance(value, QColor):
+                    config[key] = value.name()
+                else:
+                    self._convert_qcolor_to_string(value)
+        elif isinstance(config, list):
+            for i, item in enumerate(config):
+                if isinstance(item, QColor):
+                    config[i] = item.name()
+                else:
+                    self._convert_qcolor_to_string(item)
     
     def _merge_configs(self, default, loaded):
         """合并配置，确保所有字段都存在"""
@@ -392,11 +422,32 @@ class ConfigManager:
             return False
         
         try:
-            if template_name in self.config["watermark_templates"][template_type]:
+            # 先检查配置文件中的模板（旧机制）
+            config_templates = self.config.get("watermark_templates", {}).get(template_type, {})
+            if template_name in config_templates:
                 self.config["default_template"] = {"type": template_type, "name": template_name}
                 return self.save_config()
+            
+            # 如果配置文件中没有，检查文件系统中的模板（新机制）
+            type_dir = self.template_dir / template_type
+            template_file = type_dir / f"{template_name}.json"
+            if template_file.exists():
+                # 确保配置文件中有此模板条目
+                if "watermark_templates" not in self.config:
+                    self.config["watermark_templates"] = {"text": {}, "image": {}}
+                if template_type not in self.config["watermark_templates"]:
+                    self.config["watermark_templates"][template_type] = {}
+                
+                # 设置为默认模板
+                self.config["default_template"] = {"type": template_type, "name": template_name}
+                return self.save_config()
+            
             return False
         except KeyError:
+            logging.error(f"设置默认模板时发生KeyError: {str(e)}")
+            return False
+        except Exception as e:
+            logging.error(f"设置默认模板失败: {str(e)}")
             return False
     
     def get_default_template(self):
@@ -407,20 +458,41 @@ class ConfigManager:
             dict: 默认模板信息，格式为 {"type": "text|image", "name": "模板名", "settings": {...}}
                  如果没有默认模板则返回None
         """
-        if not self.config["default_template"]:
+        try:
+            if not self.config["default_template"]:
+                logging.warning("未设置默认模板")
+                return None
+            
+            template_type = self.config["default_template"]["type"]
+            template_name = self.config["default_template"]["name"]
+            logging.debug(f"获取默认模板: 类型={template_type}, 名称={template_name}")
+            
+            # 首先尝试从配置中加载模板
+            template_settings = self.load_watermark_template(template_type, template_name)
+            
+            # 如果配置中没有，尝试从文件系统直接加载
+            if not template_settings:
+                logging.info(f"配置中找不到模板 '{template_name}'，尝试从文件系统加载")
+                template_settings = self.load_watermark_template_from_file(template_type, template_name)
+                
+                # 如果从文件系统加载成功，同步到配置中
+                if template_settings:
+                    logging.info(f"成功从文件系统加载模板 '{template_name}'")
+                    self.save_watermark_template(template_type, template_name, template_settings)
+            
+            if template_settings:
+                logging.debug(f"成功获取默认模板 '{template_name}' 的设置")
+                return {
+                    "type": template_type,
+                    "name": template_name,
+                    "settings": template_settings
+                }
+            else:
+                logging.error(f"无法加载默认模板 '{template_name}'")
+                return None
+        except Exception as e:
+            logging.error(f"获取默认模板时发生错误: {str(e)}")
             return None
-        
-        template_type = self.config["default_template"]["type"]
-        template_name = self.config["default_template"]["name"]
-        
-        template_settings = self.load_watermark_template(template_type, template_name)
-        if template_settings:
-            return {
-                "type": template_type,
-                "name": template_name,
-                "settings": template_settings
-            }
-        return None
     
     def set_last_watermark_settings(self, watermark_settings):
         """
