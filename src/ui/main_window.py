@@ -5,6 +5,7 @@
 """
 
 import os
+import logging
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea, QDialog,
@@ -1866,6 +1867,15 @@ class MainWindow(QMainWindow):
             elif file_ext == '.png':
                 save_params['optimize'] = True
             
+            # 处理RGBA模式转换：如果是JPEG格式但图片是RGBA模式（含透明度），需要转换为RGB
+            file_ext = os.path.splitext(output_path)[1].lower()
+            if file_ext in ['.jpg', '.jpeg'] and watermarked_image.mode == 'RGBA':
+                # 创建一个白色背景的RGB图像
+                background = PILImage.new('RGB', watermarked_image.size, (255, 255, 255))
+                # 将RGBA图像粘贴到白色背景上，使用alpha通道作为蒙版
+                background.paste(watermarked_image, mask=watermarked_image.split()[3])  # 3是alpha通道
+                watermarked_image = background
+            
             # 保存渲染后的图片
             watermarked_image.save(output_path, **save_params)
             return True, ""
@@ -2066,15 +2076,37 @@ class MainWindow(QMainWindow):
         # 构建完整的输出文件路径
         output_path = os.path.join(output_dir, output_filename)
         
-        # 打开文件保存对话框，预填充用户设置的文件名
+        # 根据用户选择的格式构建文件过滤器
+        if format_option == 0:  # 保留原格式
+            file_filter = "图片文件 (*.jpg *.jpeg *.png *.bmp);;所有文件 (*)"
+        elif format_option == 1:  # 导出为JPEG
+            file_filter = "JPEG图片 (*.jpg *.jpeg);;所有文件 (*)"
+        elif format_option == 2:  # 导出为PNG
+            file_filter = "PNG图片 (*.png);;所有文件 (*)"
+        else:
+            file_filter = "图片文件 (*.jpg *.jpeg *.png *.bmp);;所有文件 (*)"
+        
+        # 打开文件保存对话框，预填充用户设置的文件名和格式
         file_name, _ = QFileDialog.getSaveFileName(
             self, "导出图片", 
             output_path,
-            "图片文件 (*.jpg *.jpeg *.png *.bmp);;所有文件 (*)"
+            file_filter
         )
         
         if not file_name:
             return  # 用户取消了保存
+            
+        # 如果用户选择了特定格式，确保文件扩展名正确
+        if format_option != 0:  # 不是保留原格式
+            # 获取文件基本名（不含扩展名）
+            base_name = os.path.splitext(os.path.basename(file_name))[0]
+            # 确保使用正确的扩展名
+            if format_option == 1:  # JPEG
+                if not file_name.lower().endswith(('.jpg', '.jpeg')):
+                    file_name = os.path.join(os.path.dirname(file_name), f"{base_name}.jpg")
+            elif format_option == 2:  # PNG
+                if not file_name.lower().endswith('.png'):
+                    file_name = os.path.join(os.path.dirname(file_name), f"{base_name}.png")
         
         # 再次检查最终选择的路径是否在原文件夹中
         if os.path.normpath(os.path.dirname(file_name)) == os.path.normpath(current_dir) and not self._confirmed_original_folder_export:

@@ -137,9 +137,6 @@ class ExportDialog(QDialog):
         quality_hint.setStyleSheet("color: gray; font-style: italic;")
         quality_layout.addWidget(quality_hint)
         
-        # 初始更新格式选项
-        self.update_format_options()
-        
         main_layout.addWidget(quality_group)
         
         # 图片尺寸调整组
@@ -217,6 +214,8 @@ class ExportDialog(QDialog):
         self.height_resize_radio.toggled.connect(lambda: self.update_resize_options(2))
         self.percent_resize_radio.toggled.connect(lambda: self.update_resize_options(3))
         self.custom_size_radio.toggled.connect(lambda: self.update_resize_options(4))
+        self.custom_size_radio.toggled.connect(lambda: self.update_resize_options(4))
+        self.custom_size_radio.toggled.connect(lambda: self.update_resize_options(4))
         
         size_group.setLayout(size_layout)
         main_layout.addWidget(size_group)
@@ -228,6 +227,9 @@ class ExportDialog(QDialog):
         main_layout.addWidget(button_box)
         
         self.setLayout(main_layout)
+        
+        # 初始更新格式选项
+        self.update_format_options()
         
         # 初始化UI状态
         self.update_naming_options()
@@ -248,21 +250,6 @@ class ExportDialog(QDialog):
         # 更新文件名预览
         self.update_filename_preview()
         
-    def update_format_options(self):
-        """更新格式选项的显示状态"""
-        format_option = self.format_option_group.checkedId()
-        
-        # 只有选择JPEG格式时启用质量调节
-        if format_option == 1:  # 导出为JPEG
-            self.quality_slider.setEnabled(True)
-            self.quality_label.setEnabled(True)
-        else:
-            self.quality_slider.setEnabled(False)
-            self.quality_label.setEnabled(False)
-        
-        # 更新文件名预览
-        self.update_filename_preview()
-    
     def update_naming_options(self):
         """更新命名选项的显示状态"""
         option = self.naming_combo.currentData()
@@ -296,8 +283,9 @@ class ExportDialog(QDialog):
             self.custom_name_label.setEnabled(True)
             self.custom_name_input.setEnabled(True)
         
+        # 更新文件名预览
         self.update_filename_preview()
-    
+        
     def update_filename_preview(self):
         """更新文件名预览"""
         option = self.naming_combo.currentData()
@@ -330,14 +318,14 @@ class ExportDialog(QDialog):
                 filename = custom_name
         
         self.filename_preview.setText(filename)
-    
+        
     def update_quality_label(self, value):
         """更新质量标签"""
         self.quality_label.setText(str(value))
-    
+        
     def update_resize_options(self, option):
-        """更新尺寸调整选项的显示状态"""
-        if option == 0:  # 不调整
+        """更新尺寸调整选项"""
+        if option == 0:  # 保持原始尺寸
             self.width_spin.setEnabled(False)
             self.height_spin.setEnabled(False)
             self.percent_value_label.setText("")
@@ -362,7 +350,8 @@ class ExportDialog(QDialog):
             self.height_spin.setEnabled(True)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
-    
+
+        
     def get_export_settings(self):
         """获取导出设置"""
         resize_option = self.size_option_group.checkedId()
@@ -394,7 +383,7 @@ class ExportDialog(QDialog):
         }
         
         return settings
-    
+        
     def get_output_filename(self):
         """获取输出文件名"""
         option = self.naming_combo.currentData()
@@ -420,7 +409,7 @@ class ExportDialog(QDialog):
             filename = f"{self.original_name}{suffix}{extension}"
         elif option == "custom":
             custom_name = self.custom_name_input.text()
-            # 确保文件名包含扩展名
+            # 确保自定义文件名包含扩展名
             if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
                 filename = f"{custom_name}{extension}"
             else:
@@ -542,17 +531,14 @@ class BatchExportDialog(QDialog):
         self.quality_layout.addWidget(QLabel("高质量"))
         
         quality_layout.addLayout(self.quality_layout)
+        quality_group.setLayout(quality_layout)
         
         # 添加提示文本
         quality_hint = QLabel("(仅对JPEG格式有效)")
         quality_hint.setStyleSheet("color: gray; font-style: italic;")
         quality_layout.addWidget(quality_hint)
         
-        quality_group.setLayout(quality_layout)
         main_layout.addWidget(quality_group)
-        
-        # 初始更新格式选项
-        self.update_format_options()
         
         # 图片尺寸调整组
         size_group = QGroupBox("图片尺寸调整")
@@ -641,10 +627,28 @@ class BatchExportDialog(QDialog):
         
         self.setLayout(main_layout)
         
+        # 初始更新格式选项
+        self.update_format_options()
+        
         # 初始化UI状态
         self.update_naming_options()
         self.update_filename_preview()
-    
+        
+    def update_format_options(self):
+        """更新格式选项的显示状态"""
+        format_option = self.format_option_group.checkedId()
+        
+        # 只有选择JPEG格式时启用质量调节
+        if format_option == 1:  # 导出为JPEG
+            self.quality_slider.setEnabled(True)
+            self.quality_label.setEnabled(True)
+        else:
+            self.quality_slider.setEnabled(False)
+            self.quality_label.setEnabled(False)
+        
+        # 更新文件名预览
+        self.update_filename_preview()
+        
     def update_naming_options(self):
         """更新命名选项的显示状态"""
         option = self.naming_combo.currentData()
@@ -667,8 +671,9 @@ class BatchExportDialog(QDialog):
             if self.prefix_suffix_input.text() == "wm_":
                 self.prefix_suffix_input.setText("_watermarked")
         
+        # 更新文件名预览
         self.update_filename_preview()
-    
+        
     def update_filename_preview(self):
         """更新文件名预览"""
         if not self.image_paths:
@@ -702,14 +707,14 @@ class BatchExportDialog(QDialog):
             filename = f"{original_name}{suffix}{extension}"
         
         self.filename_preview.setText(filename)
-    
+        
     def update_quality_label(self, value):
         """更新质量标签"""
         self.quality_label.setText(str(value))
-    
+        
     def update_resize_options(self, option):
-        """更新尺寸调整选项的显示状态"""
-        if option == 0:  # 不调整
+        """更新尺寸调整选项"""
+        if option == 0:  # 保持原始尺寸
             self.width_spin.setEnabled(False)
             self.height_spin.setEnabled(False)
             self.percent_value_label.setText("")
@@ -734,7 +739,7 @@ class BatchExportDialog(QDialog):
             self.height_spin.setEnabled(True)
             self.percent_value_label.setText("")
             self.percent_value_spin.setEnabled(False)
-    
+        
     def get_export_settings(self):
         """获取导出设置"""
         resize_option = self.size_option_group.checkedId()
@@ -765,7 +770,7 @@ class BatchExportDialog(QDialog):
         }
         
         return settings
-    
+        
     def get_output_filename(self, image_path):
         """获取输出文件名"""
         original_name = os.path.splitext(os.path.basename(image_path))[0]
