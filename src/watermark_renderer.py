@@ -1356,13 +1356,13 @@ class WatermarkRenderer:
             print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 使用position={position}计算水印位置")
             
             # 使用TextWatermarkWidget的坐标处理逻辑
-            # 首先检查position是字符串还是元组
+            # 首先检查position是字符串还是元组/列表
             if isinstance(position, str):
                 # 如果是字符串位置（如"center"、"top-left"等），直接使用_calculate_position方法
                 x, y = self._calculate_position(position, img_width, img_height, watermark_width, watermark_height)
             else:
-                # 如果是元组位置，可能是相对位置（0-1之间的值）或绝对位置
-                if isinstance(position, tuple) and len(position) >= 2:
+                # 如果是元组或列表位置，可能是相对位置（0-1之间的值）或绝对位置
+                if isinstance(position, (tuple, list)) and len(position) >= 2:
                     x_ratio, y_ratio = position[0], position[1]
                     if 0 <= x_ratio <= 1 and 0 <= y_ratio <= 1:
                         # 相对位置（0-1之间的值）
