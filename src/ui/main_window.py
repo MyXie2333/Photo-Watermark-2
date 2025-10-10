@@ -507,6 +507,13 @@ class MainWindow(QMainWindow):
         if current_image_path:
             self.update_preview_with_watermark()
             
+            # 获取当前水印设置并保存到配置文件
+            current_settings = self.image_manager.get_current_watermark_settings()
+            if current_settings:
+                # 添加水印类型信息
+                current_settings['type'] = self.watermark_type
+                self.config_manager.set_last_watermark_settings(current_settings)
+            
     def on_watermark_position_changed(self, x, y):
         """处理水印位置变化信号"""
         print(f"[DEBUG] MainWindow.on_watermark_position_changed: 接收到位置变化回调，坐标=({x}, {y})")
