@@ -53,6 +53,10 @@ class MainWindow(QMainWindow):
         # 当前水印设置（用于UI显示和临时预览）
         self.current_watermark_settings = {}
         
+        # 当前模板设置（用于在导入新图片时自动应用）
+        self._current_template_type = None
+        self._current_template_settings = None
+        
         # 初始化缩放相关变量
         self.current_scale = 1.0
         self.compression_scale = 1.0  # 添加压缩比例属性
@@ -875,10 +879,15 @@ class MainWindow(QMainWindow):
                 
                 # 如果当前图片没有水印设置，则设置默认的"center"位置
                 if not current_watermark_settings:
-                    # 获取全局默认水印设置
-                    global_default_settings = self.config_manager.get_watermark_defaults()
-                    # 确保位置设置为"center"
-                    global_default_settings["position"] = "center"
+                    # 检查是否有当前模板设置需要应用
+                    if hasattr(self, '_current_template_type') and hasattr(self, '_current_template_settings'):
+                        # 应用当前模板到新导入的图片
+                        self.load_watermark_template(self._current_template_type, self._current_template_settings)
+                    else:
+                        # 获取全局默认水印设置
+                        global_default_settings = self.config_manager.get_watermark_defaults()
+                        # 确保位置设置为"center"
+                        global_default_settings["position"] = "center"
                     # 确保颜色是QColor对象而不是字符串
                     if "color" in global_default_settings and isinstance(global_default_settings["color"], str):
                         global_default_settings["color"] = QColor(global_default_settings["color"])
@@ -2526,22 +2535,6 @@ class MainWindow(QMainWindow):
 
     def show_startup_settings(self):
         """显示启动设置对话框"""
-        # 检查是否需要显示启动设置对话框
-        if self.config_manager.get_load_last_settings():
-            # 加载上一次的水印设置
-            last_settings = self.config_manager.get_last_watermark_settings()
-            if last_settings:
-                self.load_watermark_template(last_settings.get('type', 'text'), last_settings)
-        else:
-            # 加载默认模板
-            default_template = self.config_manager.get_default_template()
-            if default_template:
-                template_settings = self.config_manager.load_watermark_template(
-                    default_template['type'], default_template['name']
-                )
-                if template_settings:
-                    self.load_watermark_template(default_template['type'], template_settings)
-        
         # 显示启动设置对话框
         startup_dialog = StartupSettingsDialog(self.config_manager, self)
         if startup_dialog.exec_() == QDialog.Accepted:
@@ -2552,6 +2545,22 @@ class MainWindow(QMainWindow):
                 if last_settings:
                     self.load_watermark_template(last_settings.get('type', 'text'), last_settings)
             elif selected_option == "load_default":
+                # 加载默认模板
+                default_template = self.config_manager.get_default_template()
+                if default_template and "settings" in default_template:
+                    # 直接使用从get_default_template返回的settings
+                    self.load_watermark_template(default_template['type'], default_template['settings'])
+            elif selected_option == "template_manager":
+                # 用户选择了模板管理，已经在对话框中处理过了
+                pass
+        else:
+            # 用户取消了对话框，检查是否需要显示启动设置对话框
+            if self.config_manager.get_load_last_settings():
+                # 加载上一次的水印设置
+                last_settings = self.config_manager.get_last_watermark_settings()
+                if last_settings:
+                    self.load_watermark_template(last_settings.get('type', 'text'), last_settings)
+            else:
                 # 加载默认模板
                 default_template = self.config_manager.get_default_template()
                 if default_template and "settings" in default_template:
@@ -2601,6 +2610,10 @@ class MainWindow(QMainWindow):
 
     def load_watermark_template(self, template_type, template_settings):
         """加载水印模板"""
+        # 保存当前模板信息，以便在导入新图片时重新应用
+        self._current_template_type = template_type
+        self._current_template_settings = template_settings
+        
         # 切换到对应的水印类型
         self.switch_watermark_type(template_type)
         
@@ -2612,7 +2625,7 @@ class MainWindow(QMainWindow):
         
         # 为所有图片应用模板设置
         all_image_paths = self.image_manager.get_all_image_paths()
-        for image_path in all_image_paths:
+        for i, image_path in enumerate(all_image_paths):
             # 获取该图片当前的水印设置
             current_watermark_settings = self.image_manager.get_watermark_settings(image_path)
             
@@ -2641,6 +2654,9 @@ class MainWindow(QMainWindow):
             self.image_manager.set_watermark_position_initialized(image_path, False)
             
             print(f"已将模板信息写入到图片 {os.path.basename(image_path)} 的水印设置中")
+            
+            # 为每个图片执行一次image_selected操作，确保水印设置正确应用
+            self.on_image_selected(i)
         
         # 更新当前图片的水印设置
         self.update_watermark_settings_from_current_widget()
