@@ -161,27 +161,3 @@ class ImageListWidget(QWidget):
     def count(self):
         """获取图片数量"""
         return self.list_widget.count()
-
-
-if __name__ == "__main__":
-    # 测试代码
-    import sys
-    from PyQt5.QtWidgets import QApplication
-    
-    app = QApplication(sys.argv)
-    
-    # 创建测试窗口
-    widget = ImageListWidget()
-    widget.resize(300, 400)
-    widget.show()
-    
-    # 添加测试图片
-    test_images = [
-        "test_photos/MARBLES.bmp",
-        "test_photos/test1.jpg",
-        "test_photos/test2.jpg",
-        "test_photos/test3.png"
-    ]
-    widget.add_images(test_images)
-    
-    sys.exit(app.exec_())

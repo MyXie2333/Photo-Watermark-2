@@ -9,7 +9,7 @@ import logging
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea, QDialog,
-                             QProgressDialog, QCheckBox)
+                             QProgressDialog, QCheckBox, QApplication)
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage, QColor, QPainter, QPen, QFont
 from PIL import Image as PILImage
@@ -779,7 +779,23 @@ class MainWindow(QMainWindow):
         )
         
         if file_paths:
+            # 创建进度对话框
+            progress_dialog = QProgressDialog("正在导入图片并设置模板...", "取消", 0, len(file_paths) + 1, self)
+            progress_dialog.setWindowTitle("请稍等，正在导入图片...")
+            progress_dialog.setWindowModality(Qt.WindowModal)
+            progress_dialog.show()
+            
+            # 更新进度
+            progress_dialog.setValue(0)
+            progress_dialog.setLabelText("正在导入图片...")
+            QApplication.processEvents()
+            
             result = self.image_manager.load_multiple_images(file_paths)
+            
+            # 更新进度
+            progress_dialog.setValue(len(file_paths))
+            progress_dialog.setLabelText("正在设置模板...")
+            QApplication.processEvents()
             
             if result is True:
                 # 成功导入新图片
@@ -812,13 +828,35 @@ class MainWindow(QMainWindow):
                     self.status_label.setText(f"所有选中的图片都已存在，未导入新图片")
             else:
                 QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
+            
+            # 完成进度条
+            progress_dialog.setValue(len(file_paths) + 1)
                 
     def import_folder(self):
         """导入文件夹中的图片"""
         folder_path = QFileDialog.getExistingDirectory(self, "选择图片文件夹")
         
         if folder_path:
+            # 获取文件夹中的所有文件以设置进度条
+            all_files = os.listdir(folder_path)
+            
+            # 创建进度对话框
+            progress_dialog = QProgressDialog("正在导入图片并设置模板...", "取消", 0, len(all_files) + 1, self)
+            progress_dialog.setWindowTitle("请稍等，正在导入图片...")
+            progress_dialog.setWindowModality(Qt.WindowModal)
+            progress_dialog.show()
+            
+            # 更新进度
+            progress_dialog.setValue(0)
+            progress_dialog.setLabelText("正在导入图片...")
+            QApplication.processEvents()
+            
             result = self.image_manager.load_folder_images(folder_path)
+            
+            # 更新进度
+            progress_dialog.setValue(len(all_files))
+            progress_dialog.setLabelText("正在设置模板...")
+            QApplication.processEvents()
             
             if result is True:
                 # 成功导入新图片
@@ -851,6 +889,9 @@ class MainWindow(QMainWindow):
                     self.status_label.setText(f"文件夹中的所有图片都已存在，未导入新图片")
             else:
                 QMessageBox.warning(self, "导入失败", "文件夹中没有找到有效的图片文件")
+            
+            # 完成进度条
+            progress_dialog.setValue(len(all_files) + 1)
                 
     def on_images_loaded(self, image_paths):
         """图片加载完成处理"""
@@ -939,6 +980,14 @@ class MainWindow(QMainWindow):
                         # 使用update_position函数统一处理position更新
                         self.update_position(coordinates, current_watermark_settings)
                         print(f"将预设位置'{position}'转换为坐标元组: {coordinates}")
+            
+            # 为导入的图片执行一次load_watermark_template
+            # 获取所有图片路径
+            all_image_paths = self.image_manager.get_all_image_paths()
+            # 为每个新导入的图片执行load_watermark_template
+            for i, image_path in enumerate(all_image_paths):
+                # 为每个图片执行一次image_selected操作，确保水印设置正确应用
+                self.on_image_selected(i)
             
             # 使用基于水印设置的预览方法，避免循环调用
             self._update_preview_based_on_watermark()
@@ -1254,7 +1303,23 @@ class MainWindow(QMainWindow):
             
             if file_paths:
                 print(f"拖拽导入图片: {file_paths}")
+                # 创建进度对话框
+                progress_dialog = QProgressDialog("正在导入图片并设置模板...", "取消", 0, len(file_paths) + 1, self)
+                progress_dialog.setWindowTitle("请稍等，正在导入图片...")
+                progress_dialog.setWindowModality(Qt.WindowModal)
+                progress_dialog.show()
+                
+                # 更新进度
+                progress_dialog.setValue(0)
+                progress_dialog.setLabelText("正在导入图片...")
+                QApplication.processEvents()
+                
                 result = self.image_manager.load_multiple_images(file_paths)
+                
+                # 更新进度
+                progress_dialog.setValue(len(file_paths))
+                progress_dialog.setLabelText("正在设置模板...")
+                QApplication.processEvents()
                 
                 if result is True:
                     # 成功导入新图片
@@ -1287,6 +1352,9 @@ class MainWindow(QMainWindow):
                         self.status_label.setText(f"所有拖拽的图片都已存在，未导入新图片")
                 else:
                     QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
+                
+                # 完成进度条
+                progress_dialog.setValue(len(file_paths) + 1)
             else:
                 QMessageBox.warning(self, "导入失败", "拖拽的文件不是支持的图片格式")
         
@@ -2610,76 +2678,78 @@ class MainWindow(QMainWindow):
 
     def load_watermark_template(self, template_type, template_settings):
         """加载水印模板"""
-        # 保存当前模板信息，以便在导入新图片时重新应用
-        self._current_template_type = template_type
-        self._current_template_settings = template_settings
+        # 创建并显示模态提示对话框
+        progress_dialog = QProgressDialog("正在进行模板水印渲染...", None, 0, 0, self)
+        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.setWindowTitle("请稍候")
+        progress_dialog.show()
         
-        # 切换到对应的水印类型
-        self.switch_watermark_type(template_type)
-        
-        # 应用模板设置到UI控件
-        if template_type == "text" and self.text_watermark_widget:
-            self.text_watermark_widget.set_watermark_settings(template_settings)
-        elif template_type == "image" and self.image_watermark_widget:
-            self.image_watermark_widget.set_watermark_settings(template_settings)
-        
-        # 为所有图片应用模板设置
-        all_image_paths = self.image_manager.get_all_image_paths()
-        for i, image_path in enumerate(all_image_paths):
-            # 获取该图片当前的水印设置
-            current_watermark_settings = self.image_manager.get_watermark_settings(image_path)
+        try:
+            # 处理事件队列，确保对话框显示
+            QApplication.processEvents()
             
-            # 如果没有当前设置，创建一个空字典
-            if not current_watermark_settings:
-                current_watermark_settings = {}
+            # 保存当前模板信息，以便在导入新图片时重新应用
+            self._current_template_type = template_type
+            self._current_template_settings = template_settings
             
-            # 创建模板设置的深拷贝，确保不会修改原始模板
-            import copy
-            template_settings_copy = copy.deepcopy(template_settings)
+            # 切换到对应的水印类型
+            self.switch_watermark_type(template_type)
             
-            # 将模板设置的所有键值对写入到当前设置中
-            for key, value in template_settings_copy.items():
-                current_watermark_settings[key] = value
+            # 应用模板设置到UI控件
+            if template_type == "text" and self.text_watermark_widget:
+                self.text_watermark_widget.set_watermark_settings(template_settings)
+            elif template_type == "image" and self.image_watermark_widget:
+                self.image_watermark_widget.set_watermark_settings(template_settings)
             
-            # 确保位置信息正确处理
-            if "position" in current_watermark_settings:
-                # 如果position是预定义的字符串位置（如"center"），保持不变
-                # 如果是坐标列表，则确保是元组格式
-                if isinstance(current_watermark_settings["position"], list):
-                    current_watermark_settings["position"] = tuple(current_watermark_settings["position"])
+            # 为所有图片应用模板设置
+            all_image_paths = self.image_manager.get_all_image_paths()
+            for i, image_path in enumerate(all_image_paths):
+                # 获取该图片当前的水印设置
+                current_watermark_settings = self.image_manager.get_watermark_settings(image_path)
+                
+                # 如果没有当前设置，创建一个空字典
+                if not current_watermark_settings:
+                    current_watermark_settings = {}
+                
+                # 创建模板设置的深拷贝，确保不会修改原始模板
+                import copy
+                template_settings_copy = copy.deepcopy(template_settings)
+                
+                # 将模板设置的所有键值对写入到当前设置中
+                for key, value in template_settings_copy.items():
+                    current_watermark_settings[key] = value
+                
+                # 确保位置信息正确处理
+                if "position" in current_watermark_settings:
+                    # 如果position是预定义的字符串位置（如"center"），保持不变
+                    # 如果是坐标列表，则确保是元组格式
+                    if isinstance(current_watermark_settings["position"], list):
+                        current_watermark_settings["position"] = tuple(current_watermark_settings["position"])
+                
+                # 为图片设置更新后的水印设置
+                self.image_manager.set_watermark_settings(image_path, current_watermark_settings)
+                # 重置水印位置初始化标志，确保水印位置会被重新计算
+                self.image_manager.set_watermark_position_initialized(image_path, False)
+                
+                print(f"已将模板信息写入到图片 {os.path.basename(image_path)} 的水印设置中")
+                
+                # 为每个图片执行一次image_selected操作，确保水印设置正确应用
+                self.on_image_selected(i)
             
-            # 为图片设置更新后的水印设置
-            self.image_manager.set_watermark_settings(image_path, current_watermark_settings)
-            # 重置水印位置初始化标志，确保水印位置会被重新计算
-            self.image_manager.set_watermark_position_initialized(image_path, False)
+            # 更新当前图片的水印设置
+            self.update_watermark_settings_from_current_widget()
             
-            print(f"已将模板信息写入到图片 {os.path.basename(image_path)} 的水印设置中")
+            # 重置预览缓存，强制重新生成预览图像
+            self.last_preview_settings = None
+            self.last_preview_image = None
             
-            # 为每个图片执行一次image_selected操作，确保水印设置正确应用
-            self.on_image_selected(i)
-        
-        # 更新当前图片的水印设置
-        self.update_watermark_settings_from_current_widget()
-        
-        # 重置预览缓存，强制重新生成预览图像
-        self.last_preview_settings = None
-        self.last_preview_image = None
-        
-        # 更新预览
-        current_image_path = self.image_manager.get_current_image_path()
-        if current_image_path:
-            self.update_preview_with_watermark()
-        
-        # 保存当前水印设置
-        self.config_manager.set_last_watermark_settings(template_settings)
-
-
-if __name__ == "__main__":
-    # 测试代码
-    import sys
-    from PyQt5.QtWidgets import QApplication
-    
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+            # 更新预览
+            current_image_path = self.image_manager.get_current_image_path()
+            if current_image_path:
+                self.update_preview_with_watermark()
+            
+            # 保存当前水印设置
+            self.config_manager.set_last_watermark_settings(template_settings)
+        finally:
+            # 关闭进度对话框
+            progress_dialog.close()

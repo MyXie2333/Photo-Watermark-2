@@ -6,8 +6,9 @@
 
 import os
 from PIL import Image, ImageOps
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QProgressDialog, QApplication
 
 
 class ImageManager(QObject):
@@ -51,13 +52,30 @@ class ImageManager(QObject):
         valid_paths = []
         duplicate_paths = []
         
-        for file_path in file_paths:
+        # 创建进度对话框
+        progress_dialog = QProgressDialog("正在导入图片...", "取消", 0, len(file_paths))
+        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.setWindowTitle("导入进度")
+        progress_dialog.show()
+        
+        for i, file_path in enumerate(file_paths):
+            # 更新进度
+            progress_dialog.setValue(i)
+            QApplication.processEvents()  # 处理界面事件，确保进度条更新
+            
+            # 检查用户是否取消操作
+            if progress_dialog.wasCanceled():
+                break
+                
             if self._validate_image_format(file_path):
                 if self._is_duplicate_file(file_path):
                     duplicate_paths.append(file_path)
                 else:
                     valid_paths.append(file_path)
                 
+        # 完成进度条
+        progress_dialog.setValue(len(file_paths))
+        
         if not valid_paths and not duplicate_paths:
             return False
             
@@ -84,10 +102,26 @@ class ImageManager(QObject):
         if not os.path.isdir(folder_path):
             return False
             
+        # 获取文件夹中的所有文件
+        all_files = os.listdir(folder_path)
         valid_paths = []
         duplicate_paths = []
         
-        for filename in os.listdir(folder_path):
+        # 创建进度对话框
+        progress_dialog = QProgressDialog("正在导入文件夹中的图片...", "取消", 0, len(all_files))
+        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.setWindowTitle("导入进度")
+        progress_dialog.show()
+        
+        for i, filename in enumerate(all_files):
+            # 更新进度
+            progress_dialog.setValue(i)
+            QApplication.processEvents()  # 处理界面事件，确保进度条更新
+            
+            # 检查用户是否取消操作
+            if progress_dialog.wasCanceled():
+                break
+                
             file_path = os.path.join(folder_path, filename)
             if os.path.isfile(file_path) and self._validate_image_format(file_path):
                 if self._is_duplicate_file(file_path):
@@ -95,6 +129,9 @@ class ImageManager(QObject):
                 else:
                     valid_paths.append(file_path)
                 
+        # 完成进度条
+        progress_dialog.setValue(len(all_files))
+        
         if not valid_paths and not duplicate_paths:
             return False
             

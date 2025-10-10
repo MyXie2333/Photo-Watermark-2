@@ -675,12 +675,3 @@ class ImageWatermarkWidget(QWidget):
                 self.x_coord_input.blockSignals(False)
                 self.y_coord_input.blockSignals(False)
                 print(f"[DEBUG] ImageWatermarkWidget.update_coordinate_inputs: 更新坐标输入框为 ({int(x)}, {int(y)})")
-
-if __name__ == "__main__":
-    import sys
-    from PyQt5.QtWidgets import QApplication
-    
-    app = QApplication(sys.argv)
-    window = ImageWatermarkWidget()
-    window.show()
-    sys.exit(app.exec_())
