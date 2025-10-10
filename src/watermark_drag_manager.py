@@ -123,7 +123,7 @@ class WatermarkDragManager:
                 self.drag_start_pos = event.pos()
                 
                 # 获取水印位置 - 直接使用position
-                if "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
+                if "position" in current_watermark_settings and isinstance(current_watermark_settings["position"],  (tuple, list)):
                     watermark_position = current_watermark_settings["position"]
                     print(f"[DEBUG] WatermarkDragManager.on_mouse_press: 使用position元组作为水印位置: {watermark_position}")
                 else:
@@ -156,7 +156,7 @@ class WatermarkDragManager:
             
             if current_watermark_settings:
                 # 获取水印位置 - 直接使用position
-                if "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple):
+                if "position" in current_watermark_settings and isinstance(current_watermark_settings["position"],  (tuple, list)):
                     original_position = current_watermark_settings["position"]
                     print(f"[DEBUG] WatermarkDragManager.on_mouse_move: 使用position元组作为原始位置: {original_position}")
                 else:

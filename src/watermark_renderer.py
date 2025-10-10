@@ -1416,14 +1416,9 @@ class WatermarkRenderer:
                 
                 print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 应用旋转{rotation}度，旋转后尺寸: {rotated_width}x{rotated_height}，调整后坐标: x={x}, y={y}")
             
-            # 根据模式选择坐标来源
-            # 注意：position是水印在原图上的坐标，watermark_x是水印在压缩图上的坐标
-            # 预览模式使用watermark_settings["watermark_x"]（压缩图上的坐标）
-            # 导出模式只使用position计算的位置
+            
+           
             if "watermark_x" in watermark_settings and "watermark_y" in watermark_settings and is_preview:
-                    # 仅在预览模式下使用手动指定的坐标
-                x = watermark_settings["watermark_x"]
-                y = watermark_settings["watermark_y"]
                 print(f"[DEBUG] WatermarkRenderer.render_image_watermark: 预览模式，使用手动指定坐标: ({x}, {y})")
             else:
                 # 导出模式或没有手动指定坐标时，使用position计算的位置
