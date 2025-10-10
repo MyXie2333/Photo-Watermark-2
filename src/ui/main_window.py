@@ -233,68 +233,27 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(control_layout)
         
-        # 缩放比例显示
-        scale_layout = QHBoxLayout()
-        scale_layout.addStretch()
+        # 缩放比例显示（已注释）
+        # scale_layout = QHBoxLayout()
+        # scale_layout.addStretch()
         
-        self.scale_label = QLabel("缩放比例: 100%")
-        self.scale_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        scale_layout.addWidget(self.scale_label)
+        # self.scale_label = QLabel("缩放比例: 100%")
+        # self.scale_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
+        # scale_layout.addWidget(self.scale_label)
         
-        scale_layout.addStretch()
-        layout.addLayout(scale_layout)
+        # scale_layout.addStretch()
+        # layout.addLayout(scale_layout)
         
-        # 坐标显示区域
-        coord_layout = QHBoxLayout()
-        coord_layout.addStretch()
+        # 统一显示原图尺寸、水印坐标和预览缩放比例
+        info_layout = QHBoxLayout()
+        info_layout.addStretch()
         
-        self.mouse_coord_label = QLabel("鼠标坐标: (0, 0)")
-        self.mouse_coord_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        coord_layout.addWidget(self.mouse_coord_label)
+        self.unified_info_label = QLabel("原图尺寸: 0x0 | 水印坐标: (0, 0) | 预览缩放比例: 1.00")
+        self.unified_info_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
+        info_layout.addWidget(self.unified_info_label)
         
-        coord_layout.addSpacing(20)
-        
-        self.watermark_coord_label = QLabel("水印坐标: (0, 0)")
-        self.watermark_coord_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        coord_layout.addWidget(self.watermark_coord_label)
-        
-        coord_layout.addStretch()
-        layout.addLayout(coord_layout)
-        
-        # 图片信息显示区域
-        image_info_layout = QHBoxLayout()
-        image_info_layout.addStretch()
-        
-        self.original_size_label = QLabel("原图尺寸: 0x0")
-        self.original_size_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        image_info_layout.addWidget(self.original_size_label)
-        
-        image_info_layout.addSpacing(20)
-        
-        self.compressed_size_label = QLabel("压缩尺寸: 0x0")
-        self.compressed_size_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        image_info_layout.addWidget(self.compressed_size_label)
-        
-        image_info_layout.addSpacing(20)
-        
-        self.preview_size_label = QLabel("预览尺寸: 0x0")
-        self.preview_size_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        image_info_layout.addWidget(self.preview_size_label)
-        
-        image_info_layout.addSpacing(20)
-        
-        self.compression_ratio_label = QLabel("压缩比例: 1.00")
-        self.compression_ratio_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        image_info_layout.addWidget(self.compression_ratio_label)
-        
-        image_info_layout.addSpacing(20)
-        
-        self.preview_scale_label = QLabel("预览缩放比例: 1.00")
-        self.preview_scale_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
-        image_info_layout.addWidget(self.preview_scale_label)
-        
-        image_info_layout.addStretch()
-        layout.addLayout(image_info_layout)
+        info_layout.addStretch()
+        layout.addLayout(info_layout)
         
         # 添加水印位置警告标签
         self.watermark_warning_label = QLabel("注意：水印将超出图片边界！")
@@ -1144,7 +1103,8 @@ class MainWindow(QMainWindow):
                 total_scale = self.current_scale * compression_scale
             
             scale_percent = int(total_scale * 100)
-            self.scale_label.setText(f"缩放比例: {scale_percent}%")
+            # 缩放比例显示已注释
+            # self.scale_label.setText(f"缩放比例: {scale_percent}%")
             
             # 更新图片信息显示
             self.update_image_info_display()
@@ -1362,41 +1322,9 @@ class MainWindow(QMainWindow):
         
 
         
-    def update_mouse_coordinates(self, event):
-        """更新鼠标坐标显示"""
-        if self.original_pixmap and self.image_manager.get_current_image_path():
-            # 获取鼠标在预览图上的位置
-            mouse_x = event.pos().x()
-            mouse_y = event.pos().y()
-            
-            # 获取预览图片的实际尺寸
-            if hasattr(self, 'preview_widget') and self.preview_widget.pixmap():
-                preview_pixmap = self.preview_widget.pixmap()
-                display_width = preview_pixmap.width()
-                display_height = preview_pixmap.height()
-                
-                # 获取原始图片尺寸
-                original_width = self.original_pixmap.width()
-                original_height = self.original_pixmap.height()
-                
-                # 计算鼠标在原始图片上的坐标
-                if display_width > 0 and display_height > 0:
-                    # 计算预览图相对于原始图片的缩放比例
-                    preview_scale_x = original_width / display_width
-                    preview_scale_y = original_height / display_height
-                    
-                    # 计算鼠标在原始图片上的坐标，直接存储为整数
-                    original_x = int(mouse_x * preview_scale_x)
-                    original_y = int(mouse_y * preview_scale_y)
-                    
-                    # 更新鼠标坐标显示
-                    self.mouse_coord_label.setText(f"鼠标坐标: ({original_x}, {original_y})")
-                else:
-                    self.mouse_coord_label.setText("鼠标坐标: (0, 0)")
-            else:
-                self.mouse_coord_label.setText("鼠标坐标: (0, 0)")
-        else:
-            self.mouse_coord_label.setText("鼠标坐标: (0, 0)")
+    # def update_mouse_coordinates(self, event):
+    #     """更新鼠标坐标显示 - 此方法已不再使用，我们现在使用统一的信息标签"""
+    #     pass
             
     def update_watermark_coordinates(self):
         """更新水印坐标显示"""
@@ -1411,7 +1339,8 @@ class MainWindow(QMainWindow):
                     watermark_x = int(current_watermark_settings["watermark_x"])
                     watermark_y = int(current_watermark_settings["watermark_y"])
                     position = current_watermark_settings.get("position", "")
-                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
+                    # 水印坐标显示已注释
+                    # self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                 # 如果没有watermark_x和watermark_y，则使用position
                 elif "position" in current_watermark_settings:
                     position = current_watermark_settings["position"]
@@ -1426,12 +1355,16 @@ class MainWindow(QMainWindow):
                         current_image_path = self.image_manager.get_current_image_path()
                         if current_image_path:
                             self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
-                        # 水印位置已经是基于原图坐标系的整数，直接显示
-                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
+                        # 水印坐标显示已注释
+                        # self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                     else:
-                        self.watermark_coord_label.setText(f"水印坐标: (0, 0), position: {position}")
+                        # 水印坐标显示已注释
+                        # self.watermark_coord_label.setText(f"水印坐标: (0, 0), position: {position}")
+                        pass
                 else:
-                    self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                    # 水印坐标显示已注释
+                    # self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                    pass
             # 图片水印处理
             elif current_watermark_settings.get("image_path"):
                 # 优先使用watermark_x和watermark_y
@@ -1439,7 +1372,8 @@ class MainWindow(QMainWindow):
                     watermark_x = int(current_watermark_settings["watermark_x"])
                     watermark_y = int(current_watermark_settings["watermark_y"])
                     position = current_watermark_settings.get("position", "")
-                    self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
+                    # 水印坐标显示已注释
+                    # self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                 # 如果没有watermark_x和watermark_y，则使用position
                 elif "position" in current_watermark_settings:
                     position = current_watermark_settings["position"]
@@ -1454,16 +1388,24 @@ class MainWindow(QMainWindow):
                         current_image_path = self.image_manager.get_current_image_path()
                         if current_image_path:
                             self.image_manager.set_watermark_settings(current_image_path, current_watermark_settings)
-                        # 水印位置已经是基于原图坐标系的整数，直接显示
-                        self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
+                        # 水印坐标显示已注释
+                        # self.watermark_coord_label.setText(f"水印坐标: ({watermark_x}, {watermark_y}), position: {position}")
                     else:
-                        self.watermark_coord_label.setText(f"水印坐标: (0, 0), position: {position}")
+                        # 水印坐标显示已注释
+                        # self.watermark_coord_label.setText(f"水印坐标: (0, 0), position: {position}")
+                        pass
                 else:
-                    self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                    # 水印坐标显示已注释
+                    # self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                    pass
             else:
-                self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                # 水印坐标显示已注释
+                # self.watermark_coord_label.setText("水印坐标: (0, 0)")
+                pass
         else:
-            self.watermark_coord_label.setText("水印坐标: (0, 0)")
+            # 水印坐标显示已注释
+            # self.watermark_coord_label.setText("水印坐标: (0, 0)")
+            pass
     
     def update_position(self, new_position, current_watermark_settings=None):
         """
@@ -1547,41 +1489,21 @@ class MainWindow(QMainWindow):
             original_width = self.original_pixmap.width()
             original_height = self.original_pixmap.height()
             
-            # 更新原图尺寸显示
-            self.original_size_label.setText(f"原图尺寸: {original_width}x{original_height}")
+            # 获取水印坐标（仅使用position值）
+            watermark_x, watermark_y = 0, 0
+            current_watermark_settings = self.image_manager.get_current_watermark_settings()
+            if current_watermark_settings and "position" in current_watermark_settings and isinstance(current_watermark_settings["position"], tuple) and len(current_watermark_settings["position"]) == 2:
+                watermark_x = int(current_watermark_settings["position"][0])
+                watermark_y = int(current_watermark_settings["position"][1])
             
-            # 获取压缩比例和压缩尺寸
-            compression_scale = 1.0
-            compressed_width = original_width
-            compressed_height = original_height
-            
-            if hasattr(self, 'preview_ratio_info') and self.preview_ratio_info:
-                compression_scale = self.preview_ratio_info.get('scale_factor', 1.0)
-                compressed_width = self.preview_ratio_info.get('preview_width', original_width)
-                compressed_height = self.preview_ratio_info.get('preview_height', original_height)
-            
-            # 更新压缩尺寸显示
-            self.compressed_size_label.setText(f"压缩尺寸: {compressed_width}x{compressed_height}")
-            
-            # 计算预览尺寸（考虑预览缩放比例）
-            preview_width = int(original_width * self.current_scale)
-            preview_height = int(original_height * self.current_scale)
-            
-            # 更新预览尺寸显示
-            self.preview_size_label.setText(f"预览尺寸: {preview_width}x{preview_height}")
-            
-            # 更新压缩比例显示
-            self.compression_ratio_label.setText(f"压缩比例: {compression_scale:.2f}")
-            
-            # 更新预览缩放比例显示
-            self.preview_scale_label.setText(f"预览缩放比例: {self.current_scale:.2f}")
+            # 更新统一信息标签
+            self.unified_info_label.setText(f"原图尺寸: {original_width}x{original_height} | 水印坐标: ({watermark_x}, {watermark_y}) | 预览缩放比例: {self.current_scale:.2f}")
         else:
             # 如果没有图片，重置所有显示
-            self.original_size_label.setText("原图尺寸: 0x0")
-            self.compressed_size_label.setText("压缩尺寸: 0x0")
-            self.preview_size_label.setText("预览尺寸: 0x0")
-            self.compression_ratio_label.setText("压缩比例: 1.00")
-            self.preview_scale_label.setText("预览缩放比例: 1.00")
+            self.unified_info_label.setText("原图尺寸: 0x0 | 水印坐标: (0, 0) | 预览缩放比例: 1.00")
+            # self.preview_size_label.setText("预览尺寸: 0x0")
+            # self.compression_ratio_label.setText("压缩比例: 1.00")
+            # self.preview_scale_label.setText("预览缩放比例: 1.00")
         
 
         
