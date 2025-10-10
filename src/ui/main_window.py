@@ -8,7 +8,7 @@ import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QSplitter, QLabel, QPushButton, QMenuBar, QMenu, 
                              QStatusBar, QAction, QFileDialog, QMessageBox, QScrollArea, QDialog,
-                             QProgressDialog)
+                             QProgressDialog, QCheckBox)
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QDragEnterEvent, QDropEvent, QImage, QColor, QPainter, QPen, QFont
 from PIL import Image as PILImage
@@ -71,6 +71,9 @@ class MainWindow(QMainWindow):
         self.last_preview_settings = None
         self.last_preview_image = None
         
+        # 显示辅助线的标志，默认为True（开）
+        self.show_guidelines = True
+        
         self.setup_ui()
         
         # 初始化水印拖拽管理器
@@ -86,13 +89,17 @@ class MainWindow(QMainWindow):
         self.show_startup_settings()
         
     def _get_current_watermark_settings(self):
-        """
-        获取当前水印设置的内部方法，用于WatermarkDragManager的回调
-        """
+        """获取当前水印设置的内部方法，用于WatermarkDragManager的回调"""
         current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
             return self.image_manager.get_current_watermark_settings()
         return {}
+        
+    def on_show_guidelines_changed(self, state):
+        """处理显示辅助线复选框状态变化事件"""
+        self.show_guidelines = state == Qt.Checked
+        # 重新渲染预览，使更改生效
+        self.update_preview_with_watermark()
         
     def setup_ui(self):
         """设置用户界面"""
@@ -225,11 +232,17 @@ class MainWindow(QMainWindow):
         self.zoom_out_button = QPushButton("视图缩小")
         self.fit_button = QPushButton("适应窗口")
         
+        # 添加显示辅助线复选框
+        self.show_guidelines_checkbox = QCheckBox("显示辅助线")
+        self.show_guidelines_checkbox.setChecked(self.show_guidelines)
+        self.show_guidelines_checkbox.stateChanged.connect(self.on_show_guidelines_changed)
+        
         control_layout.addWidget(self.prev_button)
         control_layout.addWidget(self.next_button)
         control_layout.addWidget(self.zoom_in_button)
         control_layout.addWidget(self.zoom_out_button)
         control_layout.addWidget(self.fit_button)
+        control_layout.addWidget(self.show_guidelines_checkbox)
         
         layout.addLayout(control_layout)
         
@@ -653,8 +666,9 @@ class MainWindow(QMainWindow):
                 # 缩放水印预览图片到目标尺寸
                 pixmap = pixmap.scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             
-            # 在预览图片上绘制坐标格点
-            pixmap = self.draw_coordinate_grid(pixmap)
+            # 根据设置决定是否绘制坐标格点
+            if self.show_guidelines:
+                pixmap = self.draw_coordinate_grid(pixmap)
             
             self.preview_widget.setPixmap(pixmap)
             
@@ -955,7 +969,7 @@ class MainWindow(QMainWindow):
         self.update_scale_display()
         
         # 重置坐标显示
-        self.mouse_coord_label.setText("鼠标坐标: (0, 0)")
+        # self.mouse_coord_label.setText("鼠标坐标: (0, 0)")
         # 水印坐标显示已在update_preview_with_watermark中更新
         
     def on_image_changed(self, index):
