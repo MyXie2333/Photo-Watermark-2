@@ -959,45 +959,46 @@ class TextWatermarkWidget(QWidget):
                     margin=max(min(img_height,img_width)//50,5)
                     if position_str == "左上":
                         # 左上格子的位置，考虑边距和文本高度
-                        x = margin-25
-                        y= margin-text_height//2
+                        x = margin
+                        y= margin
                     elif position_str == "上中":
                         # 上中格子的位置，水平居中，考虑边距和文本高度
                         x = img_width // 2 -  text_width//2
-                        y= margin-text_height//2
+                        y= margin
                     elif position_str == "右上":
                         # 右上格子的位置，考虑边距和文本宽度
                         x= img_width-text_width-margin
-                        y= margin-text_height//2
+                        y= margin
                     elif position_str == "左中":
                         # 左中格子的位置，垂直居中，考虑边距
-                        x= margin-25
-                        y= img_height // 2 - text_height
+                        x= margin
+                        y= img_height // 2 - text_height//2
                     elif position_str == "中心":
                         # 中心格子的位置，完全居中
                         x = img_width // 2 -  text_width//2
-                        y= img_height // 2 - text_height
+                        y= img_height // 2 - text_height//2
                     elif position_str == "右中":
                         # 右中格子的位置，垂直居中，考虑边距和文本宽度
                         x= img_width-text_width-margin
-                        y= img_height // 2 - text_height
+                        y= img_height // 2 - text_height//2
                     elif position_str == "左下":
                         # 左下格子的位置，考虑边距和文本高度
-                        x = margin-25
-                        y= img_height-margin-text_height-text_height//2
+                        x = margin
+                        y= img_height-margin-text_height
                     elif position_str == "下中":
                         # 下中格子的位置，水平居中，考虑边距和文本高度
                         x = img_width // 2 -  text_width//2
-                        y= img_height-margin-text_height-text_height//2
+                        y= img_height-margin-text_height
                     elif position_str == "右下":
                         # 右下格子的位置，考虑边距、文本宽度和高度
                         x= img_width-text_width-margin
-                        y= img_height-margin-text_height-text_height//2
+                        y= img_height-margin-text_height
                     else:
                         # 默认使用中心位置
-                        x= img_width // 2 -  text_width//2
-                        y= img_height // 2
+                        x = img_width // 2 -  text_width//2
+                        y= img_height // 2 - text_height//2
                     
+                    print(f"[DEBUG] TextWatermarkWidget.on_position_changed: 计算绝对位置为 ({x}, {y})")
                 
                     # text_width = text_r-text_l
                     # text_height = text_b-text_t
