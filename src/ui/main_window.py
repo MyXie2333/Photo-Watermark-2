@@ -2525,22 +2525,34 @@ class MainWindow(QMainWindow):
         # 为所有图片应用模板设置
         all_image_paths = self.image_manager.get_all_image_paths()
         for image_path in all_image_paths:
-            # 为每张图片设置相同的模板设置
-            # 创建一个深拷贝，确保每个图片获得完全独立的设置
+            # 获取该图片当前的水印设置
+            current_watermark_settings = self.image_manager.get_watermark_settings(image_path)
+            
+            # 如果没有当前设置，创建一个空字典
+            if not current_watermark_settings:
+                current_watermark_settings = {}
+            
+            # 创建模板设置的深拷贝，确保不会修改原始模板
             import copy
-            image_settings = copy.deepcopy(template_settings)
+            template_settings_copy = copy.deepcopy(template_settings)
+            
+            # 将模板设置的所有键值对写入到当前设置中
+            for key, value in template_settings_copy.items():
+                current_watermark_settings[key] = value
             
             # 确保位置信息正确处理
-            if "position" in image_settings:
+            if "position" in current_watermark_settings:
                 # 如果position是预定义的字符串位置（如"center"），保持不变
                 # 如果是坐标列表，则确保是元组格式
-                if isinstance(image_settings["position"], list):
-                    image_settings["position"] = tuple(image_settings["position"])
+                if isinstance(current_watermark_settings["position"], list):
+                    current_watermark_settings["position"] = tuple(current_watermark_settings["position"])
             
-            # 为图片设置完整的水印设置
-            self.image_manager.set_watermark_settings(image_path, image_settings)
+            # 为图片设置更新后的水印设置
+            self.image_manager.set_watermark_settings(image_path, current_watermark_settings)
             # 重置水印位置初始化标志，确保水印位置会被重新计算
             self.image_manager.set_watermark_position_initialized(image_path, False)
+            
+            print(f"已将模板信息写入到图片 {os.path.basename(image_path)} 的水印设置中")
         
         # 更新当前图片的水印设置
         self.update_watermark_settings_from_current_widget()
