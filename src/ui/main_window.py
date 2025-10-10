@@ -1920,7 +1920,20 @@ class MainWindow(QMainWindow):
         
         # 根据用户设置的命名规则构建输出文件名
         base_name = os.path.splitext(os.path.basename(image_path))[0]
-        extension = os.path.splitext(image_path)[1]
+        original_extension = os.path.splitext(image_path)[1]
+        
+        # 获取用户选择的格式选项
+        format_option = export_settings.get('format_option', 0)
+        
+        # 根据选择的格式确定扩展名
+        if format_option == 0:  # 保留原格式
+            extension = original_extension
+        elif format_option == 1:  # 导出为JPEG
+            extension = '.jpg'
+        elif format_option == 2:  # 导出为PNG
+            extension = '.png'
+        else:
+            extension = original_extension
         
         if naming_rule == 'original':
             output_filename = f"{base_name}{extension}"
@@ -2110,7 +2123,20 @@ class MainWindow(QMainWindow):
                 
                 # 根据用户设置的命名规则构建输出文件名
                 base_name = os.path.splitext(os.path.basename(image_path))[0]
-                extension = os.path.splitext(image_path)[1]
+                original_extension = os.path.splitext(image_path)[1]
+                
+                # 获取用户选择的格式选项
+                format_option = export_settings.get('format_option', 0)
+                
+                # 根据选择的格式确定扩展名
+                if format_option == 0:  # 保留原格式
+                    extension = original_extension
+                elif format_option == 1:  # 导出为JPEG
+                    extension = '.jpg'
+                elif format_option == 2:  # 导出为PNG
+                    extension = '.png'
+                else:
+                    extension = original_extension
                 
                 if naming_rule == 'original':
                     output_filename = f"{base_name}{extension}"
@@ -2413,7 +2439,20 @@ class MainWindow(QMainWindow):
             
             # 构建输出文件名
             base_name = os.path.splitext(os.path.basename(image_path))[0]
-            extension = os.path.splitext(image_path)[1]
+            original_extension = os.path.splitext(image_path)[1]
+            
+            # 获取用户选择的格式选项
+            format_option = export_settings.get('format_option', 0)
+            
+            # 根据选择的格式确定扩展名
+            if format_option == 0:  # 保留原格式
+                extension = original_extension
+            elif format_option == 1:  # 导出为JPEG
+                extension = '.jpg'
+            elif format_option == 2:  # 导出为PNG
+                extension = '.png'
+            else:
+                extension = original_extension
             
             # 根据导出设置生成文件名
             naming_rule = export_settings.get('naming_rule', 'original')

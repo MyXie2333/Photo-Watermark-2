@@ -37,6 +37,35 @@ class ExportDialog(QDialog):
         """设置对话框UI"""
         main_layout = QVBoxLayout()
         
+        # 导出格式组
+        format_group = QGroupBox("导出格式")
+        format_layout = QVBoxLayout()
+        
+        # 格式选择选项
+        self.format_option_group = QButtonGroup(self)
+        
+        self.original_format_radio = QRadioButton("保留原格式")
+        self.original_format_radio.setChecked(True)
+        self.format_option_group.addButton(self.original_format_radio, 0)
+        
+        self.jpeg_format_radio = QRadioButton("导出为JPEG")
+        self.format_option_group.addButton(self.jpeg_format_radio, 1)
+        
+        self.png_format_radio = QRadioButton("导出为PNG")
+        self.format_option_group.addButton(self.png_format_radio, 2)
+        
+        format_layout.addWidget(self.original_format_radio)
+        format_layout.addWidget(self.jpeg_format_radio)
+        format_layout.addWidget(self.png_format_radio)
+        
+        # 连接信号
+        self.original_format_radio.toggled.connect(self.update_format_options)
+        self.jpeg_format_radio.toggled.connect(self.update_format_options)
+        self.png_format_radio.toggled.connect(self.update_format_options)
+        
+        format_group.setLayout(format_layout)
+        main_layout.addWidget(format_group)
+        
         # 文件命名规则组
         naming_group = QGroupBox("文件命名规则")
         naming_layout = QVBoxLayout()
@@ -103,14 +132,13 @@ class ExportDialog(QDialog):
         quality_layout.addLayout(self.quality_layout)
         quality_group.setLayout(quality_layout)
         
-        # 如果不是JPEG格式，禁用质量调节
-        if self.original_extension not in ['.jpg', '.jpeg']:
-            self.quality_slider.setEnabled(False)
-            self.quality_label.setEnabled(False)
-            # 添加提示文本
-            quality_hint = QLabel("(仅对JPEG格式有效)")
-            quality_hint.setStyleSheet("color: gray; font-style: italic;")
-            quality_layout.addWidget(quality_hint)
+        # 添加提示文本
+        quality_hint = QLabel("(仅对JPEG格式有效)")
+        quality_hint.setStyleSheet("color: gray; font-style: italic;")
+        quality_layout.addWidget(quality_hint)
+        
+        # 初始更新格式选项
+        self.update_format_options()
         
         main_layout.addWidget(quality_group)
         
@@ -204,6 +232,36 @@ class ExportDialog(QDialog):
         # 初始化UI状态
         self.update_naming_options()
         self.update_filename_preview()
+        
+    def update_format_options(self):
+        """更新格式选项的显示状态"""
+        format_option = self.format_option_group.checkedId()
+        
+        # 只有选择JPEG格式时启用质量调节
+        if format_option == 1:  # 导出为JPEG
+            self.quality_slider.setEnabled(True)
+            self.quality_label.setEnabled(True)
+        else:
+            self.quality_slider.setEnabled(False)
+            self.quality_label.setEnabled(False)
+        
+        # 更新文件名预览
+        self.update_filename_preview()
+        
+    def update_format_options(self):
+        """更新格式选项的显示状态"""
+        format_option = self.format_option_group.checkedId()
+        
+        # 只有选择JPEG格式时启用质量调节
+        if format_option == 1:  # 导出为JPEG
+            self.quality_slider.setEnabled(True)
+            self.quality_label.setEnabled(True)
+        else:
+            self.quality_slider.setEnabled(False)
+            self.quality_label.setEnabled(False)
+        
+        # 更新文件名预览
+        self.update_filename_preview()
     
     def update_naming_options(self):
         """更新命名选项的显示状态"""
@@ -243,20 +301,31 @@ class ExportDialog(QDialog):
     def update_filename_preview(self):
         """更新文件名预览"""
         option = self.naming_combo.currentData()
+        format_option = self.format_option_group.checkedId()
+        
+        # 根据选择的格式确定扩展名
+        if format_option == 0:  # 保留原格式
+            extension = self.original_extension
+        elif format_option == 1:  # 导出为JPEG
+            extension = '.jpg'
+        elif format_option == 2:  # 导出为PNG
+            extension = '.png'
+        else:
+            extension = self.original_extension
         
         if option == "original":
-            filename = f"{self.original_name}{self.original_extension}"
+            filename = f"{self.original_name}{extension}"
         elif option == "prefix":
             prefix = self.prefix_suffix_input.text()
-            filename = f"{prefix}{self.original_name}{self.original_extension}"
+            filename = f"{prefix}{self.original_name}{extension}"
         elif option == "suffix":
             suffix = self.prefix_suffix_input.text()
-            filename = f"{self.original_name}{suffix}{self.original_extension}"
+            filename = f"{self.original_name}{suffix}{extension}"
         elif option == "custom":
             custom_name = self.custom_name_input.text()
             # 确保文件名包含扩展名
             if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
-                filename = f"{custom_name}{self.original_extension}"
+                filename = f"{custom_name}{extension}"
             else:
                 filename = custom_name
         
@@ -321,6 +390,7 @@ class ExportDialog(QDialog):
             'custom_width': custom_width,
             'custom_height': custom_height,
             'quality': self.quality_slider.value(),
+            'format_option': self.format_option_group.checkedId()
         }
         
         return settings
@@ -328,20 +398,31 @@ class ExportDialog(QDialog):
     def get_output_filename(self):
         """获取输出文件名"""
         option = self.naming_combo.currentData()
+        format_option = self.format_option_group.checkedId()
+        
+        # 根据选择的格式确定扩展名
+        if format_option == 0:  # 保留原格式
+            extension = self.original_extension
+        elif format_option == 1:  # 导出为JPEG
+            extension = '.jpg'
+        elif format_option == 2:  # 导出为PNG
+            extension = '.png'
+        else:
+            extension = self.original_extension
         
         if option == "original":
-            filename = f"{self.original_name}{self.original_extension}"
+            filename = f"{self.original_name}{extension}"
         elif option == "prefix":
             prefix = self.prefix_suffix_input.text()
-            filename = f"{prefix}{self.original_name}{self.original_extension}"
+            filename = f"{prefix}{self.original_name}{extension}"
         elif option == "suffix":
             suffix = self.prefix_suffix_input.text()
-            filename = f"{self.original_name}{suffix}{self.original_extension}"
+            filename = f"{self.original_name}{suffix}{extension}"
         elif option == "custom":
             custom_name = self.custom_name_input.text()
             # 确保文件名包含扩展名
             if not any(custom_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']):
-                filename = f"{custom_name}{self.original_extension}"
+                filename = f"{custom_name}{extension}"
             else:
                 filename = custom_name
         
@@ -378,6 +459,35 @@ class BatchExportDialog(QDialog):
     def setup_ui(self):
         """设置对话框UI"""
         main_layout = QVBoxLayout()
+        
+        # 导出格式组
+        format_group = QGroupBox("导出格式")
+        format_layout = QVBoxLayout()
+        
+        # 格式选择选项
+        self.format_option_group = QButtonGroup(self)
+        
+        self.original_format_radio = QRadioButton("保留原格式")
+        self.original_format_radio.setChecked(True)
+        self.format_option_group.addButton(self.original_format_radio, 0)
+        
+        self.jpeg_format_radio = QRadioButton("导出为JPEG")
+        self.format_option_group.addButton(self.jpeg_format_radio, 1)
+        
+        self.png_format_radio = QRadioButton("导出为PNG")
+        self.format_option_group.addButton(self.png_format_radio, 2)
+        
+        format_layout.addWidget(self.original_format_radio)
+        format_layout.addWidget(self.jpeg_format_radio)
+        format_layout.addWidget(self.png_format_radio)
+        
+        # 连接信号
+        self.original_format_radio.toggled.connect(self.update_format_options)
+        self.jpeg_format_radio.toggled.connect(self.update_format_options)
+        self.png_format_radio.toggled.connect(self.update_format_options)
+        
+        format_group.setLayout(format_layout)
+        main_layout.addWidget(format_group)
         
         # 文件命名规则组
         naming_group = QGroupBox("文件命名规则")
@@ -440,6 +550,9 @@ class BatchExportDialog(QDialog):
         
         quality_group.setLayout(quality_layout)
         main_layout.addWidget(quality_group)
+        
+        # 初始更新格式选项
+        self.update_format_options()
         
         # 图片尺寸调整组
         size_group = QGroupBox("图片尺寸调整")
@@ -567,15 +680,26 @@ class BatchExportDialog(QDialog):
         original_extension = os.path.splitext(first_image)[1].lower()
         
         option = self.naming_combo.currentData()
+        format_option = self.format_option_group.checkedId()
+        
+        # 根据选择的格式确定扩展名
+        if format_option == 0:  # 保留原格式
+            extension = original_extension
+        elif format_option == 1:  # 导出为JPEG
+            extension = '.jpg'
+        elif format_option == 2:  # 导出为PNG
+            extension = '.png'
+        else:
+            extension = original_extension
         
         if option == "original":
-            filename = f"{original_name}{original_extension}"
+            filename = f"{original_name}{extension}"
         elif option == "prefix":
             prefix = self.prefix_suffix_input.text()
-            filename = f"{prefix}{original_name}{original_extension}"
+            filename = f"{prefix}{original_name}{extension}"
         elif option == "suffix":
             suffix = self.prefix_suffix_input.text()
-            filename = f"{original_name}{suffix}{original_extension}"
+            filename = f"{original_name}{suffix}{extension}"
         
         self.filename_preview.setText(filename)
     
@@ -637,6 +761,7 @@ class BatchExportDialog(QDialog):
             'custom_width': custom_width,
             'custom_height': custom_height,
             'quality': self.quality_slider.value(),
+            'format_option': self.format_option_group.checkedId()
         }
         
         return settings
@@ -647,15 +772,26 @@ class BatchExportDialog(QDialog):
         original_extension = os.path.splitext(image_path)[1].lower()
         
         option = self.naming_combo.currentData()
+        format_option = self.format_option_group.checkedId()
+        
+        # 根据选择的格式确定扩展名
+        if format_option == 0:  # 保留原格式
+            extension = original_extension
+        elif format_option == 1:  # 导出为JPEG
+            extension = '.jpg'
+        elif format_option == 2:  # 导出为PNG
+            extension = '.png'
+        else:
+            extension = original_extension
         
         if option == "original":
-            filename = f"{original_name}{original_extension}"
+            filename = f"{original_name}{extension}"
         elif option == "prefix":
             prefix = self.prefix_suffix_input.text()
-            filename = f"{prefix}{original_name}{original_extension}"
+            filename = f"{prefix}{original_name}{extension}"
         elif option == "suffix":
             suffix = self.prefix_suffix_input.text()
-            filename = f"{original_name}{suffix}{original_extension}"
+            filename = f"{original_name}{suffix}{extension}"
         
         return filename
     
