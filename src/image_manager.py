@@ -79,11 +79,8 @@ class ImageManager(QObject):
         if not valid_paths and not duplicate_paths:
             return False
             
-        # 如果有重复文件，返回重复文件列表
-        if duplicate_paths:
-            return {"status": "has_duplicates", "duplicates": duplicate_paths, "valid_count": len(valid_paths)}
-        
-        # 添加新图片
+        # 添加新图片（即使有重复文件也添加有效文件）
+        result = False
         if valid_paths:
             if not self.images:
                 self.images = valid_paths
@@ -94,8 +91,13 @@ class ImageManager(QObject):
                 self.images.extend(valid_paths)
                 self.current_index = original_count
                 self.image_changed.emit(self.current_index)
-            return True
-        return False
+            result = True
+        
+        # 如果有重复文件，返回重复文件列表
+        if duplicate_paths:
+            return {"status": "has_duplicates", "duplicates": duplicate_paths, "valid_count": len(valid_paths), "success": result}
+        
+        return result
         
     def load_folder_images(self, folder_path):
         """加载文件夹中的所有图片"""
@@ -135,11 +137,8 @@ class ImageManager(QObject):
         if not valid_paths and not duplicate_paths:
             return False
             
-        # 如果有重复文件，返回重复文件列表
-        if duplicate_paths:
-            return {"status": "has_duplicates", "duplicates": duplicate_paths, "valid_count": len(valid_paths)}
-        
-        # 添加新图片
+        # 添加新图片（即使有重复文件也添加有效文件）
+        result = False
         if valid_paths:
             if not self.images:
                 self.images = valid_paths
@@ -150,8 +149,13 @@ class ImageManager(QObject):
                 self.images.extend(valid_paths)
                 self.current_index = original_count
                 self.image_changed.emit(self.current_index)
-            return True
-        return False
+            result = True
+        
+        # 如果有重复文件，返回重复文件列表
+        if duplicate_paths:
+            return {"status": "has_duplicates", "duplicates": duplicate_paths, "valid_count": len(valid_paths), "success": result}
+        
+        return result
         
     def _validate_image_format(self, file_path):
         """验证图片格式"""

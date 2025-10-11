@@ -81,6 +81,9 @@ class MainWindow(QMainWindow):
         
         self.setup_ui()
         
+        # 启用窗口级别的拖放功能
+        self.setAcceptDrops(True)
+        
         # 初始化水印拖拽管理器
         self.drag_manager = WatermarkDragManager(self.preview_widget)
         self.drag_manager.set_watermark_widgets(self.text_watermark_widget, self.image_watermark_widget)
@@ -92,6 +95,100 @@ class MainWindow(QMainWindow):
         
         # 显示启动设置对话框
         self.show_startup_settings()
+        
+    def dragEnterEvent(self, event):
+        """窗口级别的拖拽进入事件处理"""
+        # 检查拖拽内容是否为文件
+        if event.mimeData().hasUrls():
+            # 检查文件是否为支持的图片格式
+            urls = event.mimeData().urls()
+            for url in urls:
+                file_path = url.toLocalFile()
+                if self.is_supported_image(file_path):
+                    event.acceptProposedAction()
+                    # 设置拖拽样式
+                    self.preview_widget.setProperty("dragEnabled", "true")
+                    self.preview_widget.style().unpolish(self.preview_widget)
+                    self.preview_widget.style().polish(self.preview_widget)
+                    return
+        
+        event.ignore()
+        
+    def dropEvent(self, event):
+        """窗口级别的拖拽释放事件处理"""
+        # 重置拖拽样式
+        self.preview_widget.setProperty("dragEnabled", "false")
+        self.preview_widget.style().unpolish(self.preview_widget)
+        self.preview_widget.style().polish(self.preview_widget)
+        
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            file_paths = []
+            
+            # 收集所有支持的图片文件
+            for url in urls:
+                file_path = url.toLocalFile()
+                if self.is_supported_image(file_path):
+                    file_paths.append(file_path)
+            
+            if file_paths:
+                print(f"拖拽导入图片: {file_paths}")
+                # 创建进度对话框
+                progress_dialog = QProgressDialog("正在导入图片并设置模板...", "取消", 0, len(file_paths) + 1, self)
+                progress_dialog.setWindowTitle("请稍等，正在导入图片...")
+                progress_dialog.setWindowModality(Qt.WindowModal)
+                progress_dialog.show()
+                
+                # 更新进度
+                progress_dialog.setValue(0)
+                progress_dialog.setLabelText("正在导入图片...")
+                QApplication.processEvents()
+                
+                result = self.image_manager.load_multiple_images(file_paths)
+                
+                # 更新进度
+                progress_dialog.setValue(len(file_paths))
+                progress_dialog.setLabelText("正在设置模板...")
+                QApplication.processEvents()
+                
+                if result is True:
+                    # 成功导入新图片
+                    count = self.image_manager.get_image_count()
+                    self.status_label.setText(f"已导入 {len(file_paths)} 张图片，当前共 {count} 张")
+                elif isinstance(result, dict) and result.get("status") == "has_duplicates":
+                    # 有重复文件
+                    duplicates = result.get("duplicates", [])
+                    valid_count = result.get("valid_count", 0)
+                    
+                    # 显示重复文件警告
+                    duplicate_names = [os.path.basename(path) for path in duplicates]
+                    duplicate_list = "\n".join([f"• {name}" for name in duplicate_names])
+                    
+                    msg = QMessageBox(self)
+                    msg.setIcon(QMessageBox.Warning)
+                    msg.setWindowTitle("重复文件检测")
+                    msg.setText(f"检测到 {len(duplicates)} 个重复文件，已跳过导入。")
+                    msg.setInformativeText(f"重复文件列表：\n{duplicate_list}")
+                    
+                    if valid_count > 0:
+                        msg.setDetailedText(f"已成功导入 {valid_count} 个新文件。")
+                    
+                    msg.exec_()
+                    
+                    if valid_count > 0:
+                        count = self.image_manager.get_image_count()
+                        self.status_label.setText(f"已导入 {valid_count} 张新图片，跳过 {len(duplicates)} 张重复图片，当前共 {count} 张")
+                    else:
+                        self.status_label.setText(f"所有拖拽的图片都已存在，未导入新图片")
+                else:
+                    QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
+                
+                # 完成进度条
+                progress_dialog.setValue(len(file_paths) + 1)
+            else:
+                QMessageBox.warning(self, "导入失败", "拖拽的文件不是支持的图片格式")
+        
+        event.acceptProposedAction()
         
     def _get_current_watermark_settings(self):
         """获取当前水印设置的内部方法，用于WatermarkDragManager的回调"""
@@ -168,6 +265,15 @@ class MainWindow(QMainWindow):
         self.import_folder_button.setMinimumHeight(35)
         layout.addWidget(self.import_folder_button)
         
+        # 导出按钮
+        self.export_current_button = QPushButton("导出此图片")
+        self.export_current_button.setMinimumHeight(35)
+        layout.addWidget(self.export_current_button)
+        
+        self.export_all_button = QPushButton("全部导出")
+        self.export_all_button.setMinimumHeight(35)
+        layout.addWidget(self.export_all_button)
+        
         # 模板按钮
         self.template_button = QPushButton("模板")
         self.template_button.setMinimumHeight(35)
@@ -204,10 +310,10 @@ class MainWindow(QMainWindow):
         """)
         self.preview_widget.setText("请导入图片进行预览\n\n支持拖拽图片文件到此区域")
         
-        # 启用拖拽功能
-        self.preview_widget.setAcceptDrops(True)
-        self.preview_widget.dragEnterEvent = self.dragEnterEvent
-        self.preview_widget.dropEvent = self.dropEvent
+        # 启用拖拽功能（现在在窗口级别处理）
+        # self.preview_widget.setAcceptDrops(True)
+        # self.preview_widget.dragEnterEvent = self.dragEnterEvent
+        # self.preview_widget.dropEvent = self.dropEvent
         
         # 安装事件过滤器以捕获鼠标事件用于水印拖拽
         # 注意：鼠标事件现在由WatermarkDragManager处理
@@ -340,6 +446,17 @@ class MainWindow(QMainWindow):
         """设置菜单栏"""
         menu_bar = self.menuBar()
         
+        # 导入菜单
+        import_menu = menu_bar.addMenu("导入")
+        
+        self.import_images_action = QAction("导入图片", self)
+        self.import_images_action.setShortcut("Ctrl+I")
+        import_menu.addAction(self.import_images_action)
+        
+        self.import_folder_action = QAction("导入文件夹", self)
+        self.import_folder_action.setShortcut("Ctrl+Shift+I")
+        import_menu.addAction(self.import_folder_action)
+        
         # 导出菜单
         export_menu = menu_bar.addMenu("导出")
         
@@ -376,6 +493,8 @@ class MainWindow(QMainWindow):
         # 导入按钮
         self.import_button.clicked.connect(self.import_images)
         self.import_folder_button.clicked.connect(self.import_folder)
+        self.export_current_button.clicked.connect(self.export_image)
+        self.export_all_button.clicked.connect(self.export_all_images)
         self.template_button.clicked.connect(self.show_template_manager)
         
         # 预览控制按钮
@@ -407,6 +526,8 @@ class MainWindow(QMainWindow):
         self.drag_manager.set_position_changed_callback(self.on_watermark_position_changed)
         
         # 菜单动作
+        self.import_images_action.triggered.connect(self.import_images)
+        self.import_folder_action.triggered.connect(self.import_folder)
         self.export_current_action.triggered.connect(self.export_image)
         self.export_all_action.triggered.connect(self.export_all_images)
         self.template_manager_action.triggered.connect(self.show_template_manager)
@@ -797,15 +918,24 @@ class MainWindow(QMainWindow):
             progress_dialog.setLabelText("正在设置模板...")
             QApplication.processEvents()
             
+            # 处理导入结果
+            success = False
+            has_duplicates = False
+            duplicates = []
+            valid_count = 0
+            
             if result is True:
                 # 成功导入新图片
-                count = self.image_manager.get_image_count()
-                self.status_label.setText(f"已导入 {len(file_paths)} 张图片，当前共 {count} 张")
+                success = True
             elif isinstance(result, dict) and result.get("status") == "has_duplicates":
                 # 有重复文件
+                has_duplicates = True
                 duplicates = result.get("duplicates", [])
                 valid_count = result.get("valid_count", 0)
-                
+                success = result.get("success", False)
+            
+            # 显示重复文件警告（如果有）
+            if has_duplicates:
                 # 显示重复文件警告
                 duplicate_names = [os.path.basename(path) for path in duplicates]
                 duplicate_list = "\n".join([f"• {name}" for name in duplicate_names])
@@ -820,12 +950,16 @@ class MainWindow(QMainWindow):
                     msg.setDetailedText(f"已成功导入 {valid_count} 个新文件。")
                 
                 msg.exec_()
-                
-                if valid_count > 0:
-                    count = self.image_manager.get_image_count()
+            
+            # 更新状态栏
+            if success or valid_count > 0:
+                count = self.image_manager.get_image_count()
+                if has_duplicates:
                     self.status_label.setText(f"已导入 {valid_count} 张新图片，跳过 {len(duplicates)} 张重复图片，当前共 {count} 张")
                 else:
-                    self.status_label.setText(f"所有选中的图片都已存在，未导入新图片")
+                    self.status_label.setText(f"已导入 {len(file_paths)} 张图片，当前共 {count} 张")
+            elif has_duplicates:
+                self.status_label.setText(f"所有选中的图片都已存在，未导入新图片")
             else:
                 QMessageBox.warning(self, "导入失败", "没有找到有效的图片文件")
             
@@ -858,15 +992,24 @@ class MainWindow(QMainWindow):
             progress_dialog.setLabelText("正在设置模板...")
             QApplication.processEvents()
             
+            # 处理导入结果
+            success = False
+            has_duplicates = False
+            duplicates = []
+            valid_count = 0
+            
             if result is True:
                 # 成功导入新图片
-                count = self.image_manager.get_image_count()
-                self.status_label.setText(f"已导入文件夹中的图片，当前共 {count} 张")
+                success = True
             elif isinstance(result, dict) and result.get("status") == "has_duplicates":
                 # 有重复文件
+                has_duplicates = True
                 duplicates = result.get("duplicates", [])
                 valid_count = result.get("valid_count", 0)
-                
+                success = result.get("success", False)
+            
+            # 显示重复文件警告（如果有）
+            if has_duplicates:
                 # 显示重复文件警告
                 duplicate_names = [os.path.basename(path) for path in duplicates]
                 duplicate_list = "\n".join([f"• {name}" for name in duplicate_names])
@@ -881,12 +1024,16 @@ class MainWindow(QMainWindow):
                     msg.setDetailedText(f"已成功导入 {valid_count} 个新文件。")
                 
                 msg.exec_()
-                
-                if valid_count > 0:
-                    count = self.image_manager.get_image_count()
+            
+            # 更新状态栏
+            if success or valid_count > 0:
+                count = self.image_manager.get_image_count()
+                if has_duplicates:
                     self.status_label.setText(f"已导入 {valid_count} 张新图片，跳过 {len(duplicates)} 张重复图片，当前共 {count} 张")
                 else:
-                    self.status_label.setText(f"文件夹中的所有图片都已存在，未导入新图片")
+                    self.status_label.setText(f"已导入文件夹中的图片，当前共 {count} 张")
+            elif has_duplicates:
+                self.status_label.setText(f"文件夹中的所有图片都已存在，未导入新图片")
             else:
                 QMessageBox.warning(self, "导入失败", "文件夹中没有找到有效的图片文件")
             
