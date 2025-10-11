@@ -488,10 +488,10 @@ class ConfigManager:
                     "settings": template_settings
                 }
             else:
-                logging.error(f"无法加载默认模板 '{template_name}'")
+                # logging.error(f"无法加载默认模板 '{template_name}'")
                 return None
         except Exception as e:
-            logging.error(f"获取默认模板时发生错误: {str(e)}")
+            # logging.error(f"获取默认模板时发生错误: {str(e)}")
             return None
     
     def set_last_watermark_settings(self, watermark_settings):

@@ -26,29 +26,29 @@ class TextWatermarkWidget(QWidget):
         super().__init__()
         
         # 默认水印设置
-        self.watermark_text = ""  # 空字符串，不显示默认水印文本
+        self.watermark_text = "滚滚长江东逝水"  # 空字符串，不显示默认水印文本
         self.font_family = "Microsoft YaHei"  # 使用支持中文的字体
         self.font_size = 64 
-        self.font_bold = False  # 粗体
+        self.font_bold = True  # 粗体
         self.font_italic = False  # 斜体
         # 确保文字颜色的亮度value分量为255（HSV模型中的V值）
-        self.font_color = QColor(0, 0, 255)  # 蓝色，H=240, S=100%, V=100% (255)
+        self.font_color = QColor(255, 0, 0)  # 红色，H=0, S=100%, V=100% (255)
         self.opacity = 80  # 透明度百分比
-        self.position = (0.5, 0.5)  # 位置
+        self.position = (100, 100)  # 位置
         self.watermark_x = 0  # 水印X坐标
         self.watermark_y = 0  # 水印Y坐标
-        self.rotation = 0  # 旋转角度
-        self.enable_shadow = False
-        self.enable_outline = False
+        self.rotation = 36  # 旋转角度
+        self.enable_shadow = True
+        self.enable_outline = True
         # 阴影和描边详细设置
         # 确保描边颜色的亮度value分量为255
-        self.outline_color = QColor(0, 0, 0)  # 黑色，这里H=0, S=0%, V=0%，但我们会在选择时确保V=255
-        self.outline_width = 1  # 描边宽度默认为1
-        self.outline_offset = (0, 0)  # 描边偏移默认为(0,0)
+        self.outline_color = QColor(255, 255, 0)  # 黑色，这里H=0, S=0%, V=0%，但我们会在选择时确保V=255
+        self.outline_width = 2  # 描边宽度默认为2
+        self.outline_offset = (0, 5)  # 描边偏移默认为(0,5)
         # 确保阴影颜色的亮度value分量为255
-        self.shadow_color = QColor(0, 0, 0)  # 黑色，这里H=0, S=0%, V=0%，但我们会在选择时确保V=255
-        self.shadow_offset = (3, 3)  # 阴影偏移默认为(3,3)
-        self.shadow_blur = 3  # 阴影模糊半径默认为3
+        self.shadow_color = QColor(0, 0, 255)  # 蓝色，这里H=240, S=100%, V=100% (255)
+        self.shadow_offset = (10, 10)  # 阴影偏移默认为(3,3)
+        self.shadow_blur = 2  # 阴影模糊半径默认为3
         
         # 原图尺寸和压缩比例
         self.original_width = 0
