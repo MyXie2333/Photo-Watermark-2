@@ -1179,6 +1179,29 @@ class MainWindow(QMainWindow):
         # self.mouse_coord_label.setText("鼠标坐标: (0, 0)")
         # 水印坐标显示已在update_preview_with_watermark中更新
         
+        # 执行虚拟拖拽操作以确保UI同步
+        if self.drag_manager:
+            # 重置拖拽管理器状态
+            self.drag_manager.reset()
+            
+            # 获取当前水印设置
+            current_watermark_settings = self.image_manager.get_current_watermark_settings()
+            if current_watermark_settings:
+                # 获取水印位置
+                position = current_watermark_settings.get("position", (0, 0))
+                if isinstance(position, tuple) and len(position) == 2:
+                    # 模拟拖拽开始
+                    if self.drag_manager.drag_started_callback:
+                        self.drag_manager.drag_started_callback()
+                    
+                    # 模拟位置变化
+                    if self.drag_manager.position_changed_callback:
+                        self.drag_manager.position_changed_callback(position[0], position[1])
+                    
+                    # 模拟拖拽结束
+                    if self.drag_manager.drag_stopped_callback:
+                        self.drag_manager.drag_stopped_callback()
+        
     def on_image_changed(self, index):
         """当前图片改变"""
         # 检查是否有新图片需要添加到缩略图列表
