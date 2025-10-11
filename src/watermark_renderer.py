@@ -735,6 +735,27 @@ class WatermarkRenderer:
             print(f"[DEBUG] 字体 {font_name} 被识别为中文字体，强制使用手动加粗")
             return False
         
+        # 中文字体文件映射（包含粗体和斜体变体）
+        chinese_font_files = {
+            "Microsoft YaHei": {
+                "regular": ["msyh.ttc", "msyh.ttf"],
+                "bold": ["msyhbd.ttc", "msyhbd.ttf"],
+                "light": ["msyhl.ttc"]
+            },
+            "SimHei": {
+                "regular": ["simhei.ttf"]
+            },
+            "KaiTi": {
+                "regular": ["simkai.ttf", "STKAITI.TTF"]
+            },
+            "FangSong": {
+                "regular": ["simfang.ttf"]
+            },
+            "Arial Unicode MS": {
+                "regular": ["arialuni.ttf"]
+            }
+        }
+        
         # 检查英文字体文件映射
         english_font_files = {
             "Arial": ["arial.ttf", "arialbd.ttf", "arialbi.ttf", "ariali.ttf"],

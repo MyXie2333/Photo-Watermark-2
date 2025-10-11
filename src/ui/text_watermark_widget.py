@@ -125,7 +125,7 @@ class TextWatermarkWidget(QWidget):
         text_layout.addWidget(QLabel("字体大小:"), 2, 0)
         font_size_layout = QHBoxLayout()
         self.font_size_spin = QSpinBox()
-        self.font_size_spin.setRange(8, 200)
+        self.font_size_spin.setRange(8, 400)
         self.font_size_spin.setValue(self.font_size)
         font_size_layout.addWidget(self.font_size_spin)
         font_size_layout.addWidget(QLabel("px"))
