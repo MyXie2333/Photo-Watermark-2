@@ -2766,8 +2766,8 @@ class MainWindow(QMainWindow):
                     # 直接使用从get_default_template返回的settings
                     self.load_watermark_template(default_template['type'], default_template['settings'])
             elif selected_option == "template_manager":
-                # 用户选择了模板管理，已经在对话框中处理过了
-                pass
+                # 用户选择了模板管理，打开模板管理对话框
+                self.show_template_manager()
         else:
             # 用户取消了对话框，检查是否需要显示启动设置对话框
             if self.config_manager.get_load_last_settings():

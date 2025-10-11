@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
                             QInputDialog, QWidget, QRadioButton, QButtonGroup, QSpacerItem,
                             QSizePolicy, QFrame, QFileDialog, QComboBox, QDialogButtonBox)
 from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt as QtCore_Qt
 from PyQt5.QtGui import QColor
 from config_manager import get_config_manager
 
@@ -523,6 +524,8 @@ class StartupSettingsDialog(QDialog):
         """初始化UI"""
         self.setWindowTitle("启动设置")
         self.setMinimumSize(400, 200)
+        # 设置对话框始终保持在最上层，并移除右上角的"？"按钮
+        self.setWindowFlags(self.windowFlags() & ~QtCore_Qt.WindowContextHelpButtonHint | QtCore_Qt.WindowStaysOnTopHint)
         
         # 主布局
         layout = QVBoxLayout(self)
@@ -579,20 +582,8 @@ class StartupSettingsDialog(QDialog):
     
     def on_template_manager_selected(self, checked):
         """模板管理选项被选中时的处理"""
-        if checked:
-            # 打开模板管理对话框
-            template_dialog = TemplateManagerDialog(self.config_manager, self.parent())
-            template_dialog.exec_()
-            
-            # 在用户成功选择并加载模板后，直接接受对话框并进入主界面
-            # 使用默认选项，避免用户再次选择
-            self.load_default_radio.setChecked(True)
-            
-            # 保存这个设置
-            self.config_manager.set_load_last_settings(False)
-            
-            # 直接接受对话框，进入主界面
-            self.accept()
+        # 不再立即打开模板管理对话框，而是在点击确定按钮后再打开
+        pass
     
     def get_selected_option(self):
         """获取选中的选项"""
@@ -605,8 +596,24 @@ class StartupSettingsDialog(QDialog):
     
     def accept(self):
         """确定按钮点击事件"""
-        # 保存设置
-        load_last = self.load_last_radio.isChecked() and self.load_last_radio.isEnabled()
-        self.config_manager.set_load_last_settings(load_last)
-        
-        super().accept()
+        # 检查是否选择了"进入模板管理选择其它模板选项"
+        if self.template_manager_radio.isChecked():
+            # 先调用super().accept()关闭当前对话框
+            super().accept()
+            
+            # 打开模板管理对话框
+            template_dialog = TemplateManagerDialog(self.config_manager, self.parent())
+            template_dialog.exec_()
+            
+            # 在用户成功选择并加载模板后，保存设置并进入主界面
+            # 使用默认选项，避免用户再次选择
+            self.load_default_radio.setChecked(True)
+            
+            # 保存这个设置
+            self.config_manager.set_load_last_settings(False)
+        else:
+            # 保存设置
+            load_last = self.load_last_radio.isChecked() and self.load_last_radio.isEnabled()
+            self.config_manager.set_load_last_settings(load_last)
+            
+            super().accept()
